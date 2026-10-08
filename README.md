@@ -84,3 +84,35 @@ docker-compose up --build
 
 ## 4. Financial & Safety Disclaimer
 *AlphaQuant AI is designed strictly for research, educational, and informational purposes. Machine-learning models, conformal intervals, and sentiment scores are subject to market volatility and uncertainty. Past model accuracy does not guarantee future financial returns. This platform does not provide licensed investment, financial, or trading advice.*
+
+
+.env file
+# Environment Configuration for AI Stock Intelligence Platform
+
+# Server & Runtime
+PORT=3000
+NODE_ENV=development
+BACKEND_URL=http://localhost:8000
+FRONTEND_URL=http://localhost:5173
+
+# MongoDB Configuration
+MONGODB_URI=mongodb+srv://gaurigupta1016_db_user:<m8euvlIgRMRxJJv>@cluster0.scs3ggo.mongodb.net/?appName=Cluster0
+DATABASE_NAME=ai_stock_intelligence
+
+# Security & Authentication
+JWT_SECRET=b2c7e4693c4a2544350fc473f8b465f8cb711b31b66f99c115386d47914dc41541998d66e49ce9e93572eb1052614e0a282377cf4640c66ed003eee26b5471a5
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# External Financial Data APIs (Optional / Enhanced)
+# System works out of the box with built-in Yahoo Finance engine and demo fallbacks
+NEWS_API_KEY=pub_762d2d753cb64c08990fab04c2237b61
+FRED_API_KEY=ba44f8ac56466d42be4e76f45784d3ee
+GOOGLE_FACT_CHECK_API_KEY=AIzaSyCB_eF1dk404BhFrMLtbE1gYlAmRv78a6Y
+ALPHA_VANTAGE_API_KEY=43FMA88PD7QYKC6P
+
+# Model Configuration
+CONFIDENCE_LEVEL=0.90
+REGIME_COMPONENTS=2
+DRIFT_P_VALUE_THRESHOLD=0.05
+RANDOM_SEED=42
