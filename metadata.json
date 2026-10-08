@@ -1,0 +1,6 @@
+{
+  "name": "AlphaQuant AI - Stock Intelligence Platform",
+  "description": "Enterprise-grade AI Stock Intelligence Platform featuring Conformal Prediction intervals, HMM Market Regime Detection, Multimodal News & FinBERT Sentiment Fusion, and Kolmogorov-Smirnov Concept Drift Monitoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

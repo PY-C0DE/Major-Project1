@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # Full-Stack Application (Express + Vite + ML Services)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://mongo:27017
+      - DATABASE_NAME=ai_stock_intelligence
+      - JWT_SECRET=super_secret_jwt_alphaquant_key_replace_in_production_32char_min
+    depends_on:
+      - mongo
+    restart: unless-stopped
+
+  # MongoDB Persistence Database
+  mongo:
+    image: mongo:7.0
+    container_name: alphaquant_mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:
