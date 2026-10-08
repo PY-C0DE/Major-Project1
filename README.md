@@ -49,10 +49,18 @@ $$\hat{C}(X_{n+1}) = [\hat{y}_{n+1} - \hat{q}_{1-\alpha}, \; \hat{y}_{n+1} + \ha
 ### Full-Stack Run (Instant UI + Live Financial APIs on port 3000)
 ```bash
 # 1. Install dependencies
-npm install
+npm install #or npm install --legacy-peer-deps
 
 # 2. Run full-stack dev server
 npm run dev
+
+""" If a Vite React-Is error occurs
+npm install react-is --force
+npx vite --force"""
+
+""" If you have Bun installed, you can simply run:
+bun install
+bun run dev"""
 ```
 Open **http://localhost:3000** in your browser.
 
@@ -62,6 +70,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+cd ..
 uvicorn backend.app.main:app --reload --port 8000
 ```
 Swagger API docs: **http://localhost:8000/docs**
