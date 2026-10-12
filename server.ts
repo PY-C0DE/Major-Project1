@@ -18,7 +18,8 @@ import {
   getStockQuote,
   getHistoricalData,
   searchStocks,
-  TICKER_CATALOG
+  TICKER_CATALOG,
+  resolveTickerOrName
 } from './src/server/services/stockService';
 import { detectMarketRegime } from './src/server/math/hmmRegime';
 import { runConformalPrediction } from './src/server/math/conformal';
@@ -215,15 +216,20 @@ app.get('/api/auth/me', authenticateToken, (req: AuthenticatedRequest, res: Resp
 // 2. STOCK MARKET & HISTORICAL DATA ENDPOINTS
 // -------------------------------------------------------------
 
-app.get('/api/stocks/search', (req: Request, res: Response) => {
-  const q = (req.query.q as string) || '';
-  const results = searchStocks(q);
-  return res.json(results);
+app.get('/api/stocks/search', async (req: Request, res: Response) => {
+  try {
+    const q = (req.query.q as string) || '';
+    const results = await searchStocks(q);
+    return res.json(results);
+  } catch (error: any) {
+    console.error('Error searching stocks:', error);
+    return res.status(500).json({ error: 'Failed to search stocks.' });
+  }
 });
 
 app.get('/api/stocks/:ticker', async (req: Request, res: Response) => {
   try {
-    const ticker = req.params.ticker.toUpperCase();
+    const ticker = await resolveTickerOrName(req.params.ticker);
     const quote = await getStockQuote(ticker);
     return res.json(quote);
   } catch (error: any) {
@@ -234,7 +240,7 @@ app.get('/api/stocks/:ticker', async (req: Request, res: Response) => {
 
 app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
   try {
-    const ticker = req.params.ticker.toUpperCase();
+    const ticker = await resolveTickerOrName(req.params.ticker);
     const days = parseInt((req.query.days as string) || '250', 10);
     const history = await getHistoricalData(ticker, days);
     return res.json(history);
@@ -250,7 +256,7 @@ app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
 
 app.get('/api/news/:ticker', async (req: Request, res: Response) => {
   try {
-    const ticker = req.params.ticker.toUpperCase();
+    const ticker = await resolveTickerOrName(req.params.ticker);
     const quote = await getStockQuote(ticker);
     const news = getNewsForTicker(ticker, quote.name);
     return res.json(news);
@@ -262,7 +268,7 @@ app.get('/api/news/:ticker', async (req: Request, res: Response) => {
 
 app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
   try {
-    const ticker = req.params.ticker.toUpperCase();
+    const ticker = await resolveTickerOrName(req.params.ticker);
     const quote = await getStockQuote(ticker);
     const news = getNewsForTicker(ticker, quote.name);
 
@@ -309,7 +315,7 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
 
 app.get('/api/regime/:ticker', async (req: Request, res: Response) => {
   try {
-    const ticker = req.params.ticker.toUpperCase();
+    const ticker = await resolveTickerOrName(req.params.ticker);
     const history = await getHistoricalData(ticker, 250);
     const regime = detectMarketRegime(history, ticker);
     return res.json(regime);
@@ -325,12 +331,13 @@ app.get('/api/regime/:ticker', async (req: Request, res: Response) => {
 
 app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
   try {
-    const ticker = req.params.ticker.toUpperCase();
+    const ticker = await resolveTickerOrName(req.params.ticker);
     const horizon = parseInt((req.query.horizon as string) || '1', 10);
     const confidence = parseFloat((req.query.confidence as string) || '0.90');
     const history = await getHistoricalData(ticker, 250);
     const regime = detectMarketRegime(history, ticker);
-    const news = getNewsForTicker(ticker, ticker);
+    const quote = await getStockQuote(ticker);
+    const news = getNewsForTicker(ticker, quote.name);
     const avgSentiment = news.reduce((acc, n) => acc + n.sentimentScore, 0) / (news.length || 1);
 
     const prediction = runConformalPrediction(
@@ -354,7 +361,7 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
     const { ticker } = req.body;
     if (!ticker) return res.status(400).json({ error: 'Ticker symbol is required.' });
 
-    const sym = ticker.toUpperCase();
+    const sym = await resolveTickerOrName(ticker);
     const history = await getHistoricalData(sym, 250);
     const regime = detectMarketRegime(history, sym);
     const news = getNewsForTicker(sym, sym);
@@ -396,7 +403,7 @@ app.get('/api/predictions/history', authenticateToken, (req: AuthenticatedReques
 
 app.get('/api/drift/:ticker', async (req: Request, res: Response) => {
   try {
-    const ticker = req.params.ticker.toUpperCase();
+    const ticker = await resolveTickerOrName(req.params.ticker);
     const history = await getHistoricalData(ticker, 250);
     const drift = detectConceptDrift(history, ticker);
     return res.json(drift);
@@ -412,7 +419,8 @@ app.get('/api/drift/:ticker', async (req: Request, res: Response) => {
 
 app.get('/api/model/metrics', async (req: Request, res: Response) => {
   try {
-    const ticker = ((req.query.ticker as string) || 'RELIANCE.NS').toUpperCase();
+    const rawTicker = (req.query.ticker as string) || 'RELIANCE.NS';
+    const ticker = await resolveTickerOrName(rawTicker);
     const history = await getHistoricalData(ticker, 250);
     const evaluation = runModelEvaluation(history, ticker);
     return res.json(evaluation);
@@ -459,7 +467,8 @@ app.get('/api/model/health', async (req: Request, res: Response) => {
 
 app.get('/api/strategy/backtest', async (req: Request, res: Response) => {
   try {
-    const ticker = ((req.query.ticker as string) || 'RELIANCE.NS').toUpperCase();
+    const rawTicker = (req.query.ticker as string) || 'RELIANCE.NS';
+    const ticker = await resolveTickerOrName(rawTicker);
     const strategy = (req.query.strategy as any) || 'conformal_reversion';
     const history = await getHistoricalData(ticker, 250);
     const backtestResult = runStrategyBacktest(history, ticker, strategy);
@@ -542,7 +551,7 @@ app.post('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, 
       return res.status(400).json({ error: 'Ticker, quantity, and avgBuyPrice are required.' });
     }
 
-    const sym = ticker.toUpperCase();
+    const sym = await resolveTickerOrName(ticker);
     const quote = await getStockQuote(sym);
     const qty = parseFloat(quantity);
     const buyPrice = parseFloat(avgBuyPrice);
@@ -739,17 +748,19 @@ app.get('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, r
   }
 });
 
-app.post('/api/watchlist', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
   const { ticker } = req.body;
   if (!ticker) return res.status(400).json({ error: 'Ticker symbol is required.' });
-  const updated = db.addToWatchlist(userId, ticker.toUpperCase());
+  const sym = await resolveTickerOrName(ticker);
+  const updated = db.addToWatchlist(userId, sym);
   return res.json({ success: true, watchlist: updated });
 });
 
-app.delete('/api/watchlist/:ticker', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.delete('/api/watchlist/:ticker', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
-  const updated = db.removeFromWatchlist(userId, req.params.ticker.toUpperCase());
+  const sym = await resolveTickerOrName(req.params.ticker);
+  const updated = db.removeFromWatchlist(userId, sym);
   return res.json({ success: true, watchlist: updated });
 });
 
@@ -763,15 +774,16 @@ app.get('/api/alerts', authenticateToken, (req: AuthenticatedRequest, res: Respo
   return res.json(alerts);
 });
 
-app.post('/api/alerts', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
   const { ticker, type, threshold, label } = req.body;
   if (!ticker || !type || !label) {
     return res.status(400).json({ error: 'Ticker, type, and label are required.' });
   }
+  const sym = await resolveTickerOrName(ticker);
   const newAlert = {
     id: `alert-${Date.now()}`,
-    ticker: ticker.toUpperCase(),
+    ticker: sym,
     type,
     threshold: threshold ? parseFloat(threshold) : undefined,
     label,

@@ -20,6 +20,7 @@ import { StockQuote, ConformalPrediction, MarketRegime, ConceptDriftResult, Port
 import { ConformalPredictionCard } from '../components/ConformalPredictionCard';
 import { MarketRegimeCard } from '../components/MarketRegimeCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -188,13 +189,27 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
         </div>
       </div>
 
-      {/* 3. Quick Watchlist & Ticker Selector Bar */}
-      <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
-        <div className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 mb-3 flex items-center justify-between">
-          <span>Active Asset Focus</span>
-          <span className="text-slate-400 text-[11px]">Select to inspect forecasts</span>
+      {/* 3. Quick Watchlist & Company Search Bar */}
+      <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-mono uppercase text-slate-500 dark:text-slate-400 block font-semibold">
+              Active Company Focus & Live Forecasts
+            </span>
+            <span className="text-slate-400 text-[11px]">Type any company name or select a popular stock below</span>
+          </div>
+          <div className="w-full sm:w-72">
+            <CompanySearchCombobox
+              compact
+              placeholder="Search company (e.g. Tata, Nvidia)..."
+              onSelect={(item) => {
+                setSelectedTicker(item.ticker);
+                onSelectTicker(item.ticker);
+              }}
+            />
+          </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
           {quickWatch.map(item => (
             <button
               key={item.ticker}

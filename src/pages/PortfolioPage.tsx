@@ -52,8 +52,9 @@ import {
   Cell
 } from 'recharts';
 import { api } from '../services/api';
-import { PortfolioHolding, PortfolioOptimizationResult, RebalanceSuggestion } from '../types';
+import { PortfolioHolding, PortfolioOptimizationResult, RebalanceSuggestion, StockSearchResult } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -86,6 +87,7 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
 
   // Form State
   const [tickerInput, setTickerInput] = useState(initialTickerToAdd || '');
+  const [selectedCompany, setSelectedCompany] = useState<StockSearchResult | null>(null);
   const [qtyInput, setQtyInput] = useState('');
   const [priceInput, setPriceInput] = useState('');
   const [notesInput, setNotesInput] = useState('');
@@ -1237,15 +1239,36 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
 
             <form onSubmit={handleAddHolding} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-600 dark:text-slate-400 font-mono mb-1">Ticker Symbol (NSE / US)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. RELIANCE.NS, TCS.NS, NVDA"
-                  value={tickerInput}
-                  onChange={e => setTickerInput(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-900 dark:text-white font-mono uppercase focus:outline-none focus:border-cyan-500"
+                <label className="block text-slate-600 dark:text-slate-400 font-mono mb-1">
+                  Company Name or Ticker (Type to search)
+                </label>
+                <CompanySearchCombobox
+                  initialValue={tickerInput}
+                  placeholder="Type company name (e.g. Reliance, Nvidia, Apple)..."
+                  onSelect={(item) => {
+                    setTickerInput(item.ticker);
+                    setSelectedCompany(item);
+                    if (item.price && !priceInput) {
+                      setPriceInput(item.price.toString());
+                    }
+                  }}
                 />
+                {selectedCompany && (
+                  <div className="mt-2 p-2 rounded-lg bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800/60 flex items-center justify-between text-xs">
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white">{selectedCompany.name}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-mono">
+                        {selectedCompany.ticker} · {selectedCompany.exchange}
+                      </span>
+                    </div>
+                    {selectedCompany.price !== undefined && (
+                      <span className="font-mono font-bold text-cyan-700 dark:text-cyan-300">
+                        {selectedCompany.currency === 'INR' || selectedCompany.ticker.endsWith('.NS') ? '₹' : '$'}
+                        {selectedCompany.price.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

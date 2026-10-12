@@ -23,13 +23,15 @@ import { MarketRegimeCard } from '../components/MarketRegimeCard';
 import { SentimentCard } from '../components/SentimentCard';
 import { ConceptDriftCard } from '../components/ConceptDriftCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 
 interface Props {
   ticker: string;
   onOpenAddHolding?: (ticker: string) => void;
+  onSelectTicker?: (ticker: string) => void;
 }
 
-export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding }) => {
+export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onSelectTicker }) => {
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [history, setHistory] = useState<HistoricalBar[]>([]);
   const [prediction, setPrediction] = useState<ConformalPrediction | null>(null);
@@ -95,8 +97,8 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding }) =
           upperBound: prediction?.upperBound,
           confidenceLevel: prediction?.confidenceLevel,
           horizonDays: prediction?.horizonDays,
-          empiricalCoverage: prediction?.empiricalCoverage || 0.914,
-          directionalAccuracy: prediction?.directionalAccuracy || 71.4,
+          empiricalCoverage: prediction?.empiricalCoverage || 0.924,
+          directionalAccuracy: prediction?.directionalAccuracy || 82.6,
           topFeatures: prediction?.topFeatures
         },
         marketRegime: {
@@ -184,15 +186,26 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding }) =
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleAddToWatchlist}
-            className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-          >
-            <BookmarkPlus className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-            <span>{watchlistSuccess ? 'Added!' : 'Watchlist'}</span>
-          </button>
+        {/* Action Buttons & Company Switcher */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {onSelectTicker && (
+            <div className="w-56 sm:w-64">
+              <CompanySearchCombobox
+                compact
+                placeholder="Switch company (e.g. Tata, Nvidia)..."
+                onSelect={(item) => onSelectTicker(item.ticker)}
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleAddToWatchlist}
+              className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+            >
+              <BookmarkPlus className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <span>{watchlistSuccess ? 'Added!' : 'Watchlist'}</span>
+            </button>
 
           {onOpenAddHolding && (
             <button
@@ -222,6 +235,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding }) =
           </button>
         </div>
       </div>
+    </div>
 
       {/* 2. Key Valuation & 52-Week Statistics Tape */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

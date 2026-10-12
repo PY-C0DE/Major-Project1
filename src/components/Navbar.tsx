@@ -26,6 +26,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { AvatarModal } from './AvatarModal';
+import { CompanySearchCombobox } from './CompanySearchCombobox';
 import avatarImg from '../assets/images/avatar_lead_quant_1791318574843.jpg';
 
 interface NavbarProps {
@@ -142,57 +143,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Zone 3: 1-2 primary actions + Theme Toggle */}
         <div className="flex items-center gap-2.5">
-          {/* Quick Search Bar (When Authenticated) */}
-          {isAuthenticated && (
-            <div className="relative">
-              <div className="flex items-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 focus-within:border-cyan-500/60 transition-colors w-32 sm:w-52">
-                <Search className="w-3.5 h-3.5 text-slate-400 mr-2 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Search Ticker..."
-                  value={searchQuery}
-                  onChange={e => {
-                    setSearchQuery(e.target.value);
-                    setShowSearchDropdown(true);
-                  }}
-                  onFocus={() => setShowSearchDropdown(true)}
-                  className="w-full bg-transparent text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
-                />
-              </div>
-
-              {/* Auto-suggest dropdown */}
-              {showSearchDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowSearchDropdown(false)}
-                  />
-                  <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl py-1 z-20 text-xs">
-                    <div className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                      Suggested Tickers
-                    </div>
-                    {popularTickers
-                      .filter(
-                        t =>
-                          !searchQuery ||
-                          t.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          t.name.toLowerCase().includes(searchQuery.toLowerCase())
-                      )
-                      .map(item => (
-                        <button
-                          key={item.ticker}
-                          onClick={() => handleSelect(item.ticker)}
-                          className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 flex items-center justify-between text-slate-800 dark:text-slate-200 cursor-pointer"
-                        >
-                          <span className="font-semibold text-cyan-600 dark:text-cyan-400">{item.ticker}</span>
-                          <span className="text-slate-500 truncate max-w-[120px] text-right">{item.name}</span>
-                        </button>
-                      ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          {/* Company Search Combobox (Search by Company Name or Ticker) */}
+          <div className="w-44 sm:w-64">
+            <CompanySearchCombobox
+              compact
+              placeholder="Search company (e.g. Reliance, Apple)..."
+              onSelect={(item) => handleSelect(item.ticker)}
+            />
+          </div>
 
           {/* Theme Toggle Button (Sun / Moon) */}
           <button

@@ -41,14 +41,33 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
     async function loadAllQuotes() {
       setLoading(true);
       const map: Record<string, StockQuote> = {};
-      for (const t of TICKER_CATALOG) {
-        try {
-          const q = await api.getQuote(t.ticker);
-          map[t.ticker] = q;
-        } catch {}
-      }
-      setQuotes(map);
+      const initialBatch = TICKER_CATALOG.slice(0, 16);
+      
+      await Promise.all(
+        initialBatch.map(async t => {
+          try {
+            const q = await api.getQuote(t.ticker);
+            map[t.ticker] = q;
+          } catch {}
+        })
+      );
+      setQuotes({ ...map });
       setLoading(false);
+
+      // Load remaining in chunks
+      const remaining = TICKER_CATALOG.slice(16);
+      for (let i = 0; i < remaining.length; i += 6) {
+        const chunk = remaining.slice(i, i + 6);
+        await Promise.all(
+          chunk.map(async t => {
+            try {
+              const q = await api.getQuote(t.ticker);
+              map[t.ticker] = q;
+            } catch {}
+          })
+        );
+        setQuotes(prev => ({ ...prev, ...map }));
+      }
     }
     loadAllQuotes();
   }, []);
@@ -77,7 +96,12 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      return t.ticker.toLowerCase().includes(q) || t.name.toLowerCase().includes(q);
+      return (
+        t.ticker.toLowerCase().includes(q) ||
+        t.name.toLowerCase().includes(q) ||
+        (t.aliases && t.aliases.some((a: string) => a.toLowerCase().includes(q))) ||
+        (t.sector && t.sector.toLowerCase().includes(q))
+      );
     }
     return true;
   });

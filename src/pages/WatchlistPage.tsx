@@ -19,6 +19,7 @@ import {
 import { api } from '../services/api';
 import { WatchlistItem } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -87,23 +88,21 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
           </p>
         </div>
 
-        {/* Quick Add Form */}
-        <form onSubmit={handleAddTicker} className="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="Add Ticker (e.g. INFY.NS)"
-            value={newTickerInput}
-            onChange={e => setNewTickerInput(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white font-mono uppercase focus:outline-none focus:border-cyan-500 w-44"
+        {/* Quick Add Company to Watchlist */}
+        <div className="w-64 sm:w-80">
+          <CompanySearchCombobox
+            compact
+            placeholder="Add company (e.g. Infosys, Apple)..."
+            onSelect={async (item) => {
+              try {
+                await api.addToWatchlist(item.ticker);
+                loadWatchlist();
+              } catch (e) {
+                console.error(e);
+              }
+            }}
           />
-          <button
-            type="submit"
-            className="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-sm"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add</span>
-          </button>
-        </form>
+        </div>
       </div>
 
       {/* Filter & Search Bar */}

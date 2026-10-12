@@ -135,6 +135,7 @@ function AppContent() {
               <StockDetailPage
                 ticker={selectedTicker}
                 onOpenAddHolding={handleOpenAddHolding}
+                onSelectTicker={handleSelectTicker}
               />
             )}
 
@@ -161,6 +162,7 @@ function AppContent() {
               <StockDetailPage
                 ticker={selectedTicker}
                 onOpenAddHolding={handleOpenAddHolding}
+                onSelectTicker={handleSelectTicker}
               />
             )}
 

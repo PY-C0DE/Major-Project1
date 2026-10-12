@@ -18,6 +18,16 @@ export interface StockQuote {
   lastUpdated: string;
 }
 
+export interface StockSearchResult {
+  ticker: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  price?: number;
+  changePercent?: number;
+  sector?: string;
+}
+
 export interface HistoricalBar {
   date: string;
   open: number;

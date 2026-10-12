@@ -20,6 +20,7 @@ import {
 import { api } from '../services/api';
 import { AlertRule } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 
 export const AlertsPage: React.FC = () => {
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
@@ -203,13 +204,16 @@ export const AlertsPage: React.FC = () => {
 
             <form onSubmit={handleCreateAlert} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-400 font-mono mb-1">Target Symbol</label>
-                <input
-                  type="text"
-                  required
-                  value={ticker}
-                  onChange={e => setTicker(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white font-mono uppercase focus:outline-none focus:border-cyan-500"
+                <label className="block text-slate-400 font-mono mb-1">Target Company or Symbol</label>
+                <CompanySearchCombobox
+                  initialValue={ticker}
+                  placeholder="Search company (e.g. Reliance, Nvidia, Apple)..."
+                  onSelect={(item) => {
+                    setTicker(item.ticker);
+                    if (item.price && !threshold) {
+                      setThreshold((item.price * 1.05).toFixed(2));
+                    }
+                  }}
                 />
               </div>
 
