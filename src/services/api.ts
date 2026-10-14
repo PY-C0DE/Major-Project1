@@ -83,6 +83,32 @@ export const api = {
     return res.json();
   },
 
+  async updateProfile(updates: Partial<UserProfile>): Promise<UserProfile> {
+    const res = await fetch(`${API_BASE}/auth/profile`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(updates)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to update profile');
+    }
+    return res.json();
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${API_BASE}/auth/change-password`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to change password');
+    }
+    return res.json();
+  },
+
   // Stocks & History
   async searchStocks(query: string) {
     const res = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(query)}`);

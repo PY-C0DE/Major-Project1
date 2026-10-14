@@ -20,8 +20,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [theme, setThemeState] = useState<Theme>(() => {
     const saved = localStorage.getItem('alphaquant_theme') as Theme | null;
     if (saved === 'light' || saved === 'dark') return saved;
-    // Default to dark mode for institutional trading aesthetic
-    return 'dark';
+    // Pleasant Light Mode default as requested
+    return 'light';
   });
 
   useEffect(() => {

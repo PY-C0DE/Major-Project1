@@ -160,7 +160,7 @@ export const AccountPage: React.FC = () => {
     showToast('Platform & quantitative preferences updated.');
   };
 
-  const handleUpdatePassword = (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword) {
       showError('Please enter your current password.');
@@ -175,10 +175,15 @@ export const AccountPage: React.FC = () => {
       return;
     }
 
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    showToast('Your password has been changed securely.');
+    try {
+      await api.changePassword(currentPassword, newPassword);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      showToast('Your password has been changed securely and saved.');
+    } catch (err: any) {
+      showError(err.message || 'Failed to change password. Please verify current password.');
+    }
   };
 
   const handleToggle2FA = () => {
@@ -638,15 +643,15 @@ export const AccountPage: React.FC = () => {
                       : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
-                  <div className="p-2 rounded-lg bg-slate-900 text-cyan-400 border border-slate-800 shrink-0">
+                  <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-cyan-400 border border-slate-200 dark:border-slate-800 shrink-0">
                     <Moon className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="font-bold text-slate-900 dark:text-white text-xs">
-                      Dark Slate Mode (Recommended)
+                      Dark Slate Mode
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                      High-contrast institutional terminal theme optimized for trading screens and reduced eye fatigue.
+                      High-contrast institutional terminal theme optimized for trading screens.
                     </p>
                   </div>
                 </button>
@@ -656,16 +661,16 @@ export const AccountPage: React.FC = () => {
                   onClick={() => setTheme('light')}
                   className={`p-4 rounded-xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
                     theme === 'light'
-                      ? 'border-cyan-500 bg-cyan-50 ring-1 ring-cyan-500'
+                      ? 'border-cyan-500 bg-cyan-50/90 ring-1 ring-cyan-500'
                       : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
-                  <div className="p-2 rounded-lg bg-amber-100 text-amber-600 border border-amber-200 shrink-0">
+                  <div className="p-2 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 shrink-0">
                     <Sun className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="font-bold text-slate-900 dark:text-white text-xs">
-                      Light Clean Mode
+                      Pleasant Light Mode (Active)
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
                       Crisp, modern financial workspace with high-clarity typography for bright ambient environments.
@@ -859,7 +864,7 @@ export const AccountPage: React.FC = () => {
 
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 font-bold text-xs tracking-wide transition-all shadow-sm cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs tracking-wide transition-all shadow-sm cursor-pointer"
               >
                 Update Password
               </button>

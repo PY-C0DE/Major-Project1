@@ -6,6 +6,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import {
+  LayoutDashboard,
+  LineChart,
+  Briefcase,
+  BookmarkCheck,
+  BarChart3,
+  User
+} from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { AuthModal } from './components/AuthModal';
@@ -123,57 +131,137 @@ function AppContent() {
           />
 
           {/* Viewport Content Area */}
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-            {activeTab === 'dashboard' && (
-              <DashboardPage
-                onSelectTicker={handleSelectTicker}
-                onNavigate={handleTabChange}
-              />
-            )}
+          <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-8 max-w-7xl mx-auto w-full pb-24 lg:pb-8 min-w-0">
+            <div key={activeTab} className="animate-fadeIn w-full min-w-0">
+              {activeTab === 'dashboard' && (
+                <DashboardPage
+                  onSelectTicker={handleSelectTicker}
+                  onNavigate={handleTabChange}
+                />
+              )}
 
-            {activeTab === 'analysis' && (
-              <StockDetailPage
-                ticker={selectedTicker}
-                onOpenAddHolding={handleOpenAddHolding}
-                onSelectTicker={handleSelectTicker}
-              />
-            )}
+              {activeTab === 'analysis' && (
+                <StockDetailPage
+                  ticker={selectedTicker}
+                  onOpenAddHolding={handleOpenAddHolding}
+                  onSelectTicker={handleSelectTicker}
+                />
+              )}
 
-            {activeTab === 'markets' && (
-              <MarketsPage onSelectTicker={handleSelectTicker} />
-            )}
+              {activeTab === 'markets' && (
+                <MarketsPage onSelectTicker={handleSelectTicker} />
+              )}
 
-            {activeTab === 'portfolio' && (
-              <PortfolioPage
-                onSelectTicker={handleSelectTicker}
-                initialTickerToAdd={portfolioAddTicker}
-              />
-            )}
+              {activeTab === 'portfolio' && (
+                <PortfolioPage
+                  onSelectTicker={handleSelectTicker}
+                  initialTickerToAdd={portfolioAddTicker}
+                />
+              )}
 
-            {activeTab === 'watchlist' && (
-              <WatchlistPage onSelectTicker={handleSelectTicker} />
-            )}
+              {activeTab === 'watchlist' && (
+                <WatchlistPage onSelectTicker={handleSelectTicker} />
+              )}
 
-            {activeTab === 'news' && (
-              <NewsPage onSelectTicker={handleSelectTicker} />
-            )}
+              {activeTab === 'news' && (
+                <NewsPage onSelectTicker={handleSelectTicker} />
+              )}
 
-            {activeTab === 'predictions' && (
-              <StockDetailPage
-                ticker={selectedTicker}
-                onOpenAddHolding={handleOpenAddHolding}
-                onSelectTicker={handleSelectTicker}
-              />
-            )}
+              {activeTab === 'predictions' && (
+                <StockDetailPage
+                  ticker={selectedTicker}
+                  onOpenAddHolding={handleOpenAddHolding}
+                  onSelectTicker={handleSelectTicker}
+                />
+              )}
 
-            {activeTab === 'performance' && <ModelPerformancePage />}
+              {activeTab === 'performance' && <ModelPerformancePage />}
 
-            {activeTab === 'drift' && <DriftMonitorPage />}
+              {activeTab === 'drift' && <DriftMonitorPage />}
 
-            {activeTab === 'alerts' && <AlertsPage />}
+              {activeTab === 'alerts' && <AlertsPage />}
 
-            {activeTab === 'account' && <AccountPage />}
+              {activeTab === 'account' && <AccountPage />}
+            </div>
           </main>
+
+          {/* Mobile Bottom Quick-Access Bar (Screens < lg) */}
+          <nav
+            aria-label="Mobile Navigation"
+            className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex items-center justify-around py-1.5 px-2 text-[10px] font-medium transition-colors"
+          >
+            <button
+              onClick={() => handleTabChange('dashboard')}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-md transition-colors ${
+                activeTab === 'dashboard'
+                  ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              <span>Dashboard</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange('analysis')}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-md transition-colors ${
+                activeTab === 'analysis'
+                  ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <LineChart className="w-4 h-4" />
+              <span>Analysis</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange('portfolio')}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-md transition-colors ${
+                activeTab === 'portfolio'
+                  ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Briefcase className="w-4 h-4" />
+              <span>Portfolio</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange('watchlist')}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-md transition-colors ${
+                activeTab === 'watchlist'
+                  ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <BookmarkCheck className="w-4 h-4" />
+              <span>Watchlist</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange('performance')}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-md transition-colors ${
+                activeTab === 'performance'
+                  ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>95% Acc</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange('account')}
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-md transition-colors ${
+                activeTab === 'account'
+                  ? 'text-cyan-600 dark:text-cyan-400 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <User className="w-4 h-4" />
+              <span>Profile</span>
+            </button>
+          </nav>
         </div>
       )}
 

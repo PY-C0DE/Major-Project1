@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" class="light">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
     <title>AlphaQuant AI - Stock Intelligence Platform</title>
     <meta name="description" content="Enterprise-grade AI Stock Intelligence Platform featuring Conformal Prediction intervals, HMM Market Regime Detection, Multimodal News & FinBERT Sentiment Fusion, and Kolmogorov-Smirnov Concept Drift Monitoring." />
     <meta property="og:title" content="AlphaQuant AI - Stock Intelligence Platform" />
@@ -12,8 +12,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('alphaquant_theme');
+          var theme = saved === 'dark' ? 'dark' : 'light';
+          document.documentElement.classList.remove('dark', 'light');
+          document.documentElement.classList.add(theme);
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-cyan-500/20 selection:text-cyan-700 dark:selection:text-cyan-200 min-h-screen transition-colors duration-200">
+  <body class="bg-slate-50/80 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-cyan-500/20 selection:text-cyan-800 dark:selection:text-cyan-200 min-h-screen transition-colors duration-200">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

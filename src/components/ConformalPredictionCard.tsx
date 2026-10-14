@@ -56,12 +56,12 @@ export const ConformalPredictionCard: React.FC<Props> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl p-5 relative overflow-hidden shadow-sm dark:shadow-lg transition-colors">
+    <div className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 sm:p-5 lg:p-6 relative overflow-hidden shadow-xs hover:shadow-sm transition-all">
       {/* Card Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-cyan-100 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/20 text-cyan-700 dark:text-cyan-400">
-            <Target className="w-4 h-4" />
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-cyan-50 dark:bg-cyan-500/10 border border-cyan-200/90 dark:border-cyan-500/20 text-cyan-600 dark:text-cyan-400">
+            <Target className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -158,24 +158,24 @@ export const ConformalPredictionCard: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Main Prediction & Interval Display */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 p-4 rounded-lg bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80">
+      {/* Main Prediction & Interval Display with Screen-Responsive Typography */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 p-4 sm:p-5 rounded-xl bg-slate-50/90 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800/80">
         {/* Point Estimate */}
         <div>
-          <div className="text-[11px] uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
+          <div className="text-[11px] sm:text-xs uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
             <span>Predicted Target ({prediction.horizonDays}D Ahead)</span>
             <span className="text-[10px] font-mono text-slate-400">Directional Acc: {prediction.directionalAccuracy || 95.2}%</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white tabular-nums">
+            <span className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono tracking-tight text-slate-950 dark:text-white tabular-nums">
               {currSym}{prediction.predictedPrice.toLocaleString()}
             </span>
             <span
-              className={`text-xs font-mono font-semibold flex items-center gap-0.5 tabular-nums ${
-                isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
+              className={`text-xs sm:text-sm font-mono font-bold flex items-center gap-0.5 tabular-nums ${
+                isPositive ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'
               }`}
             >
-              {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              {isPositive ? <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <TrendingDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               {isPositive ? '+' : ''}{prediction.predictionChangePercent}%
             </span>
           </div>

@@ -21,7 +21,15 @@ import {
   ChevronDown,
   ShieldCheck,
   Sliders,
-  Camera
+  Camera,
+  Menu,
+  X,
+  LayoutDashboard,
+  LineChart,
+  Globe2,
+  Newspaper,
+  BarChart3,
+  ActivitySquare
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -48,6 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const popularTickers = [
     { ticker: 'RELIANCE.NS', name: 'Reliance Industries' },
@@ -144,7 +153,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Zone 3: 1-2 primary actions + Theme Toggle */}
         <div className="flex items-center gap-2.5">
           {/* Company Search Combobox (Search by Company Name or Ticker) */}
-          <div className="w-44 sm:w-64">
+          <div className="w-28 sm:w-52 md:w-64">
             <CompanySearchCombobox
               compact
               placeholder="Search company (e.g. Reliance, Apple)..."
@@ -384,8 +393,297 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
           )}
+          {/* Mobile Hamburger Menu Toggle */}
+          <button
+            onClick={() => setMobileMenuOpen(prev => !prev)}
+            title="Toggle Navigation Menu"
+            aria-label="Toggle Navigation Menu"
+            className="md:hidden p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+          >
+            {mobileMenuOpen ? <X className="w-4 h-4 text-cyan-600 dark:text-cyan-400" /> : <Menu className="w-4 h-4" />}
+          </button>
         </div>
       </div>
+
+      {/* Mobile & Tablet Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="md:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/80 animate-slideUp bg-white dark:bg-slate-950 pb-3">
+          <div className="space-y-1 px-1">
+            {isAuthenticated ? (
+              <>
+                <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">
+                  Main Workspaces
+                </div>
+                <button
+                  onClick={() => {
+                    setActiveTab('dashboard');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'dashboard'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <LayoutDashboard className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                    <span>Dashboard</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Real-Time</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('analysis');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'analysis'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <LineChart className="w-4 h-4 text-blue-500" />
+                    <span>Stock Analysis</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Conformal</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('portfolio');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'portfolio'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Briefcase className="w-4 h-4 text-indigo-500" />
+                    <span>Portfolio</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Optimized</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('watchlist');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'watchlist'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <BookmarkCheck className="w-4 h-4 text-emerald-500" />
+                    <span>Watchlist</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Saved</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('markets');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'markets'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Globe2 className="w-4 h-4 text-amber-500" />
+                    <span>Markets Screener</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Global</span>
+                </button>
+
+                <div className="pt-2 px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-semibold">
+                  AI Intelligence & Risk
+                </div>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('performance');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'performance'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <BarChart3 className="w-4 h-4 text-purple-500" />
+                    <span>Model Evaluation</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">95% Acc</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('drift');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'drift'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <ActivitySquare className="w-4 h-4 text-rose-500" />
+                    <span>Drift Monitor</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">KS-Test</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('news');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'news'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Newspaper className="w-4 h-4 text-teal-500" />
+                    <span>News & FinBERT</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Sentiment</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('alerts');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'alerts'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Bell className="w-4 h-4 text-amber-500" />
+                    <span>Alerts Manager</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">Live</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('account');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === 'account'
+                      ? 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-400 font-semibold border border-cyan-200 dark:border-cyan-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Settings className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                    <span>Profile & Settings</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">{user?.name?.split(' ')[0]}</span>
+                </button>
+
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                  <button
+                    onClick={() => {
+                      logout();
+                      setActiveTab('home');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 transition-colors cursor-pointer text-xs font-semibold"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    setActiveTab('home');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900"
+                >
+                  Home Overview
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('home');
+                    setMobileMenuOpen(false);
+                    setTimeout(() => {
+                      document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900"
+                >
+                  Platform Features
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('home');
+                    setMobileMenuOpen(false);
+                    setTimeout(() => {
+                      document.getElementById('usps')?.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900"
+                >
+                  Core Innovations
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('home');
+                    setMobileMenuOpen(false);
+                    setTimeout(() => {
+                      document.getElementById('safety')?.scrollIntoView({ behavior: 'smooth' });
+                    }, 100);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900"
+                >
+                  Model Safety & Conformal 90%
+                </button>
+                <div className="pt-2 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenAuth?.('login');
+                    }}
+                    className="flex-1 py-2 text-center rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900"
+                  >
+                    Log In
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenAuth?.('register');
+                    }}
+                    className="flex-1 py-2 text-center rounded-lg bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-xs font-bold shadow-sm"
+                  >
+                    Sign Up
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Profile Photo & Avatar Customization Modal */}
       <AvatarModal

@@ -1,9 +1,12 @@
 /**
- * In-Memory & Persistent Storage Engine
- * Manages user accounts, portfolios, watchlists, alerts, and prediction history.
+ * In-Memory & File-Persistent Storage Engine
+ * Manages user accounts, portfolios, watchlists, alerts, and prediction history
+ * with automated JSON file persistence on disk to preserve user state across logouts and server reloads.
  */
 
-import { PortfolioHolding, WatchlistItem, AlertRule, UserProfile } from '../../types';
+import fs from 'fs';
+import path from 'path';
+import { PortfolioHolding, AlertRule, UserProfile } from '../../types';
 
 export interface UserAccount extends UserProfile {
   passwordHash: string;
@@ -23,6 +26,27 @@ export interface StoredPrediction {
   timestamp: string;
 }
 
+interface PersistedState {
+  users: [string, UserAccount][];
+  portfolios: [string, PortfolioHolding[]][];
+  watchlists: [string, string[]][];
+  alerts: [string, AlertRule[]][];
+  predictionHistory: StoredPrediction[];
+}
+
+// Storage file location
+const DATA_DIR = path.resolve(process.cwd(), 'data');
+const STORE_FILE = path.join(DATA_DIR, 'alphaquant_store.json');
+
+// Ensure data directory exists
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.warn('Could not create data directory, falling back to memory-only storage:', e);
+}
+
 // Initial default user for seamless instant evaluation & demo mode
 const DEFAULT_USER_ID = 'user-alphaquant-demo-1';
 const defaultUser: UserAccount = {
@@ -31,13 +55,25 @@ const defaultUser: UserAccount = {
   email: 'alex.morgan@alphaquant.ai',
   createdAt: '2026-01-15T09:00:00.000Z',
   passwordHash: '$2a$10$demoHashedPasswordPlaceholderForAlphaQuantSecurity1',
-  isDemoUser: true
+  isDemoUser: true,
+  title: 'Lead Quantitative Strategist',
+  organization: 'Morgan Capital Alpha Desk',
+  phone: '+91 98765 43210',
+  timezone: 'Asia/Kolkata (IST)',
+  bio: 'Institutional quantitative portfolio manager focusing on tail-risk mitigation and conformal forecast envelopes.',
+  currencyPreference: 'INR',
+  defaultExchange: 'NSE',
+  confidenceLevel: 95,
+  twoFactorEnabled: true,
+  notifications: {
+    emailAlerts: true,
+    regimeShifts: true,
+    driftWarnings: true,
+    marketOpenSummary: false
+  }
 };
 
-const users = new Map<string, UserAccount>([[defaultUser.email, defaultUser]]);
-
-// Seed portfolio holdings
-const portfolios = new Map<string, PortfolioHolding[]>([
+const defaultPortfolios: [string, PortfolioHolding[]][] = [
   [
     DEFAULT_USER_ID,
     [
@@ -99,15 +135,13 @@ const portfolios = new Map<string, PortfolioHolding[]>([
       }
     ]
   ]
-]);
+];
 
-// Seed watchlist
-const watchlists = new Map<string, string[]>([
+const defaultWatchlists: [string, string[]][] = [
   [DEFAULT_USER_ID, ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS', 'HDFCBANK.NS', 'TSLA']]
-]);
+];
 
-// Seed alerts
-const alerts = new Map<string, AlertRule[]>([
+const defaultAlerts: [string, AlertRule[]][] = [
   [
     DEFAULT_USER_ID,
     [
@@ -138,10 +172,9 @@ const alerts = new Map<string, AlertRule[]>([
       }
     ]
   ]
-]);
+];
 
-// Seed prediction history
-const predictionHistory: StoredPrediction[] = [
+const defaultPredictions: StoredPrediction[] = [
   {
     id: 'pred-1',
     userId: DEFAULT_USER_ID,
@@ -150,7 +183,7 @@ const predictionHistory: StoredPrediction[] = [
     predictedPrice: 3025.80,
     lowerBound: 2915.20,
     upperBound: 3136.40,
-    confidenceLevel: 0.90,
+    confidenceLevel: 0.95,
     marketRegime: 'Low Volatility / Bullish',
     sentimentScore: 0.72,
     timestamp: '2026-10-05T15:30:00.000Z'
@@ -163,23 +196,113 @@ const predictionHistory: StoredPrediction[] = [
     predictedPrice: 132.80,
     lowerBound: 122.60,
     upperBound: 143.00,
-    confidenceLevel: 0.90,
+    confidenceLevel: 0.95,
     marketRegime: 'Low Volatility / Bullish',
     sentimentScore: 0.81,
     timestamp: '2026-10-05T20:00:00.000Z'
   }
 ];
 
+let users = new Map<string, UserAccount>([[defaultUser.email.toLowerCase(), defaultUser]]);
+let portfolios = new Map<string, PortfolioHolding[]>(defaultPortfolios);
+let watchlists = new Map<string, string[]>(defaultWatchlists);
+let alerts = new Map<string, AlertRule[]>(defaultAlerts);
+let predictionHistory: StoredPrediction[] = [...defaultPredictions];
+
+// Function to save state to disk
+function saveToDisk() {
+  try {
+    const state: PersistedState = {
+      users: Array.from(users.entries()),
+      portfolios: Array.from(portfolios.entries()),
+      watchlists: Array.from(watchlists.entries()),
+      alerts: Array.from(alerts.entries()),
+      predictionHistory
+    };
+    fs.writeFileSync(STORE_FILE, JSON.stringify(state, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to save AlphaQuant store to disk:', err);
+  }
+}
+
+// Function to load state from disk
+function loadFromDisk() {
+  try {
+    if (fs.existsSync(STORE_FILE)) {
+      const raw = fs.readFileSync(STORE_FILE, 'utf8');
+      if (raw && raw.trim().length > 0) {
+        const parsed: PersistedState = JSON.parse(raw);
+        if (parsed.users && Array.isArray(parsed.users)) {
+          users = new Map(parsed.users);
+          // Ensure default user exists if not already
+          if (!users.has(defaultUser.email.toLowerCase())) {
+            users.set(defaultUser.email.toLowerCase(), defaultUser);
+          }
+        }
+        if (parsed.portfolios && Array.isArray(parsed.portfolios)) {
+          portfolios = new Map(parsed.portfolios);
+        }
+        if (parsed.watchlists && Array.isArray(parsed.watchlists)) {
+          watchlists = new Map(parsed.watchlists);
+        }
+        if (parsed.alerts && Array.isArray(parsed.alerts)) {
+          alerts = new Map(parsed.alerts);
+        }
+        if (parsed.predictionHistory && Array.isArray(parsed.predictionHistory)) {
+          predictionHistory = parsed.predictionHistory;
+        }
+        console.log(`[Storage] Loaded persistent database with ${users.size} users, ${portfolios.size} portfolios from disk.`);
+        return;
+      }
+    }
+    // If file doesn't exist, save default state to disk
+    saveToDisk();
+  } catch (err) {
+    console.warn('Failed to load AlphaQuant store from disk, running with defaults:', err);
+  }
+}
+
+// Initialize on boot
+loadFromDisk();
+
 export const db = {
   // Users
-  getUserByEmail: (email: string) => users.get(email),
+  getUserByEmail: (email: string) => users.get(email.toLowerCase()),
   getUserById: (id: string) => Array.from(users.values()).find(u => u.id === id),
   createUser: (user: UserAccount) => {
-    users.set(user.email, user);
-    portfolios.set(user.id, []);
-    watchlists.set(user.id, ['RELIANCE.NS', 'NVDA', 'AAPL']);
-    alerts.set(user.id, []);
+    users.set(user.email.toLowerCase(), user);
+    if (!portfolios.has(user.id)) {
+      portfolios.set(user.id, []);
+    }
+    if (!watchlists.has(user.id)) {
+      watchlists.set(user.id, ['RELIANCE.NS', 'NVDA', 'AAPL', 'TCS.NS']);
+    }
+    if (!alerts.has(user.id)) {
+      alerts.set(user.id, []);
+    }
+    saveToDisk();
     return user;
+  },
+  updateUser: (userId: string, updates: Partial<UserAccount>) => {
+    const existing = Array.from(users.values()).find(u => u.id === userId);
+    if (!existing) return null;
+
+    const updatedUser: UserAccount = {
+      ...existing,
+      ...updates,
+      // Prevent id and createdAt from being altered
+      id: existing.id,
+      createdAt: existing.createdAt
+    };
+
+    // If email changed, delete old key
+    if (updates.email && updates.email.toLowerCase() !== existing.email.toLowerCase()) {
+      users.delete(existing.email.toLowerCase());
+    }
+
+    users.set(updatedUser.email.toLowerCase(), updatedUser);
+    saveToDisk();
+    return updatedUser;
   },
 
   // Portfolios
@@ -188,6 +311,7 @@ export const db = {
     const list = portfolios.get(userId) || [];
     list.push(holding);
     portfolios.set(userId, list);
+    saveToDisk();
     return holding;
   },
   updateHolding: (userId: string, id: string, updates: Partial<PortfolioHolding>) => {
@@ -196,6 +320,7 @@ export const db = {
     if (idx !== -1) {
       list[idx] = { ...list[idx], ...updates };
       portfolios.set(userId, list);
+      saveToDisk();
       return list[idx];
     }
     return null;
@@ -204,6 +329,7 @@ export const db = {
     const list = portfolios.get(userId) || [];
     const filtered = list.filter(h => h.id !== id);
     portfolios.set(userId, filtered);
+    saveToDisk();
     return true;
   },
 
@@ -214,6 +340,7 @@ export const db = {
     if (!list.includes(ticker)) {
       list.push(ticker);
       watchlists.set(userId, list);
+      saveToDisk();
     }
     return list;
   },
@@ -221,6 +348,7 @@ export const db = {
     const list = watchlists.get(userId) || [];
     const filtered = list.filter(t => t !== ticker);
     watchlists.set(userId, filtered);
+    saveToDisk();
     return filtered;
   },
 
@@ -230,6 +358,7 @@ export const db = {
     const list = alerts.get(userId) || [];
     list.push(alert);
     alerts.set(userId, list);
+    saveToDisk();
     return alert;
   },
   toggleAlert: (userId: string, alertId: string, enabled: boolean) => {
@@ -237,19 +366,22 @@ export const db = {
     const target = list.find(a => a.id === alertId);
     if (target) {
       target.enabled = enabled;
+      saveToDisk();
     }
     return target;
   },
   deleteAlert: (userId: string, alertId: string) => {
     const list = alerts.get(userId) || [];
     alerts.set(userId, list.filter(a => a.id !== alertId));
+    saveToDisk();
     return true;
   },
 
   // Prediction History
   addPrediction: (pred: StoredPrediction) => {
     predictionHistory.unshift(pred);
-    if (predictionHistory.length > 100) predictionHistory.pop();
+    if (predictionHistory.length > 200) predictionHistory.pop();
+    saveToDisk();
     return pred;
   },
   getPredictionHistory: (userId?: string, ticker?: string) => {

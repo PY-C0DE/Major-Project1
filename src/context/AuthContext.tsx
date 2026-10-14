@@ -55,14 +55,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       }
 
-      if (baseUser && savedProfile) {
-        try {
-          const parsed = JSON.parse(savedProfile);
-          if (parsed && parsed.id === baseUser.id) {
-            baseUser = { ...baseUser, ...parsed };
+      if (baseUser) {
+        const userSpecificKey = `alphaquant_user_profile_${baseUser.id}`;
+        const savedProfile = localStorage.getItem(userSpecificKey) || localStorage.getItem('alphaquant_user_profile');
+        if (savedProfile) {
+          try {
+            const parsed = JSON.parse(savedProfile);
+            if (parsed && parsed.id === baseUser.id) {
+              baseUser = { ...baseUser, ...parsed };
+            }
+          } catch (e) {
+            console.error(e);
           }
-        } catch (e) {
-          console.error(e);
         }
       }
 
@@ -77,7 +81,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { user: authedUser, token } = await api.login(email, pass);
       localStorage.setItem('alphaquant_token', token);
-      const savedProfile = localStorage.getItem('alphaquant_user_profile');
+      
+      const userSpecificKey = `alphaquant_user_profile_${authedUser.id}`;
+      const savedProfile = localStorage.getItem(userSpecificKey) || localStorage.getItem('alphaquant_user_profile');
       let mergedUser = authedUser;
       if (savedProfile) {
         try {
@@ -87,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch {}
       }
+      localStorage.setItem(userSpecificKey, JSON.stringify(mergedUser));
       setUser(mergedUser);
     } finally {
       setIsLoading(false);
@@ -98,6 +105,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { user: registeredUser, token } = await api.register(name, email, pass);
       localStorage.setItem('alphaquant_token', token);
+      const userSpecificKey = `alphaquant_user_profile_${registeredUser.id}`;
+      localStorage.setItem(userSpecificKey, JSON.stringify(registeredUser));
       setUser(registeredUser);
     } finally {
       setIsLoading(false);
@@ -105,18 +114,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    // End active token session, but keep persistent user data in database and local cache
     localStorage.removeItem('alphaquant_token');
-    localStorage.removeItem('alphaquant_user_profile');
     setUser(null);
   };
 
-  const updateProfile = (updates: Partial<UserProfile>) => {
+  const updateProfile = async (updates: Partial<UserProfile>) => {
     setUser(prev => {
       if (!prev) return null;
       const updated = { ...prev, ...updates };
+      const userSpecificKey = `alphaquant_user_profile_${prev.id}`;
+      localStorage.setItem(userSpecificKey, JSON.stringify(updated));
       localStorage.setItem('alphaquant_user_profile', JSON.stringify(updated));
       return updated;
     });
+
+    try {
+      const saved = await api.updateProfile(updates);
+      if (saved) {
+        setUser(current => (current ? { ...current, ...saved } : saved));
+        if (saved.id) {
+          localStorage.setItem(`alphaquant_user_profile_${saved.id}`, JSON.stringify(saved));
+        }
+      }
+    } catch (err) {
+      console.warn('Profile updated locally; remote sync error:', err);
+    }
   };
 
   const enterDemoMode = () => {
@@ -131,11 +154,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       organization: 'Morgan Capital Alpha Desk',
       currencyPreference: 'INR',
       defaultExchange: 'NSE',
-      confidenceLevel: 90,
+      confidenceLevel: 95,
       twoFactorEnabled: true,
       timezone: 'Asia/Kolkata (IST)',
       bio: 'Institutional quantitative portfolio manager focusing on tail-risk mitigation and conformal forecast envelopes.'
     };
+    const saved = localStorage.getItem(`alphaquant_user_profile_${demoUser.id}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setUser({ ...demoUser, ...parsed });
+        return;
+      } catch {}
+    }
     setUser(demoUser);
   };
 

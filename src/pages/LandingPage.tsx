@@ -300,7 +300,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                   <div className="pt-2">
                     <button
                       onClick={() => handleFeatureClick()}
-                      className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-cyan-500 dark:hover:bg-cyan-400 text-white dark:text-slate-950 font-sans font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
+                      className="w-full py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-sans font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm shadow-cyan-500/20"
                     >
                       <Lock className="w-3.5 h-3.5" />
                       <span>{isAuthenticated ? 'Open Interactive Terminal' : 'Sign In to Unlock Full Live Analytics'}</span>

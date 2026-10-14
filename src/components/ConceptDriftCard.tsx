@@ -25,12 +25,12 @@ export const ConceptDriftCard: React.FC<Props> = ({ drift }) => {
   const isHealthy = !drift.driftDetected;
 
   return (
-    <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl p-5 relative overflow-hidden shadow-sm dark:shadow-lg transition-colors">
+    <div className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 sm:p-5 lg:p-6 relative overflow-hidden shadow-xs hover:shadow-sm transition-all">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-700 dark:text-amber-400">
-            <ActivitySquare className="w-4 h-4" />
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200/90 dark:border-amber-500/20 text-amber-600 dark:text-amber-400">
+            <ActivitySquare className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Concept Drift Monitor</h3>

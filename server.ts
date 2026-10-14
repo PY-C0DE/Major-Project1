@@ -101,6 +101,12 @@ function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextF
   });
 }
 
+function sanitizeUser(user: any) {
+  if (!user) return null;
+  const { passwordHash, ...safe } = user;
+  return safe;
+}
+
 // -------------------------------------------------------------
 // 1. AUTHENTICATION ENDPOINTS
 // -------------------------------------------------------------
@@ -129,7 +135,21 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
       email: email.toLowerCase(),
       createdAt: new Date().toISOString(),
       passwordHash,
-      isDemoUser: false
+      isDemoUser: false,
+      title: 'Quantitative Strategist',
+      organization: 'Alpha Desk',
+      currencyPreference: 'INR' as const,
+      defaultExchange: 'NSE' as const,
+      confidenceLevel: 95,
+      twoFactorEnabled: false,
+      timezone: 'Asia/Kolkata (IST)',
+      bio: 'Quantitative market participant tracking high-probability conformal prediction envelopes.',
+      notifications: {
+        emailAlerts: true,
+        regimeShifts: true,
+        driftWarnings: true,
+        marketOpenSummary: false
+      }
     };
 
     db.createUser(newUser);
@@ -141,13 +161,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
     );
 
     return res.status(201).json({
-      user: {
-        id: newUser.id,
-        name: newUser.name,
-        email: newUser.email,
-        createdAt: newUser.createdAt,
-        isDemoUser: false
-      },
+      user: sanitizeUser(newUser),
       token
     });
   } catch (error: any) {
@@ -183,13 +197,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     );
 
     return res.json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-        isDemoUser: user.isDemoUser
-      },
+      user: sanitizeUser(user),
       token
     });
   } catch (error: any) {
@@ -203,13 +211,86 @@ app.get('/api/auth/me', authenticateToken, (req: AuthenticatedRequest, res: Resp
   if (!user) {
     return res.status(404).json({ error: 'User profile not found.' });
   }
-  return res.json({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    createdAt: user.createdAt,
-    isDemoUser: user.isDemoUser
-  });
+  return res.json(sanitizeUser(user));
+});
+
+app.put('/api/auth/profile', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || 'user-alphaquant-demo-1';
+    const {
+      name,
+      title,
+      organization,
+      phone,
+      timezone,
+      bio,
+      avatarUrl,
+      currencyPreference,
+      defaultExchange,
+      confidenceLevel,
+      twoFactorEnabled,
+      notifications
+    } = req.body;
+
+    const updates: any = {};
+    if (name !== undefined) updates.name = name;
+    if (title !== undefined) updates.title = title;
+    if (organization !== undefined) updates.organization = organization;
+    if (phone !== undefined) updates.phone = phone;
+    if (timezone !== undefined) updates.timezone = timezone;
+    if (bio !== undefined) updates.bio = bio;
+    if (avatarUrl !== undefined) updates.avatarUrl = avatarUrl;
+    if (currencyPreference !== undefined) updates.currencyPreference = currencyPreference;
+    if (defaultExchange !== undefined) updates.defaultExchange = defaultExchange;
+    if (confidenceLevel !== undefined) updates.confidenceLevel = confidenceLevel;
+    if (twoFactorEnabled !== undefined) updates.twoFactorEnabled = twoFactorEnabled;
+    if (notifications !== undefined) updates.notifications = notifications;
+
+    const updated = db.updateUser(userId, updates);
+    if (!updated) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    return res.json(sanitizeUser(updated));
+  } catch (err: any) {
+    console.error('Error updating profile:', err);
+    return res.status(500).json({ error: 'Failed to update user profile.' });
+  }
+});
+
+app.put('/api/auth/change-password', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || 'user-alphaquant-demo-1';
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required.' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters long.' });
+    }
+
+    const user = db.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (!user.isDemoUser) {
+      const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: 'Current password is incorrect.' });
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+    db.updateUser(userId, { passwordHash });
+
+    return res.json({ success: true, message: 'Password updated successfully.' });
+  } catch (err: any) {
+    console.error('Error changing password:', err);
+    return res.status(500).json({ error: 'Failed to update password.' });
+  }
 });
 
 // -------------------------------------------------------------

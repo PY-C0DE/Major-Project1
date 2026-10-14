@@ -390,19 +390,19 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
 
       {/* PROMINENT MVO ADVISORY BANNER - Visible on both tabs when optimization suggests trades */}
       {optResult && (buyTrades.length > 0 || sellTrades.length > 0) && (
-        <div className="p-4 sm:p-5 rounded-xl bg-gradient-to-r from-cyan-950/30 via-slate-900/60 to-emerald-950/30 border border-cyan-500/30 dark:border-cyan-500/20 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-cyan-50/95 via-sky-50/80 to-emerald-50/95 dark:from-cyan-950/30 dark:via-slate-900/60 dark:to-emerald-950/30 border border-cyan-200/90 dark:border-cyan-500/20 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-cyan-500 text-slate-950">
                 AI MVO ADVISORY
               </span>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <Sparkles className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                 Markowitz Rebalance Opportunity: +{optResult.optimalMetrics.sharpeGainPct}% Sharpe Efficiency Gain
               </h3>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300">
-              Current Sharpe is <strong className="font-mono text-slate-900 dark:text-white">{optResult.currentMetrics.sharpeRatio}</strong>. Rebalancing to the Tangency Portfolio can elevate Sharpe to <strong className="font-mono text-emerald-600 dark:text-emerald-400">{optResult.optimalMetrics.sharpeRatio}</strong> and cut variance risk by <strong className="font-mono text-cyan-600 dark:text-cyan-400">{optResult.optimalMetrics.volatilityReductionPct}%</strong> with {buyTrades.length} buy and {sellTrades.length} sell orders.
+            <p className="text-xs text-slate-700 dark:text-slate-300">
+              Current Sharpe is <strong className="font-mono text-slate-950 dark:text-white">{optResult.currentMetrics.sharpeRatio}</strong>. Rebalancing to the Tangency Portfolio can elevate Sharpe to <strong className="font-mono text-emerald-700 dark:text-emerald-400">{optResult.optimalMetrics.sharpeRatio}</strong> and cut variance risk by <strong className="font-mono text-cyan-700 dark:text-cyan-400">{optResult.optimalMetrics.volatilityReductionPct}%</strong> with {buyTrades.length} buy and {sellTrades.length} sell orders.
             </p>
           </div>
 

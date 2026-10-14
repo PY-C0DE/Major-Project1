@@ -1,0 +1,167 @@
+{
+  "users": [
+    [
+      "alex.morgan@alphaquant.ai",
+      {
+        "id": "user-alphaquant-demo-1",
+        "name": "Alex Morgan, CFA",
+        "email": "alex.morgan@alphaquant.ai",
+        "createdAt": "2026-01-15T09:00:00.000Z",
+        "passwordHash": "$2a$10$demoHashedPasswordPlaceholderForAlphaQuantSecurity1",
+        "isDemoUser": true,
+        "title": "Senior Quantitative Portfolio Director",
+        "organization": "Morgan Capital Alpha Desk",
+        "phone": "+91 99999 88888",
+        "timezone": "Asia/Kolkata (IST)",
+        "bio": "Institutional quantitative portfolio manager focusing on tail-risk mitigation and conformal forecast envelopes.",
+        "currencyPreference": "INR",
+        "defaultExchange": "NSE",
+        "confidenceLevel": 95,
+        "twoFactorEnabled": true,
+        "notifications": {
+          "emailAlerts": true,
+          "regimeShifts": true,
+          "driftWarnings": true,
+          "marketOpenSummary": false
+        }
+      }
+    ]
+  ],
+  "portfolios": [
+    [
+      "user-alphaquant-demo-1",
+      [
+        {
+          "id": "hold-1",
+          "ticker": "RELIANCE.NS",
+          "companyName": "Reliance Industries Ltd.",
+          "quantity": 50,
+          "avgBuyPrice": 2820,
+          "currentPrice": 2980.5,
+          "totalInvested": 141000,
+          "currentValue": 149025,
+          "pnl": 8025,
+          "pnlPercent": 5.69,
+          "purchaseDate": "2026-04-12",
+          "notes": "Core Indian conglomerate holding"
+        },
+        {
+          "id": "hold-2",
+          "ticker": "NVDA",
+          "companyName": "NVIDIA Corporation",
+          "quantity": 120,
+          "avgBuyPrice": 108.5,
+          "currentPrice": 128.4,
+          "totalInvested": 13020,
+          "currentValue": 15408,
+          "pnl": 2388,
+          "pnlPercent": 18.34,
+          "purchaseDate": "2026-03-20",
+          "notes": "AI infrastructure semiconductor leader"
+        },
+        {
+          "id": "hold-3",
+          "ticker": "TCS.NS",
+          "companyName": "Tata Consultancy Services",
+          "quantity": 25,
+          "avgBuyPrice": 4050,
+          "currentPrice": 4210.75,
+          "totalInvested": 101250,
+          "currentValue": 105268.75,
+          "pnl": 4018.75,
+          "pnlPercent": 3.97,
+          "purchaseDate": "2026-05-18",
+          "notes": "IT services defensive yield"
+        },
+        {
+          "id": "hold-4",
+          "ticker": "MSFT",
+          "companyName": "Microsoft Corporation",
+          "quantity": 30,
+          "avgBuyPrice": 425,
+          "currentPrice": 442.1,
+          "totalInvested": 12750,
+          "currentValue": 13263,
+          "pnl": 513,
+          "pnlPercent": 4.02,
+          "purchaseDate": "2026-06-01",
+          "notes": "Enterprise cloud & generative AI exposure"
+        }
+      ]
+    ]
+  ],
+  "watchlists": [
+    [
+      "user-alphaquant-demo-1",
+      [
+        "RELIANCE.NS",
+        "TCS.NS",
+        "NVDA",
+        "AAPL",
+        "INFY.NS",
+        "HDFCBANK.NS",
+        "TSLA"
+      ]
+    ]
+  ],
+  "alerts": [
+    [
+      "user-alphaquant-demo-1",
+      [
+        {
+          "id": "alert-1",
+          "ticker": "RELIANCE.NS",
+          "type": "price_above",
+          "threshold": 3050,
+          "label": "Breakout above ₹3,050 resistance",
+          "enabled": true,
+          "createdAt": "2026-08-10T10:00:00.000Z"
+        },
+        {
+          "id": "alert-2",
+          "ticker": "NVDA",
+          "type": "regime_shift",
+          "label": "Alert on High-Volatility Bearish regime transition",
+          "enabled": true,
+          "createdAt": "2026-08-12T14:30:00.000Z"
+        },
+        {
+          "id": "alert-3",
+          "ticker": "TCS.NS",
+          "type": "drift_detected",
+          "label": "Model Safety: Alert when feature drift is detected",
+          "enabled": true,
+          "createdAt": "2026-08-14T09:15:00.000Z"
+        }
+      ]
+    ]
+  ],
+  "predictionHistory": [
+    {
+      "id": "pred-1",
+      "userId": "user-alphaquant-demo-1",
+      "ticker": "RELIANCE.NS",
+      "currentPrice": 2980.5,
+      "predictedPrice": 3025.8,
+      "lowerBound": 2915.2,
+      "upperBound": 3136.4,
+      "confidenceLevel": 0.95,
+      "marketRegime": "Low Volatility / Bullish",
+      "sentimentScore": 0.72,
+      "timestamp": "2026-10-05T15:30:00.000Z"
+    },
+    {
+      "id": "pred-2",
+      "userId": "user-alphaquant-demo-1",
+      "ticker": "NVDA",
+      "currentPrice": 128.4,
+      "predictedPrice": 132.8,
+      "lowerBound": 122.6,
+      "upperBound": 143,
+      "confidenceLevel": 0.95,
+      "marketRegime": "Low Volatility / Bullish",
+      "sentimentScore": 0.81,
+      "timestamp": "2026-10-05T20:00:00.000Z"
+    }
+  ]
+}

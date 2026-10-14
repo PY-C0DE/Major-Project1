@@ -50,7 +50,7 @@ export const InteractiveStockChart: React.FC<Props> = ({ bars, prediction, curre
   const axisColor = isDark ? '#64748b' : '#94a3b8';
 
   return (
-    <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm dark:shadow-xl transition-colors">
+    <div className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-5 lg:p-6 shadow-xs hover:shadow-sm transition-all">
       {/* Chart Top Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-2">
