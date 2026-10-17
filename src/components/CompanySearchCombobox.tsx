@@ -34,9 +34,48 @@ export const CompanySearchCombobox: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
+  // Animated typewriter queries (matching Video 2)
+  const typewriterQueries = [
+    'Search ticker (e.g. NVDA, RELIANCE)...',
+    'Try "Apple" for conformal risk bounds...',
+    'Try "TCS" for HMM regime prediction...',
+    'Search "Nvidia" for FinBERT tone score...'
+  ];
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [typedPlaceholder, setTypedPlaceholder] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Typewriter effect matching Video 2
+  useEffect(() => {
+    if (isInputFocused || query) return;
+
+    const currentPrompt = typewriterQueries[placeholderIndex];
+    const speed = isDeleting ? 25 : 60;
+
+    const timer = setTimeout(() => {
+      if (!isDeleting) {
+        if (typedPlaceholder.length < currentPrompt.length) {
+          setTypedPlaceholder(currentPrompt.slice(0, typedPlaceholder.length + 1));
+        } else {
+          setTimeout(() => setIsDeleting(true), 2200);
+        }
+      } else {
+        if (typedPlaceholder.length > 0) {
+          setTypedPlaceholder(currentPrompt.slice(0, typedPlaceholder.length - 1));
+        } else {
+          setIsDeleting(false);
+          setPlaceholderIndex(prev => (prev + 1) % typewriterQueries.length);
+        }
+      }
+    }, speed);
+
+    return () => clearTimeout(timer);
+  }, [typedPlaceholder, isDeleting, placeholderIndex, isInputFocused, query]);
 
   // Default suggested companies when empty query is focused
   const defaultSuggestions: StockSearchResult[] = [
@@ -132,29 +171,47 @@ export const CompanySearchCombobox: React.FC<Props> = ({
     <div ref={containerRef} className={`relative w-full ${className}`}>
       {/* Input Field */}
       <div
-        className={`flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 transition-colors focus-within:border-cyan-500/80 focus-within:ring-1 focus-within:ring-cyan-500/30 ${
-          compact ? 'py-1.5 text-xs' : 'text-sm'
+        className={`relative flex items-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 transition-all focus-within:border-cyan-500/80 focus-within:ring-2 focus-within:ring-cyan-500/20 ${
+          compact ? 'py-1 text-xs' : 'py-2 text-sm'
         }`}
       >
-        <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          autoFocus={autoFocus}
-          placeholder={placeholder}
-          onChange={e => {
-            setQuery(e.target.value);
-            setIsOpen(true);
-            setSelectedIndex(-1);
-          }}
-          onFocus={() => {
-            setIsOpen(true);
-            if (!query.trim()) setResults(defaultSuggestions);
-          }}
-          onKeyDown={handleKeyDown}
-          className="w-full bg-transparent text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
-        />
+        <Search className="w-3.5 h-3.5 text-slate-400 mr-1.5 shrink-0" />
+        <div className="relative flex-1 min-w-0">
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            autoFocus={autoFocus}
+            onChange={e => {
+              setQuery(e.target.value);
+              setIsOpen(true);
+              setSelectedIndex(-1);
+            }}
+            onFocus={() => {
+              setIsInputFocused(true);
+              setIsOpen(true);
+              if (!query.trim()) setResults(defaultSuggestions);
+            }}
+            onBlur={() => {
+              setIsInputFocused(false);
+            }}
+            onKeyDown={handleKeyDown}
+            className="w-full bg-transparent text-slate-900 dark:text-white placeholder-transparent focus:outline-none"
+          />
+
+          {/* Typewriter animated placeholder overlay matching Video 2 */}
+          {!query && (
+            <div
+              onClick={() => inputRef.current?.focus()}
+              className="absolute inset-0 flex items-center pointer-events-none text-slate-400 dark:text-slate-500 truncate"
+            >
+              <span>{isInputFocused ? placeholder : (typedPlaceholder || placeholder)}</span>
+              {!isInputFocused && (
+                <span className="inline-block w-0.5 h-3.5 bg-cyan-500 dark:bg-cyan-400 ml-0.5 animate-blink" />
+              )}
+            </div>
+          )}
+        </div>
 
         {loading ? (
           <Loader2 className="w-4 h-4 text-cyan-500 animate-spin shrink-0 ml-1.5" />

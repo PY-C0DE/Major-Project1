@@ -247,7 +247,7 @@ function AppContent() {
               }`}
             >
               <BarChart3 className="w-4 h-4" />
-              <span>95% Acc</span>
+              <span>Metrics</span>
             </button>
 
             <button

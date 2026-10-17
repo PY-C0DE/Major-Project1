@@ -18,7 +18,8 @@ import {
   Bell,
   Settings,
   ShieldCheck,
-  User
+  User,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import avatarImg from '../assets/images/avatar_lead_quant_1791318574843.jpg';
@@ -30,7 +31,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, selectedTicker }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const mainItems = [
     { id: 'home', label: 'Home Overview', icon: Home },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -128,6 +129,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, selec
             <img src={user?.avatarUrl || avatarImg} alt="User Avatar" className="w-full h-full object-cover" />
           </div>
           <span className="truncate">My Profile & Settings</span>
+        </button>
+
+        {/* Permanently Visible Sign Out Button with Logout Icon */}
+        <button
+          onClick={() => {
+            logout();
+            setActiveTab('home');
+          }}
+          title="Sign Out of Platform"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-900/50 transition-colors cursor-pointer"
+        >
+          <LogOut className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+          <span className="truncate">Sign Out</span>
         </button>
       </div>
     </aside>

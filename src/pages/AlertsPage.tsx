@@ -226,11 +226,11 @@ export const AlertsPage: React.FC = () => {
                   <option value="price_below">Price Drops Below Limit</option>
                   <option value="regime_shift">Market Regime Transition</option>
                   <option value="drift_detected">Statistical Feature Drift Detected</option>
-                  <option value="conformal_width_exceeded">Uncertainty Envelope Widening</option>
+                  <option value="interval_widening">Uncertainty Envelope Widening</option>
                 </select>
               </div>
 
-              {(alertType === 'price_above' || alertType === 'price_below' || alertType === 'conformal_width_exceeded') && (
+              {(alertType === 'price_above' || alertType === 'price_below' || alertType === 'interval_widening') && (
                 <div>
                   <label className="block text-slate-600 dark:text-slate-400 font-mono mb-1">Threshold Price Value:</label>
                   <input

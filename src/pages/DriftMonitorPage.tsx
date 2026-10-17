@@ -153,10 +153,10 @@ export const DriftMonitorPage: React.FC = () => {
                     {f.pValue.toFixed(4)}
                   </td>
                   <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400 tabular-nums">
-                    {f.trainingMean.toFixed(2)}
+                    {(f.baselineMean ?? 0).toFixed(2)}
                   </td>
                   <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400 tabular-nums">
-                    {f.inferenceMean.toFixed(2)}
+                    {(f.liveMean ?? 0).toFixed(2)}
                   </td>
                   <td className="py-3 px-4 text-center">
                     {f.driftDetected ? (

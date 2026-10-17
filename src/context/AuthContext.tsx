@@ -37,7 +37,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.removeItem('alphaquant_token');
           baseUser = null;
         }
-      } else if (token === 'demo-token') {
+      } else if (token === 'demo-token' || (!token && localStorage.getItem('alphaquant_logged_out') !== 'true')) {
+        localStorage.setItem('alphaquant_token', 'demo-token');
         baseUser = {
           id: 'user-alphaquant-demo-1',
           name: 'Alex Morgan, CFA',
@@ -116,6 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     // End active token session, but keep persistent user data in database and local cache
     localStorage.removeItem('alphaquant_token');
+    localStorage.setItem('alphaquant_logged_out', 'true');
     setUser(null);
   };
 
@@ -143,6 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const enterDemoMode = () => {
+    localStorage.removeItem('alphaquant_logged_out');
     localStorage.setItem('alphaquant_token', 'demo-token');
     const demoUser: UserProfile = {
       id: 'user-alphaquant-demo-1',
