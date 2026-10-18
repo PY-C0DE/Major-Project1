@@ -5,7 +5,7 @@
  * Supports Dark and Light themes.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -13,10 +13,13 @@ import {
   Briefcase,
   History,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Bell,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { api } from '../services/api';
-import { StockQuote, HistoricalBar, ConformalPrediction, MarketRegime, NewsItem, ConceptDriftResult } from '../types';
+import { StockQuote, HistoricalBar, ConformalPrediction, MarketRegime, NewsItem, ConceptDriftResult, AlertRule } from '../types';
 import { InteractiveStockChart } from '../components/InteractiveStockChart';
 import { ConformalPredictionCard } from '../components/ConformalPredictionCard';
 import { MarketRegimeCard } from '../components/MarketRegimeCard';
@@ -24,6 +27,7 @@ import { SentimentCard } from '../components/SentimentCard';
 import { ConceptDriftCard } from '../components/ConceptDriftCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
+import { PriceAlertModal } from '../components/PriceAlertModal';
 
 interface Props {
   ticker: string;
@@ -38,10 +42,21 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
   const [regime, setRegime] = useState<MarketRegime | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [drift, setDrift] = useState<ConceptDriftResult | null>(null);
+  const [alerts, setAlerts] = useState<AlertRule[]>([]);
+  const [showPriceAlertModal, setShowPriceAlertModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [watchlistSuccess, setWatchlistSuccess] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const allAlerts = await api.getAlerts();
+      setAlerts(allAlerts.filter(a => a.ticker.toUpperCase() === ticker.toUpperCase()));
+    } catch (e) {
+      console.error('Failed to load alerts in StockDetailPage:', e);
+    }
+  }, [ticker]);
 
   useEffect(() => {
     async function loadStock() {
@@ -153,8 +168,20 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
     }
   };
 
+  useEffect(() => {
+    loadAlerts();
+  }, [loadAlerts]);
+
   const currSym = quote?.currency === 'INR' ? '₹' : '$';
   const isUp = (quote?.change ?? 0) >= 0;
+
+  const activeAlerts = alerts.filter(a => a.enabled);
+  const metAlerts = alerts.filter(a => {
+    if (!a.enabled || !quote) return false;
+    const thresh = a.threshold || 0;
+    return (a.type === 'price_above' && quote.price >= thresh) ||
+           (a.type === 'price_below' && quote.price <= thresh);
+  });
 
   return (
     <div className="space-y-6">
@@ -183,6 +210,17 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               {isUp ? '+' : ''}{quote?.change?.toFixed(2)} ({isUp ? '+' : ''}{quote?.changePercent?.toFixed(2)}%)
             </span>
             <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">Today</span>
+
+            {/* Threshold Met Indicator Badge */}
+            {metAlerts.length > 0 && (
+              <button
+                onClick={() => setShowPriceAlertModal(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-xs cursor-pointer hover:scale-105 transition-transform animate-pulse"
+              >
+                <Bell className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-emerald-500/20" />
+                <span>Threshold Met: {metAlerts[0].type === 'price_above' ? '≥' : '≤'} {currSym}{metAlerts[0].threshold}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -199,6 +237,27 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Price Alert Action Button */}
+            <button
+              onClick={() => setShowPriceAlertModal(true)}
+              title="Set Target Price Alert"
+              className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                metAlerts.length > 0
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-400 dark:bg-emerald-950/80 dark:hover:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-700 font-bold shadow-xs'
+                  : activeAlerts.length > 0
+                  ? 'bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-950/60 dark:hover:bg-cyan-950 dark:text-cyan-300 dark:border-cyan-700'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <Bell className={`w-4 h-4 ${metAlerts.length > 0 ? 'text-emerald-600 dark:text-emerald-400 animate-bounce' : activeAlerts.length > 0 ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-500'}`} />
+              <span>{metAlerts.length > 0 ? 'Alert Met!' : 'Price Alert'}</span>
+              {activeAlerts.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-white dark:bg-slate-900 border border-current">
+                  {activeAlerts.length}
+                </span>
+              )}
+            </button>
+
             <button
               onClick={handleAddToWatchlist}
               className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"

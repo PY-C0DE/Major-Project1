@@ -1,39 +1,99 @@
 # AlphaQuant AI — Enterprise Stock Intelligence Platform
 
-An institutional-grade, full-stack AI financial intelligence platform engineered for quantitative price forecasting, uncertainty quantification, macroeconomic regime discovery, and real-time concept drift monitoring.
+An institutional-grade, full-stack AI financial intelligence platform engineered for quantitative price forecasting, non-parametric uncertainty quantification, macroeconomic regime discovery, and real-time concept drift monitoring.
 
 ---
 
 ## 1. Core Architecture & Differentiating Innovations (USPs)
 
 ### USP 1 — Conformal Prediction (MAPIE & Split-Conformal)
-Rather than predicting a single deterministic point target, AlphaQuant provides a **90% finite-sample prediction interval**:
+Rather than predicting a single misleading deterministic point target, AlphaQuant provides a **finite-sample prediction interval** calibrated at nominal $90\%$ and $95\%$ coverage levels:
 $$\hat{C}(X_{n+1}) = [\hat{y}_{n+1} - \hat{q}_{1-\alpha}, \; \hat{y}_{n+1} + \hat{q}_{1-\alpha}]$$
-- Quantifies epistemic and aleatoric market risk.
-- Residual non-conformity calibration over time-series validation windows.
+- Quantifies epistemic and aleatoric market risk without arbitrary parametric distribution assumptions.
+- Calibrates residual non-conformity scores over chronological out-of-sample time-series validation windows.
 - Clear user guidance: Prediction intervals represent mathematical bounds of uncertainty and are not market guarantees.
 
 ### USP 2 — Hidden Markov Model (HMM) Market Regime Detection
-- Uses Gaussian HMMs (`hmmlearn`) over daily log-returns $r_t$ and rolling volatility $\sigma_{20d}$.
+- Uses Gaussian Hidden Markov Models (`hmmlearn`) over daily log-returns $r_t$ and rolling volatility $\sigma_{20d}$.
 - Identifies latent market phases:
   - **Regime 0**: Low Volatility / Bullish steady drift
   - **Regime 1**: High Volatility / Bearish tail risk
-- Computes empirical transition matrix $A$, posterior state probabilities, and regime stability indices.
-- Passes the active regime into downstream prediction models as a conditioned feature.
+- Computes empirical transition matrix $A$, posterior state persistence probabilities, and regime stability indices.
+- Passes active regime indicators into downstream prediction models as a conditioned feature vector.
 
 ### USP 3 — Multimodal Signal Fusion & FinBERT Tone Analysis
-- **Technical Factors**: SMA, EMA, RSI (Wilder's 14), MACD, Bollinger Bands, ATR, Momentum, ROC.
-- **FinBERT NLP**: Fine-tuned on financial discourse (`yiyanghkust/finbert-tone`) to extract positive, neutral, and negative sentiment probabilities and composite polarity.
-- **Fake-News & Fact Verification**: Google Fact Check Tools API claim matching coupled with publisher domain credibility scoring.
+- **Technical Factors**: SMA (20/50), EMA, RSI (Wilder's 14), MACD, Bollinger Bands, ATR, Momentum, and Rate-of-Change (ROC).
+- **FinBERT NLP**: Fine-tuned financial language model (`yiyanghkust/finbert-tone`) extracting positive, neutral, and negative sentiment probabilities and composite polarity.
+- **Fact Verification & Credibility**: Google Fact Check Tools API claim matching coupled with financial publisher domain credibility weighting.
 
-### USP 4 — Concept Drift Monitoring (Kolmogorov-Smirnov Test)
-- Continuous two-sample Kolmogorov-Smirnov test (`scipy.stats.ks_2samp`) comparing baseline training distributions against live 30-day inference windows.
+### USP 4 — Concept Drift Monitoring (Two-Sample Kolmogorov-Smirnov Test)
+- Continuous two-sample Kolmogorov-Smirnov test (`scipy.stats.ks_2samp`) comparing baseline training distributions against rolling 30-day inference windows.
 - Calculates empirical $D$-statistics and asymptotic $p$-values across all key features.
 - Triggers automatic safety warnings and widens prediction envelopes when distribution drift is detected ($p < 0.05$).
 
 ---
 
-## 2. Measured Empirical Results (Chronological Held-Out Backtest - 95% Precision)
+## 2. Interactive UI & Modern Motion Architecture
+
+AlphaQuant AI features a modern, fluid user experience built with React 19, Tailwind CSS, and `motion` (Framer Motion v12):
+
+### A. Animated Quant Copilot Card (`AnimatedQuantCard.tsx`)
+- **Frosted Glassmorphism**: Translucent backdrop blur (`backdrop-blur-2xl`), subtle gradient borders, and soft ambient glowing orbs.
+- **Morphing AI Insight Bubble**: Fluid spring-driven height expansion and text morphing across live quantitative scenarios (90% Conformal intervals, HMM regime shifts, FinBERT sentiment, Markowitz MVO frontier, KS drift audit).
+- **Simulated Real-Time AI Inference**: Interactive reasoning state with shimmering progress indicator simulating live residual calculation.
+- **Micro-Interactions**:
+  - Micro-bounce feedback on Thumbs Up and Thumbs Down.
+  - One-click clipboard copy with animated confirmation toast.
+  - Smooth rotating cycle button to step through scenarios.
+  - Interactive scenario template popover (`+`) and telemetry dataset attachment (`📎`).
+
+### B. Typewriter Command Bar & Combobox (`CompanySearchCombobox.tsx`)
+- Animated typewriter placeholder cycling through natural-language prompts with a blinking cursor.
+- Keyboard shortcut indicator (`⌘K` / `Ctrl+K`).
+- Instant debounced search supporting both company names (e.g., "Reliance", "Nvidia", "Tata", "Apple") and exchange tickers.
+- One-click scenario chips for rapid analysis.
+
+### C. Interactive Mathematical Stress-Test Sandbox (`LandingPage.tsx`)
+- **Dual Live Controls**:
+  - **Market Regime**: Bullish Low-Vol, Mean-Reverting, and Turbulent Crisis Shock.
+  - **Coverage Bound ($1 - \alpha$)**: $80\%$, $90\%$, $95\%$, and $99\%$ confidence levels.
+- Real-time reactive recalculation of interval widths, lower/upper price envelopes, HMM latent state probabilities, and KS drift p-values.
+
+### D. Infinite Market Marquee Ribbon
+- Continuous, hardware-accelerated ticker tape streaming live quotes across domestic and global indices (NIFTY 50, SENSEX, BANK NIFTY, S&P 500, NASDAQ 100, RELIANCE, NVDA, TCS, AAPL, MSFT) with hover-to-pause.
+
+### E. Unified Navigation & Workspaces
+- Balanced sticky header with instant Dark/Light theme switching.
+- Prominent and permanently visible **Sign Out** button across both the top navigation bar and workspace sidebar.
+- Responsive mobile navigation bar with balanced actions.
+
+---
+
+## 3. Platform Capabilities & Workspaces
+
+The platform provides 6 distinct workspaces gated by authentication (with instant Demo Quant Strategist access):
+
+1. **Live Market Dashboard (`DashboardPage.tsx`)**:
+   - Real-time market tape, macro regime indicators, top movers, and rapid ticker forecast inspector.
+   - Quick insight cards and interactive regime status telemetry.
+2. **Custom Asset Watchlist (`WatchlistPage.tsx`)**:
+   - Side-by-side comparison of Indian (NSE) and US (NASDAQ/NYSE) stocks.
+   - Live quotes, conformal uncertainty ranges, HMM regimes, and concept drift flags.
+3. **Portfolio Management (`PortfolioPage.tsx`)**:
+   - Mark-to-market valuation, unrealized P&L, asset allocation breakdown, and Markowitz Mean-Variance Optimization (MVO) efficient frontier.
+4. **Deep Stock Analysis (`StockAnalysisPage.tsx`)**:
+   - Interactive candlestick OHLCV charts with SMA 20/50, Bollinger Bands, RSI & MACD subcharts.
+   - Conformal 90% prediction envelope overlays and SHAP-like factor attributions.
+5. **Model Backtesting & Drift Audit (`ModelPerformancePage.tsx`)**:
+   - Chronological out-of-sample forward backtest metrics (MAE, RMSE, MAPE, $R^2$, 95%+ Directional Accuracy).
+   - Two-sample Kolmogorov-Smirnov drift test distribution histograms and critical thresholds.
+6. **Alerts & News Intelligence (`AlertsPage.tsx`)**:
+   - Rule-based breakout and volatility alerts.
+   - FinBERT tone polarity, publisher credibility scoring, and Google Fact Check claims.
+
+---
+
+## 4. Measured Empirical Results (Chronological Held-Out Backtest)
 
 All metrics are evaluated strictly on a **chronological forward held-out test split** (last 45 trading sessions out-of-sample) with zero lookahead bias, rolling feature derivation, and time-series cross-validation.
 
@@ -67,34 +127,68 @@ All metrics are evaluated strictly on a **chronological forward held-out test sp
 
 ---
 
-## 3. Technology Stack
+## 5. Technology Stack
 
-- **Frontend**: React 19, TypeScript, Tailwind CSS, Vite, Recharts, Lucide Icons
-- **Full-Stack Runtime**: Express + Node.js (Vite middleware integration), Python 3.10+ FastAPI backend
-- **Machine Learning & Math**: XGBoost, Scikit-Learn, HMMlearn, Scipy, Pandas, MAPIE Conformal Prediction
-- **NLP**: Hugging Face Transformers, FinBERT tone architecture
-- **Database**: MongoDB with automatic in-memory cache resilience
-- **Authentication**: JWT token verification, salted bcrypt password hashing
+- **Frontend**: React 19, TypeScript, Tailwind CSS v4, Vite, `motion` (Framer Motion v12), Recharts, Lucide Icons
+- **Full-Stack Runtime**: Express + Node.js (with Vite dev middlewares), tsx, Python 3.10+ FastAPI
+- **Machine Learning & Math**: XGBoost, Scikit-Learn, HMMlearn, Scipy (`ks_2samp`), Pandas, MAPIE Conformal Prediction
+- **NLP**: Hugging Face Transformers (`yiyanghkust/finbert-tone`), Google Fact Check API
+- **Data Ingestion**: Yahoo Finance API engine (`yahoo-finance2`), Alpha Vantage, FRED economic data
+- **Security & Authentication**: Salted bcrypt password hashing, stateless JWT session verification, demo fallback mode
 
 ---
 
-## 4. Quick Start (Local Development)
+## 6. Project Structure
 
-### Full-Stack Run (Instant UI + Live Financial APIs on port 3000)
+```
+├── .env.example              # Environment variables template (no secrets)
+├── package.json              # Full-stack dependencies and scripts
+├── server.ts                 # Express full-stack API server & Vite middleware
+├── vite.config.ts            # Vite bundler configuration
+├── tsconfig.json             # TypeScript compiler settings
+├── src/
+│   ├── App.tsx               # Main application routing & workspace shell
+│   ├── index.css             # Tailwind v4 theme, keyframe animations, typography
+│   ├── main.tsx              # React DOM entrypoint
+│   ├── types.ts              # TypeScript domain interfaces & types
+│   ├── assets/               # Images and branding assets
+│   ├── components/           # UI components
+│   │   ├── AnimatedQuantCard.tsx     # Frosted glassmorphism Copilot & command bar
+│   │   ├── CompanySearchCombobox.tsx # Autocomplete search & typewriter pill
+│   │   ├── Navbar.tsx                # Unified balanced header with theme toggle
+│   │   ├── Sidebar.tsx               # Workspace sidebar with sign-out action
+│   │   ├── AuthModal.tsx             # Modal login & registration interface
+│   │   └── ...
+│   ├── context/              # Global state management
+│   │   ├── AuthContext.tsx           # Authentication state & demo fallback
+│   │   └── ThemeContext.tsx          # Dark / Light mode provider
+│   ├── pages/                # Workspace views
+│   │   ├── LandingPage.tsx           # Public homepage with live simulations
+│   │   ├── DashboardPage.tsx         # Real-time quantitative dashboard
+│   │   ├── StockAnalysisPage.tsx     # Deep OHLCV charting & conformal bounds
+│   │   ├── WatchlistPage.tsx         # Multi-asset dual exchange watchlist
+│   │   ├── PortfolioPage.tsx         # Portfolio tracking & MVO frontier
+│   │   ├── ModelPerformancePage.tsx  # Backtesting metrics & KS drift tests
+│   │   ├── AlertsPage.tsx            # News intelligence & threshold alerts
+│   │   └── AccountPage.tsx           # User settings & profile
+│   └── services/
+│       └── api.ts                    # Frontend API client for market & ML endpoints
+└── backend/                  # Optional standalone FastAPI python service
+    ├── app/
+    └── requirements.txt
+```
+
+---
+
+## 7. Quick Start (Local Development)
+
+### Full-Stack Run (Node.js + Express + React on port 3000)
 ```bash
 # 1. Install dependencies
-npm install #or npm install --legacy-peer-deps
+npm install
 
 # 2. Run full-stack dev server
 npm run dev
-
-""" If a Vite React-Is error occurs
-npm install react-is --force
-npx vite --force"""
-
-""" If you have Bun installed, you can simply run:
-bun install
-bun run dev"""
 ```
 Open **http://localhost:3000** in your browser.
 
@@ -116,37 +210,25 @@ docker-compose up --build
 
 ---
 
-## 5. Financial & Safety Disclaimer
-*AlphaQuant AI is designed strictly for research, educational, and informational purposes. Machine-learning models, conformal intervals, and sentiment scores are subject to market volatility and uncertainty. Past model accuracy does not guarantee future financial returns. This platform does not provide licensed investment, financial, or trading advice.*
+## 8. Configuration (`.env`)
 
+Copy the template configuration file before running in custom environments:
+```bash
+cp .env.example .env
+```
 
-.env file
-# Environment Configuration for AI Stock Intelligence Platform
-
-# Server & Runtime
+Key environment settings:
+```ini
 PORT=3000
 NODE_ENV=development
-BACKEND_URL=http://localhost:8000
-FRONTEND_URL=http://localhost:5173
-
-# MongoDB Configuration
-MONGODB_URI=mongodb+srv://gaurigupta1016_db_user:<m8euvlIgRMRxJJv>@cluster0.scs3ggo.mongodb.net/?appName=Cluster0
-DATABASE_NAME=ai_stock_intelligence
-
-# Security & Authentication
-JWT_SECRET=b2c7e4693c4a2544350fc473f8b465f8cb711b31b66f99c115386d47914dc41541998d66e49ce9e93572eb1052614e0a282377cf4640c66ed003eee26b5471a5
-JWT_ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-
-# External Financial Data APIs (Optional / Enhanced)
-# System works out of the box with built-in Yahoo Finance engine and demo fallbacks
-NEWS_API_KEY=pub_762d2d753cb64c08990fab04c2237b61
-FRED_API_KEY=ba44f8ac56466d42be4e76f45784d3ee
-GOOGLE_FACT_CHECK_API_KEY=AIzaSyCB_eF1dk404BhFrMLtbE1gYlAmRv78a6Y
-ALPHA_VANTAGE_API_KEY=43FMA88PD7QYKC6P
-
-# Model Configuration
+JWT_SECRET=super_secret_jwt_alphaquant_key_replace_in_production_32char_min
 CONFIDENCE_LEVEL=0.90
 REGIME_COMPONENTS=2
 DRIFT_P_VALUE_THRESHOLD=0.05
-RANDOM_SEED=42
+```
+
+---
+
+## 9. Financial & Safety Disclaimer
+
+*AlphaQuant AI is designed strictly for research, educational, and informational purposes. Machine-learning models, conformal intervals, and sentiment scores are subject to market volatility and non-stationary distribution shifts. Past backtested accuracy does not guarantee future financial returns. This platform does not provide licensed investment, financial, or trading advice.*
