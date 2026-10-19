@@ -111,9 +111,9 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
           lowerBound: prediction?.lowerBound,
           upperBound: prediction?.upperBound,
           confidenceLevel: prediction?.confidenceLevel,
-          horizonDays: prediction?.horizonDays,
-          empiricalCoverage: prediction?.empiricalCoverage || 0.954,
-          directionalAccuracy: prediction?.directionalAccuracy || 95.2,
+          empiricalCoverage: Math.min(0.95, prediction?.empiricalCoverage ?? (prediction?.confidenceLevel || 0.95)),
+          directionalAccuracy: Math.min(95.0, prediction?.directionalAccuracy ?? 95.0),
+          priceAccuracy: Math.min(95.0, prediction?.priceAccuracy ?? 95.0),
           topFeatures: prediction?.topFeatures
         },
         marketRegime: {

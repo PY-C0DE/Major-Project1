@@ -87,6 +87,7 @@ export interface ConformalPrediction {
   methodology: string;
   empiricalCoverage?: number;
   directionalAccuracy?: number;
+  priceAccuracy?: number;
 }
 
 export interface EquityCurvePoint {
@@ -219,6 +220,8 @@ export interface ModelEvaluation {
   mape: number;
   r2: number;
   directionalAccuracy: number;
+  conformalCoverage?: number;
+  priceAccuracy?: number;
   totalBacktestSamples: number;
   evaluatedAt: string;
   comparison: ModelComparisonItem[];

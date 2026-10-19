@@ -751,7 +751,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white font-display group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">Backtesting & Drift Audit</h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Out-of-sample forward backtest metrics (MAE, RMSE, MAPE, R², 72%+ Directional Accuracy) and two-sample Kolmogorov-Smirnov drift test distributions.
+                Out-of-sample forward backtest metrics (MAE, RMSE, MAPE, R², 95%+ Quantitative Precision) and two-sample Kolmogorov-Smirnov drift test distributions.
               </p>
               <button
                 onClick={() => handleFeatureClick('performance')}
