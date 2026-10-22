@@ -54,7 +54,7 @@ const defaultUser: UserAccount = {
   name: 'Alex Morgan, CFA',
   email: 'alex.morgan@alphaquant.ai',
   createdAt: '2026-01-15T09:00:00.000Z',
-  passwordHash: '$2a$10$demoHashedPasswordPlaceholderForAlphaQuantSecurity1',
+  passwordHash: '$2b$10$6RaciIhx/9S4Iq8gYWq5A.1T6UV2ZAU.bCwvO/UBx06i1PzpM91kq', // bcrypt hash for 'demo1234'
   isDemoUser: true,
   title: 'Lead Quantitative Strategist',
   organization: 'Morgan Capital Alpha Desk',
@@ -63,7 +63,7 @@ const defaultUser: UserAccount = {
   bio: 'Institutional quantitative portfolio manager focusing on tail-risk mitigation and conformal forecast envelopes.',
   currencyPreference: 'INR',
   defaultExchange: 'NSE',
-  confidenceLevel: 95,
+  confidenceLevel: 90,
   twoFactorEnabled: true,
   notifications: {
     emailAlerts: true,
@@ -183,7 +183,7 @@ const defaultPredictions: StoredPrediction[] = [
     predictedPrice: 3025.80,
     lowerBound: 2915.20,
     upperBound: 3136.40,
-    confidenceLevel: 0.95,
+    confidenceLevel: 0.90,
     marketRegime: 'Low Volatility / Bullish',
     sentimentScore: 0.72,
     timestamp: '2026-10-05T15:30:00.000Z'
@@ -196,7 +196,7 @@ const defaultPredictions: StoredPrediction[] = [
     predictedPrice: 132.80,
     lowerBound: 122.60,
     upperBound: 143.00,
-    confidenceLevel: 0.95,
+    confidenceLevel: 0.90,
     marketRegime: 'Low Volatility / Bullish',
     sentimentScore: 0.81,
     timestamp: '2026-10-05T20:00:00.000Z'
@@ -209,20 +209,26 @@ let watchlists = new Map<string, string[]>(defaultWatchlists);
 let alerts = new Map<string, AlertRule[]>(defaultAlerts);
 let predictionHistory: StoredPrediction[] = [...defaultPredictions];
 
-// Function to save state to disk
+let saveMutex = Promise.resolve();
+
+// Function to save state to disk atomically with mutex serialization
 function saveToDisk() {
-  try {
-    const state: PersistedState = {
-      users: Array.from(users.entries()),
-      portfolios: Array.from(portfolios.entries()),
-      watchlists: Array.from(watchlists.entries()),
-      alerts: Array.from(alerts.entries()),
-      predictionHistory
-    };
-    fs.writeFileSync(STORE_FILE, JSON.stringify(state, null, 2), 'utf8');
-  } catch (err) {
-    console.error('Failed to save AlphaQuant store to disk:', err);
-  }
+  saveMutex = saveMutex.then(async () => {
+    try {
+      const state: PersistedState = {
+        users: Array.from(users.entries()),
+        portfolios: Array.from(portfolios.entries()),
+        watchlists: Array.from(watchlists.entries()),
+        alerts: Array.from(alerts.entries()),
+        predictionHistory
+      };
+      const tempFile = `${STORE_FILE}.tmp.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+      await fs.promises.writeFile(tempFile, JSON.stringify(state, null, 2), 'utf8');
+      await fs.promises.rename(tempFile, STORE_FILE);
+    } catch (err) {
+      console.error('Failed to save AlphaQuant store to disk:', err);
+    }
+  });
 }
 
 // Function to load state from disk
@@ -307,6 +313,11 @@ export const db = {
 
   // Portfolios
   getPortfolio: (userId: string): PortfolioHolding[] => portfolios.get(userId) || [],
+  savePortfolio: (userId: string, holdings: PortfolioHolding[]) => {
+    portfolios.set(userId, holdings);
+    saveToDisk();
+    return holdings;
+  },
   addHolding: (userId: string, holding: PortfolioHolding) => {
     const list = portfolios.get(userId) || [];
     list.push(holding);

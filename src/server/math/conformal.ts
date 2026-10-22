@@ -1,5 +1,5 @@
 /**
- * Conformal Prediction Engine (Split Conformal & MAPIE Formulation)
+ * Conformal Prediction Engine (Split-Conformal Prediction Intervals)
  * Provides mathematically grounded finite-sample prediction intervals:
  * [Lower Bound, Upper Bound] = [y_hat - q_hat, y_hat + q_hat]
  * with real time-series calibration and SHAP-style feature attribution
@@ -15,7 +15,7 @@ export function runConformalPrediction(
   ticker: string,
   sentimentScore = 0.45,
   regimeId = 0,
-  confidenceLevel = 0.95,
+  confidenceLevel = 0.90,
   horizonDays = 1
 ): ConformalPrediction {
   const n = bars.length;
@@ -35,13 +35,13 @@ export function runConformalPrediction(
       intervalWidth: Number((fallbackPrice * 0.08).toFixed(2)),
       intervalWidthPercent: 8.0,
       horizonDays: safeHorizon,
-      modelVersion: 'xgboost-ensemble-v4.0-ultra-95',
+      modelVersion: 'alphaquant-ridge-regression-v1.0',
       predictionTimestamp: new Date().toISOString(),
       topFeatures: [],
-      methodology: `Split-Conformal Inference with MAPIE Residual Calibration (${(safeConfidence * 100).toFixed(0)}% Nominal)`,
-      empiricalCoverage: Math.min(0.95, safeConfidence),
-      directionalAccuracy: 95.0,
-      priceAccuracy: 95.0
+      methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,
+      empiricalCoverage: undefined,
+      directionalAccuracy: undefined,
+      priceAccuracy: undefined
     };
   }
 
@@ -98,9 +98,7 @@ export function runConformalPrediction(
     Math.max(0, Math.ceil((calibSize + 1) * (1 - alpha)) - 1)
   );
 
-  // Finite-sample inflation factor: (1 + 1 / calibSize) guarantees finite-sample coverage >= 1 - alpha
-  const finiteCorrection = 1 + (1 / (calibSize || 1));
-  const qNorm = (calibScores[quantileIdx] || 1.645) * finiteCorrection;
+  const qNorm = calibScores[quantileIdx] || 1.645;
 
   const currentDailyVol = Math.max(0.006, (latestBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
   const volMultiplier = regimeId === 1 ? 1.20 : 0.95;
@@ -115,6 +113,7 @@ export function runConformalPrediction(
   // Compute empirical coverage and MAPE strictly on the validation set
   let inBoundsHits = 0;
   let sumResiduals = 0;
+  let dirHits = 0;
 
   for (let i = calibStartIndex; i < n; i++) {
     const prevBar = bars[i - 1];
@@ -129,20 +128,25 @@ export function runConformalPrediction(
       inBoundsHits++;
     }
     sumResiduals += Math.abs(actual - predPrice);
+
+    const actualRet = (actual - prevPrice) / prevPrice;
+    if ((predRet >= 0 && actualRet >= 0) || (predRet < 0 && actualRet < 0)) {
+      dirHits++;
+    }
   }
 
-  // Real empirical coverage derived directly from the validation bars, capped at 95.0%
+  // Real empirical coverage derived directly from the validation bars
   const rawCoverage = Number((inBoundsHits / (calibSize || 1)).toFixed(3));
-  const empiricalCoverage = Math.min(0.950, rawCoverage);
+  const empiricalCoverage = rawCoverage;
 
-  // Real Price Prediction Accuracy: 100% - MAPE (capped at 95.0% max per user requirement)
+  // Real Price Prediction Accuracy: 100% - MAPE
   const meanAbsResidual = sumResiduals / (calibSize || 1);
   const realMape = (meanAbsResidual / currentPrice) * 100;
   const rawPriceAccuracy = Number((100 - realMape).toFixed(1));
-  const priceAccuracy = Math.min(95.0, rawPriceAccuracy);
+  const priceAccuracy = rawPriceAccuracy;
 
-  // Directional trajectory accuracy capped at 95.0% max
-  const directionalAccuracy = Math.min(95.0, Math.max(Number((empiricalCoverage * 100).toFixed(1)), priceAccuracy));
+  // Directional trajectory accuracy computed on validation bars
+  const directionalAccuracy = calibSize > 0 ? Number(((dirHits / calibSize) * 100).toFixed(1)) : 50.0;
 
   // 3. Feature Attributions based on normalized model factor inputs
   const rsi = latestBar.rsi14 ?? 50;
@@ -167,13 +171,13 @@ export function runConformalPrediction(
       description: `RSI-14 at ${rsi.toFixed(1)} indicates ${rsi < 30 ? 'statistical oversold bounce channel' : rsi > 70 ? 'statistical overbought resistance channel' : 'balanced equilibrium channel'}`
     },
     {
-      feature: 'FinBERT Multimodal Sentiment Fusion',
+      feature: 'Keyword Sentiment Polarity',
       impact: Number((sentimentScore * 18).toFixed(1)),
       category: 'sentiment',
-      description: `FinBERT news polarity score at ${sentimentScore.toFixed(2)} provides ${sentimentScore > 0.15 ? 'positive fundamental tailwind' : sentimentScore < -0.15 ? 'negative fundamental pressure' : 'neutral news distribution'}`
+      description: `News polarity score at ${sentimentScore.toFixed(2)} provides ${sentimentScore > 0.15 ? 'positive fundamental tailwind' : sentimentScore < -0.15 ? 'negative fundamental pressure' : 'neutral news distribution'}`
     },
     {
-      feature: 'Market Regime (HMM Conditional Drift)',
+      feature: 'Market Regime (Trend & Volatility State)',
       impact: regimeId === 0 ? 14 : -14,
       category: 'regime',
       description: regimeId === 0 ? 'Low Volatility / Bullish regime stabilizes forward trajectory' : 'High Volatility / Bearish regime widens variance envelope'
@@ -197,10 +201,10 @@ export function runConformalPrediction(
     intervalWidth,
     intervalWidthPercent,
     horizonDays: safeHorizon,
-    modelVersion: 'xgboost-ensemble-v4.0-ultra-95',
+    modelVersion: 'alphaquant-ridge-regression-v1.0',
     predictionTimestamp: new Date().toISOString(),
     topFeatures,
-    methodology: `Split-Conformal Inference with MAPIE Calibration (${(safeConfidence * 100).toFixed(0)}% Finite-Sample Guaranteed)`,
+    methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,
     empiricalCoverage,
     directionalAccuracy,
     priceAccuracy

@@ -40,8 +40,8 @@ export const CompanySearchCombobox: React.FC<Props> = ({
   const typewriterQueries = [
     'Search ticker (e.g. NVDA, RELIANCE)...',
     'Try "Apple" for conformal risk bounds...',
-    'Try "TCS" for HMM regime prediction...',
-    'Search "Nvidia" for FinBERT tone score...'
+    'Try "TCS" for market regime prediction...',
+    'Search "Nvidia" for sentiment score...'
   ];
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [typedPlaceholder, setTypedPlaceholder] = useState('');
@@ -89,7 +89,8 @@ export const CompanySearchCombobox: React.FC<Props> = ({
     { ticker: 'SBIN.NS', name: 'State Bank of India', exchange: 'NSE', currency: 'INR', price: 815.60, sector: 'Banking & Financial Services' },
     { ticker: 'GOOGL', name: 'Alphabet Inc. (Google)', exchange: 'NASDAQ', currency: 'USD', price: 178.60, sector: 'Internet & Search' },
     { ticker: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', currency: 'USD', price: 248.90, sector: 'Automotive & Clean Energy' },
-    { ticker: 'ZOMATO.NS', name: 'Zomato Ltd.', exchange: 'NSE', currency: 'INR', price: 268.50, sector: 'Consumer Internet' }
+    { ticker: 'TMCV.NS', name: 'Tata Motors Ltd.', exchange: 'NSE', currency: 'INR', price: 414.25, sector: 'Automobile' },
+    { ticker: 'ETERNAL.NS', name: 'Eternal Ltd. (formerly Zomato)', exchange: 'NSE', currency: 'INR', price: 304.45, sector: 'Consumer Internet & Food Tech' }
   ];
 
   // Fetch search results debounced

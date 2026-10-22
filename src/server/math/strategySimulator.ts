@@ -2,8 +2,8 @@
  * Quantitative Trading Strategy Simulator & Backtesting Engine
  * Simulates rule-based quantitative strategies against historical price bars:
  * 1. Conformal Mean Reversion (Buy Lower Conformal Envelope, Sell Point/Upper Bound)
- * 2. HMM Regime Switching (Long Low-Vol Bullish, Cash in High-Vol Bearish)
- * 3. FinBERT Multimodal Fusion (Positive Sentiment + Technical Confirmation)
+ * 2. Rule-Based Regime Momentum (Long Low-Vol Bullish, Cash in High-Vol Bearish)
+ * 3. Sentiment & Technical Signal Filter (Positive Sentiment + Technical Confirmation)
  */
 
 import { ComputedBar } from './indicators';
@@ -152,15 +152,15 @@ export function runStrategyBacktest(
   const stdDev = Math.sqrt(variance) || 0.0001;
   const dailyRf = 0.05 / 252;
   const rawSharpe = ((meanReturn - dailyRf) / stdDev) * Math.sqrt(252);
-  const sharpeRatio = Number(Math.max(0.85, Math.min(3.2, rawSharpe)).toFixed(2));
+  const sharpeRatio = Number(rawSharpe.toFixed(2));
 
-  const winRatePct = totalTrades > 0 ? Number(((winningTrades / totalTrades) * 100).toFixed(1)) : 71.4;
-  const profitFactor = grossLosses > 0 ? Number((grossGains / grossLosses).toFixed(2)) : 2.45;
+  const winRatePct = totalTrades > 0 ? Number(((winningTrades / totalTrades) * 100).toFixed(1)) : null;
+  const profitFactor = grossLosses > 0 ? Number((grossGains / grossLosses).toFixed(2)) : null;
 
   const strategyNames: Record<string, string> = {
-    conformal_reversion: 'Conformal 90% Mean-Reversion Strategy',
-    regime_momentum: 'Gaussian HMM Regime Momentum Strategy',
-    finbert_multimodal: 'FinBERT Sentiment & Multimodal Signal Filter'
+    conformal_reversion: 'Split-Conformal Mean-Reversion Strategy',
+    regime_momentum: 'Rule-Based Regime Momentum Strategy',
+    finbert_multimodal: 'Sentiment & Technical Signal Filter'
   };
 
   return {
@@ -171,9 +171,9 @@ export function runStrategyBacktest(
     alphaPct,
     sharpeRatio,
     maxDrawdownPct: Number(maxDrawdown.toFixed(2)),
-    winRatePct: Math.max(62.5, winRatePct),
-    totalTrades: Math.max(totalTrades, 8),
-    profitFactor: Math.max(1.65, profitFactor),
+    winRatePct,
+    totalTrades,
+    profitFactor,
     equityCurve
   };
 }

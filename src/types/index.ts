@@ -94,8 +94,11 @@ export interface EquityCurvePoint {
   date: string;
   strategyValue: number;
   benchmarkValue: number;
-  drawdown: number;
+  drawdown?: number;
+  drawdownPct?: number;
   signal?: 'BUY' | 'SELL' | 'HOLD';
+  tradeSignal?: 'BUY' | 'SELL' | 'HOLD';
+  cashBalance?: number;
 }
 
 export interface StrategyPerformanceMetrics {
@@ -106,9 +109,9 @@ export interface StrategyPerformanceMetrics {
   alphaPct: number;
   sharpeRatio: number;
   maxDrawdownPct: number;
-  winRatePct: number;
+  winRatePct: number | null;
   totalTrades: number;
-  profitFactor: number;
+  profitFactor: number | null;
   equityCurve: EquityCurvePoint[];
 }
 
@@ -234,12 +237,18 @@ export interface PortfolioHolding {
   companyName: string;
   quantity: number;
   avgBuyPrice: number;
+  averageBuyPrice?: number;
   currentPrice: number;
   totalInvested: number;
   currentValue: number;
   pnl: number;
+  unrealizedPnl?: number;
   pnlPercent: number;
+  unrealizedPnlPercent?: number;
   purchaseDate: string;
+  addedAt?: string;
+  sector?: string;
+  currency?: string;
   notes?: string;
 }
 
@@ -251,6 +260,8 @@ export interface RebalanceSuggestion {
   currentQuantity: number;
   currentWeightPct: number;
   optimalWeightPct: number;
+  targetWeightPct: number;
+  weightDeltaPct: number;
   currentValue: number;
   targetValue: number;
   valueDelta: number; // targetValue - currentValue
@@ -258,6 +269,7 @@ export interface RebalanceSuggestion {
   targetQuantity: number;
   action: 'BUY' | 'SELL' | 'HOLD';
   actionLabel: string;
+  rationale?: string;
   expectedReturnAnnualPct: number;
   volatilityAnnualPct: number;
 }
@@ -268,6 +280,7 @@ export interface EfficientFrontierPoint {
   sharpeRatio: number;
   label?: string;
   isCurrent?: boolean;
+  isOptimal?: boolean;
   isMaxSharpe?: boolean;
   isMinVol?: boolean;
 }
@@ -348,3 +361,144 @@ export interface UserProfile {
     marketOpenSummary: boolean;
   };
 }
+
+export interface ProjectWideAccuracyResult {
+  priceAccuracyPct: number;
+  mape: number;
+  evaluatedAssetsCount: number;
+  mae: number;
+  rmse: number;
+  directionalAccuracyPct: number;
+  conformalCoveragePct: number;
+  benchmark: string;
+  evaluatedAt: string;
+}
+
+export interface OptionContract {
+  strike: number;
+  type: 'CALL' | 'PUT';
+  bid: number;
+  ask: number;
+  lastPrice: number;
+  iv: number;
+  delta: number;
+  gamma: number;
+  theta: number;
+  vega: number;
+  rho: number;
+  volume: number;
+  openInterest: number;
+  inTheMoney: boolean;
+}
+
+export interface OptionsChainResponse {
+  ticker: string;
+  spotPrice: number;
+  atmIV: number;
+  expiryDate: string;
+  daysToExpiry: number;
+  riskFreeRate: number;
+  putCallRatioVolume: number;
+  putCallRatioOI: number;
+  expectedMove1Day: number;
+  expectedMove7Day: number;
+  expectedMove30Day: number;
+  ivSmile: Array<{ strike: number; callIV: number; putIV: number; isATM: boolean }>;
+  strikes: Array<{
+    strike: number;
+    call: OptionContract;
+    put: OptionContract;
+  }>;
+}
+
+export interface AutomatedBacktestResult {
+  ticker: string;
+  strategyName: string;
+  lookbackDays: number;
+  initialCapital: number;
+  strategyFinalValue: number;
+  benchmarkFinalValue: number;
+  strategyReturnPct: number;
+  benchmarkReturnPct: number;
+  alphaOutperformancePct: number;
+  strategySharpeRatio: number;
+  benchmarkSharpeRatio: number;
+  strategyMaxDrawdownPct: number;
+  benchmarkMaxDrawdownPct: number;
+  winRatePct: number;
+  profitFactor: number;
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  equityCurve: EquityCurvePoint[];
+  backtestExecutedAt: string;
+}
+
+export interface BrokerOrder {
+  id: string;
+  ticker: string;
+  side: 'BUY' | 'SELL';
+  qty: number;
+  type: 'MARKET' | 'LIMIT';
+  limitPrice?: number;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
+  timeInForce: 'DAY' | 'GTC';
+  status: 'FILLED' | 'NEW' | 'CANCELED' | 'REJECTED';
+  filledPrice: number;
+  filledAt: string;
+  createdAt: string;
+  routingVenue: string;
+  commission: number;
+}
+
+export interface BrokerAccount {
+  accountId: string;
+  accountNumber: string;
+  status: 'ACTIVE' | 'ONBOARDING';
+  currency: 'USD' | 'INR';
+  buyingPower: number;
+  cash: number;
+  portfolioValue: number;
+  dayTradeCount: number;
+  multiplier: number;
+  gateway: string;
+  lastSyncAt: string;
+}
+
+export interface SocialDiscussion {
+  id: string;
+  ticker: string;
+  source: 'Reddit / r/wallstreetbets' | 'FinTwit / Verified Quants' | 'Institutional Bloomberg Terminal' | 'Discord Quant Desk';
+  author: string;
+  authorBadge: 'Top Contributor' | 'CFA Institute' | 'Verified Quant' | 'Algorithmic Fund';
+  title: string;
+  content: string;
+  sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  sentimentScore: number;
+  upvotes: number;
+  commentsCount: number;
+  timeAgo: string;
+  verifiedTrade?: {
+    action: 'BUY' | 'SELL';
+    price: string;
+    target: string;
+  };
+}
+
+export interface VerifiedTrader {
+  id: string;
+  name: string;
+  handle: string;
+  title: string;
+  avatarSeed: string;
+  aum: string;
+  winRatePct: number;
+  return30dPct: number;
+  sharpeRatio: number;
+  maxDrawdownPct: number;
+  followersCount: number;
+  strategyDescription: string;
+  holdings: Array<{ ticker: string; weightPct: number }>;
+}
+

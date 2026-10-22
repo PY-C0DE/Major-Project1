@@ -51,9 +51,17 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, defaultMode = 'log
     }
   };
 
-  const handleDemoAccess = () => {
-    enterDemoMode();
-    onClose();
+  const handleDemoAccess = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await enterDemoMode();
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to authenticate demo user.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

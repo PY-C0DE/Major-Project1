@@ -1,7 +1,7 @@
 /**
- * USP 3: Multimodal Sentiment & News Fact-Verification Card
- * Powered by FinBERT tone architecture (Positive, Neutral, Negative)
- * fused with Google Fact Check verification and domain reputation scoring.
+ * USP 3: Multimodal Sentiment & Credibility Card
+ * Powered by keyword sentiment lexicon
+ * fused with publisher domain reputation scoring.
  * Fully supports dark and light themes.
  */
 
@@ -18,12 +18,12 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
   if (!news || news.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-5 animate-pulse min-h-[260px] flex items-center justify-center">
-        <span className="text-xs font-mono text-slate-500">Evaluating FinBERT Sentiment & Claim Verification...</span>
+        <span className="text-xs font-mono text-slate-500">Evaluating Keyword Sentiment & Domain Credibility...</span>
       </div>
     );
   }
 
-  // Calculate aggregated FinBERT probabilities across headlines
+  // Calculate aggregated sentiment probabilities across headlines
   let totalPos = 0;
   let totalNeu = 0;
   let totalNeg = 0;
@@ -51,24 +51,24 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
             <Newspaper className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">FinBERT & Fact Verification</h3>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Sentiment & Credibility</h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              Hugging Face Transformers · Multi-Modal Signal Fusion
+              Keyword Sentiment Lexicon · Domain Reputation Scoring
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/40 text-[11px] font-mono text-indigo-700 dark:text-indigo-300">
           <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-          <span>Verif. Weight: {avgVerif}%</span>
+          <span>Credibility Weight: {avgVerif}%</span>
         </div>
       </div>
 
-      {/* Aggregate FinBERT Tone Breakdown */}
+      {/* Aggregate Tone Breakdown */}
       <div className="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-lg mb-4">
         <div className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
           <span>Aggregated News Sentiment Tone</span>
-          <span className="text-slate-400 text-[10px]">yiyanghkust/finbert-tone</span>
+          <span className="text-slate-400 text-[10px]">Keyword Lexicon</span>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">

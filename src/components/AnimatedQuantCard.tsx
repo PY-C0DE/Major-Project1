@@ -46,19 +46,19 @@ interface InsightItem {
 const INSIGHTS: InsightItem[] = [
   {
     id: 'conformal-nvda',
-    category: 'Conformal Prediction 95.0% Precision',
+    category: 'Split-Conformal Prediction Interval',
     ticker: 'NVDA',
-    text: 'Conformal prediction intervals calibrated using MAPIE non-parametric residuals on real historical market prices. The 95% finite-sample envelope bounds the forward forecast with strictly 95.0% empirical coverage, mathematically assuring bounded downside risk.',
-    metric: '95.0% Real Precision',
+    text: 'Split-conformal prediction interval calibrated using non-parametric residuals on historical market prices. The finite-sample interval bounds the forward forecast at calibrated coverage, quantifying downside risk.',
+    metric: '90% Coverage',
     delta: '+3.15%',
-    confidence: '95.0% empirical coverage',
-    regime: 'High-Vol Trending'
+    confidence: 'Calibrated coverage',
+    regime: 'Trending'
   },
   {
     id: 'regime-nifty',
-    category: 'HMM Market Regime',
+    category: 'Market Regime Classifier',
     ticker: 'NIFTY 50',
-    text: 'Gaussian Hidden Markov Model isolates an 89.4% persistence probability in Regime 0 (Low Volatility / Bullish Momentum). The transition matrix confirms low probability of sudden state divergence, signaling favorable risk-reward for systematic long strategies.',
+    text: 'Rule-based regime classifier identifies an 89.4% stability score in Regime 0 (Low Volatility / Bullish Momentum). The transition probabilities confirm state persistence, indicating favorable risk-reward for systematic long strategies.',
     metric: 'Regime 0: Bullish',
     delta: '+0.85%',
     confidence: '89.4% transition stability',
@@ -66,9 +66,9 @@ const INSIGHTS: InsightItem[] = [
   },
   {
     id: 'sentiment-reliance',
-    category: 'FinBERT Sentiment & Fact Verification',
+    category: 'Keyword Sentiment & Credibility',
     ticker: 'RELIANCE.NS',
-    text: 'FinBERT neural tone analyzer processed 24 verified corporate disclosures and market filings. Net sentiment scored +0.92 polarity with zero concept drift detected across two-sample Kolmogorov-Smirnov distribution tests.',
+    text: 'Keyword sentiment analyzer processed corporate disclosures and market filings with domain reputation weighting. Net sentiment scored +0.92 polarity with zero concept drift detected across two-sample Kolmogorov-Smirnov distribution tests.',
     metric: 'Polarity: +0.92',
     delta: '+2.61%',
     confidence: 'p=0.412 drift-safe',
@@ -98,16 +98,16 @@ const INSIGHTS: InsightItem[] = [
 
 const SEARCH_PROMPTS = [
   'What is NVDA 90% conformal risk bound?',
-  'Analyze HMM market regime for Reliance...',
-  'Scan market news for FinBERT sentiment...',
+  'Analyze market regime for Reliance...',
+  'Scan market news for keyword sentiment...',
   'Rebalance portfolio for maximum Sharpe...',
   'Verify KS concept drift on NIFTY index...'
 ];
 
 const QUICK_TEMPLATES = [
   { label: 'Calculate 90% Conformal Bounds', prompt: 'Compute finite-sample 90% confidence envelope for active tickers', target: 0 },
-  { label: 'Run HMM Regime State Detection', prompt: 'Identify latent Hidden Markov market regime and transition probabilities', target: 1 },
-  { label: 'Verify FinBERT News Fact Claims', prompt: 'Analyze corporate news sentiment with FinBERT and Google Fact Check tools', target: 2 },
+  { label: 'Run Regime State Detection', prompt: 'Identify rule-based market regime and transition probabilities', target: 1 },
+  { label: 'Analyze News Sentiment & Claims', prompt: 'Analyze corporate news sentiment and publisher credibility', target: 2 },
   { label: 'Rebalance Markowitz Frontier', prompt: 'Solve quadratic optimization for highest Sharpe ratio allocation', target: 3 },
   { label: 'Run Two-Sample KS Drift Audit', prompt: 'Audit feature stationarity using Kolmogorov-Smirnov hypothesis test', target: 4 }
 ];
@@ -533,8 +533,8 @@ export const AnimatedQuantCard: React.FC<Props> = ({ onSelectPrompt, onExploreTi
           <span className="text-slate-400">Scenarios:</span>
           {[
             { tag: 'NVDA Conformal', idx: 0 },
-            { tag: 'HMM Regime', idx: 1 },
-            { tag: 'FinBERT Score', idx: 2 },
+            { tag: 'Market Regime', idx: 1 },
+            { tag: 'Sentiment Score', idx: 2 },
             { tag: 'MVO Frontier', idx: 3 },
             { tag: 'KS Drift Test', idx: 4 }
           ].map(item => (

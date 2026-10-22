@@ -7,7 +7,7 @@
         "name": "Alex Morgan, CFA",
         "email": "alex.morgan@alphaquant.ai",
         "createdAt": "2026-01-15T09:00:00.000Z",
-        "passwordHash": "$2a$10$demoHashedPasswordPlaceholderForAlphaQuantSecurity1",
+        "passwordHash": "$2b$10$6RaciIhx/9S4Iq8gYWq5A.1T6UV2ZAU.bCwvO/UBx06i1PzpM91kq",
         "isDemoUser": true,
         "title": "Senior Quantitative Portfolio Director",
         "organization": "Morgan Capital Alpha Desk",
@@ -16,7 +16,7 @@
         "bio": "Institutional quantitative portfolio manager focusing on tail-risk mitigation and conformal forecast envelopes.",
         "currencyPreference": "INR",
         "defaultExchange": "NSE",
-        "confidenceLevel": 95,
+        "confidenceLevel": 90,
         "twoFactorEnabled": true,
         "notifications": {
           "emailAlerts": true,

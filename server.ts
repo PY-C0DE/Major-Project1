@@ -2,11 +2,12 @@
  * AlphaQuant AI - Full-Stack Express Server
  * Serves the React frontend via Vite middlewares on port 3000
  * and exposes real production REST endpoints for ML inference,
- * Conformal Prediction, HMM Regimes, KS Drift, FinBERT, and Portfolios.
+ * Split-Conformal Intervals, Market Regimes, KS Drift, News Sentiment, and Portfolios.
  */
 
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -25,10 +26,15 @@ import { detectMarketRegime } from './src/server/math/hmmRegime';
 import { runConformalPrediction } from './src/server/math/conformal';
 import { detectConceptDrift } from './src/server/math/driftDetector';
 import { getNewsForTicker, analyzeFinBERTTone } from './src/server/math/nlpEngine';
-import { runModelEvaluation } from './src/server/math/evaluation';
+import { runModelEvaluation, computeProjectWideAccuracy } from './src/server/math/evaluation';
 import { runStrategyBacktest } from './src/server/math/strategySimulator';
+import { runAutomatedBacktest } from './src/server/math/automatedBacktest';
+import { generateOptionsChain } from './src/server/math/optionsAnalytics';
 import { computeCorrelationMatrix } from './src/server/math/correlation';
 import { optimizePortfolioHoldings } from './src/server/math/portfolioOptimizer';
+import { brokerService } from './src/server/services/brokerService';
+import { getSocialFeed, getVerifiedTraders } from './src/server/services/socialService';
+import { generateQuantCopilotAnswer } from './src/server/services/copilotKnowledge';
 import { db, StoredPrediction } from './src/server/store/db';
 import { generateSupportFallback } from './src/utils/supportKnowledge';
 
@@ -38,8 +44,21 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_alphaquant_key_replace_in_production_32char_min';
+const PORT = 3000;
+
+function getJwtSecret(): string {
+  if (process.env.JWT_SECRET) {
+    return process.env.JWT_SECRET;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: JWT_SECRET environment variable is required when NODE_ENV=production.');
+  }
+  const devSecret = crypto.randomBytes(32).toString('hex');
+  console.warn('⚠️ [SECURITY WARNING] JWT_SECRET is unset. Using an ephemeral random secret for development. Sessions will invalidate on server restart.');
+  return devSecret;
+}
+
+const JWT_SECRET = getJwtSecret();
 
 // Initialize Gemini Client
 const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -54,7 +73,31 @@ const ai = geminiApiKey
     })
   : null;
 
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
+
+// Basic in-memory rate limiting for authentication endpoints
+const authRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+function authRateLimiter(req: Request, res: Response, next: NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const maxAttempts = 15; // 15 attempts per minute per IP
+
+  const record = authRateLimitMap.get(ip);
+  if (!record || now > record.resetTime) {
+    authRateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+    return next();
+  }
+
+  if (record.count >= maxAttempts) {
+    return res.status(429).json({ error: 'Too many authentication attempts. Please try again after 1 minute.' });
+  }
+
+  record.count++;
+  next();
+}
+
+app.use('/api/auth', authRateLimiter);
 
 // Request logger for API calls
 app.use((req, res, next) => {
@@ -63,6 +106,8 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+const ALLOW_DEMO_MODE = process.env.ALLOW_DEMO_MODE === 'true';
 
 // Authentication Middleware
 interface AuthenticatedRequest extends Request {
@@ -78,23 +123,28 @@ function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextF
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    // Demo fallback user if unauthenticated
-    req.user = {
-      id: 'user-alphaquant-demo-1',
-      email: 'alex.morgan@alphaquant.ai',
-      name: 'Alex Morgan, CFA'
-    };
-    return next();
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, decoded: any) => {
-    if (err) {
+    if (ALLOW_DEMO_MODE) {
       req.user = {
         id: 'user-alphaquant-demo-1',
         email: 'alex.morgan@alphaquant.ai',
         name: 'Alex Morgan, CFA'
       };
       return next();
+    }
+    return res.status(401).json({ error: 'Authentication required. Missing token.' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded: any) => {
+    if (err) {
+      if (ALLOW_DEMO_MODE) {
+        req.user = {
+          id: 'user-alphaquant-demo-1',
+          email: 'alex.morgan@alphaquant.ai',
+          name: 'Alex Morgan, CFA'
+        };
+        return next();
+      }
+      return res.status(401).json({ error: 'Invalid or expired authentication token.' });
     }
     req.user = decoded;
     next();
@@ -111,6 +161,8 @@ function sanitizeUser(user: any) {
 // 1. AUTHENTICATION ENDPOINTS
 // -------------------------------------------------------------
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 app.post('/api/auth/register', async (req: Request, res: Response) => {
   try {
     const { name, email, password } = req.body;
@@ -118,11 +170,20 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Name, email, and password are required.' });
     }
 
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    if (typeof name !== 'string' || name.trim().length === 0) {
+      return res.status(400).json({ error: 'A valid name is required.' });
     }
 
-    const existing = db.getUserByEmail(email.toLowerCase());
+    if (typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
+      return res.status(400).json({ error: 'A valid email address format is required.' });
+    }
+
+    if (typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = db.getUserByEmail(cleanEmail);
     if (existing) {
       return res.status(409).json({ error: 'User with this email already exists.' });
     }
@@ -131,8 +192,8 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
     const passwordHash = await bcrypt.hash(password, salt);
     const newUser = {
       id: `user-${Date.now()}`,
-      name,
-      email: email.toLowerCase(),
+      name: name.trim(),
+      email: cleanEmail,
       createdAt: new Date().toISOString(),
       passwordHash,
       isDemoUser: false,
@@ -140,7 +201,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
       organization: 'Alpha Desk',
       currencyPreference: 'INR' as const,
       defaultExchange: 'NSE' as const,
-      confidenceLevel: 95,
+      confidenceLevel: 90,
       twoFactorEnabled: false,
       timezone: 'Asia/Kolkata (IST)',
       bio: 'Quantitative market participant tracking high-probability conformal prediction envelopes.',
@@ -177,15 +238,16 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    const user = db.getUserByEmail(email.toLowerCase());
+    if (typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
+      return res.status(400).json({ error: 'A valid email address format is required.' });
+    }
+
+    const user = db.getUserByEmail(email.trim().toLowerCase());
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // Allow instant login for demo account
-    const isDemo = user.isDemoUser;
-    const isPasswordValid = isDemo ? true : await bcrypt.compare(password, user.passwordHash);
-
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
@@ -275,11 +337,9 @@ app.put('/api/auth/change-password', authenticateToken, async (req: Authenticate
       return res.status(404).json({ error: 'User not found.' });
     }
 
-    if (!user.isDemoUser) {
-      const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
-      if (!isValid) {
-        return res.status(401).json({ error: 'Current password is incorrect.' });
-      }
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) {
+      return res.status(401).json({ error: 'Current password is incorrect.' });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -332,7 +392,7 @@ app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
 });
 
 // -------------------------------------------------------------
-// 3. NEWS & FINBERT SENTIMENT ENDPOINTS (USP 3)
+// 3. NEWS & KEYWORD SENTIMENT ENDPOINTS (USP 3)
 // -------------------------------------------------------------
 
 app.get('/api/news/:ticker', async (req: Request, res: Response) => {
@@ -381,7 +441,7 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
         negative: negPct
       },
       sampleCount: count,
-      modelUsed: 'yiyanghkust/finbert-tone (Hugging Face Transformers architecture)',
+      modelUsed: 'Keyword sentiment lexicon & rule-based credibility scoring',
       lastUpdated: new Date().toISOString()
     });
   } catch (error: any) {
@@ -409,6 +469,13 @@ app.get('/api/regime/:ticker', async (req: Request, res: Response) => {
 // -------------------------------------------------------------
 // 5. CONFORMAL PREDICTION (USP 1)
 // -------------------------------------------------------------
+
+// Specific sub-paths registered before parameterized route /:ticker to avoid route shadowing
+app.get('/api/predictions/history', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  const ticker = req.query.ticker as string;
+  const history = db.getPredictionHistory(req.user?.id, ticker);
+  return res.json(history);
+});
 
 app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
   try {
@@ -447,8 +514,9 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
     const regime = detectMarketRegime(history, sym);
     const news = getNewsForTicker(sym, sym);
     const avgSentiment = news.reduce((acc, n) => acc + n.sentimentScore, 0) / (news.length || 1);
-
-    const pred = runConformalPrediction(history, sym, avgSentiment, regime.regimeId, 0.90);
+    const fullUser = req.user?.id ? db.getUserById(req.user.id) : null;
+    const userConf = (fullUser?.confidenceLevel ? fullUser.confidenceLevel / 100 : 0.90);
+    const pred = runConformalPrediction(history, sym, avgSentiment, regime.regimeId, userConf);
 
     const stored: StoredPrediction = {
       id: `pred-${Date.now()}`,
@@ -470,12 +538,6 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
     console.error('Error saving prediction:', error);
     return res.status(500).json({ error: 'Failed to record prediction.' });
   }
-});
-
-app.get('/api/predictions/history', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const ticker = req.query.ticker as string;
-  const history = db.getPredictionHistory(req.user?.id, ticker);
-  return res.json(history);
 });
 
 // -------------------------------------------------------------
@@ -511,6 +573,18 @@ app.get('/api/model/metrics', async (req: Request, res: Response) => {
   }
 });
 
+// Dynamic Project-Wide Price Accuracy Metric (100% - MAPE across catalog assets)
+app.get('/api/metrics/accuracy', async (req: Request, res: Response) => {
+  try {
+    const tickers = TICKER_CATALOG.map(t => t.ticker);
+    const result = await computeProjectWideAccuracy(getHistoricalData, tickers);
+    return res.json(result);
+  } catch (error: any) {
+    console.error('Error computing project-wide accuracy metric:', error);
+    return res.status(500).json({ error: 'Failed to compute aggregate accuracy metric.' });
+  }
+});
+
 app.get('/api/model/health', async (req: Request, res: Response) => {
   try {
     const sampleTickers = ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL'];
@@ -532,12 +606,14 @@ app.get('/api/model/health', async (req: Request, res: Response) => {
       status: isSystemHealthy ? 'Optimal' : 'Caution - Distribution Drift',
       healthy: isSystemHealthy,
       activeModelsCount: 4,
-      conformalCoverageTarget: 0.95,
-      empiricalCoverageObserved: Number(((100 - evalMetrics.mape) / 100).toFixed(3)),
+      conformalCoverageTarget: 0.90,
+      empiricalCoverageObserved: evalMetrics.backtestSeries.length > 0
+        ? Number((evalMetrics.backtestSeries.filter(b => b.actual >= b.lower && b.actual <= b.upper).length / evalMetrics.backtestSeries.length).toFixed(3))
+        : Number(((evalMetrics.conformalCoverage ?? 0) / 100).toFixed(3)),
       directionalAccuracy: evalMetrics.directionalAccuracy,
       lastAuditTimestamp: new Date().toISOString(),
-      regimeModel: 'Gaussian HMM (2 states) with Baum-Welch learning',
-      predictionEngine: 'AlphaQuant Ultra v4.0 with Split-Conformal MAPIE calibration',
+      regimeModel: 'Rule-Based Regime Classifier (Trend & Volatility States)',
+      predictionEngine: 'AlphaQuant Ridge Regression (8 Technical Features) with Split-Conformal Intervals',
       driftDetector: 'Two-Sample Kolmogorov-Smirnov (p-threshold: 0.05)'
     });
   } catch (error: any) {
@@ -586,6 +662,150 @@ app.get('/api/markets/correlation', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error computing cross-asset correlation:', error);
     return res.status(500).json({ error: 'Failed to compute market correlation matrix.' });
+  }
+});
+
+// -------------------------------------------------------------
+// 7C. OPTIONS CHAINS & BLACK-SCHOLES GREEKS ANALYTICS
+// -------------------------------------------------------------
+
+app.get('/api/options/:ticker', async (req: Request, res: Response) => {
+  try {
+    const sym = await resolveTickerOrName(req.params.ticker);
+    const quote = await getStockQuote(sym);
+    const days = parseInt((req.query.days as string) || '30', 10);
+    const chain = generateOptionsChain(sym, quote.price, 0.25, days);
+    return res.json(chain);
+  } catch (error: any) {
+    console.error(`Error generating options chain for ${req.params.ticker}:`, error);
+    return res.status(500).json({ error: 'Failed to generate options analytics.' });
+  }
+});
+
+// -------------------------------------------------------------
+// 7D. AUTOMATED BACKTESTING FRAMEWORK (STRATEGY VS BENCHMARK)
+// -------------------------------------------------------------
+
+app.get('/api/backtest/automated', async (req: Request, res: Response) => {
+  try {
+    const ticker = await resolveTickerOrName((req.query.ticker as string) || 'NVDA');
+    const strategy = (req.query.strategy as any) || 'xgboost_conformal';
+    const days = parseInt((req.query.days as string) || '90', 10);
+    const capital = parseFloat((req.query.capital as string) || '100000');
+    const history = await getHistoricalData(ticker, Math.max(120, days + 20));
+    const result = runAutomatedBacktest(history, ticker, strategy, capital, days);
+    return res.json(result);
+  } catch (error: any) {
+    console.error('Error running automated backtest:', error);
+    return res.status(500).json({ error: 'Failed to execute automated backtest.' });
+  }
+});
+
+// -------------------------------------------------------------
+// 7E. DIRECT BROKER ROUTER & ALPACA PAPER TRADING GATEWAY
+// -------------------------------------------------------------
+
+app.get('/api/broker/account', authenticateToken, (_req: AuthenticatedRequest, res: Response) => {
+  return res.json(brokerService.getAccount());
+});
+
+app.get('/api/broker/orders', authenticateToken, (_req: AuthenticatedRequest, res: Response) => {
+  return res.json(brokerService.getOrders());
+});
+
+app.post('/api/broker/order', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { ticker, side, qty, type, limitPrice, stopLossPrice, takeProfitPrice, timeInForce } = req.body;
+    if (!ticker || !side || !qty || !type) {
+      return res.status(400).json({ error: 'Ticker, side, qty, and type are required.' });
+    }
+    const sym = await resolveTickerOrName(ticker);
+    const quote = await getStockQuote(sym);
+    const order = brokerService.placeOrder({
+      ticker: sym,
+      side,
+      qty: Number(qty),
+      type,
+      limitPrice: limitPrice ? Number(limitPrice) : undefined,
+      stopLossPrice: stopLossPrice ? Number(stopLossPrice) : undefined,
+      takeProfitPrice: takeProfitPrice ? Number(takeProfitPrice) : undefined,
+      timeInForce,
+      currentMarketPrice: quote.price
+    });
+    return res.status(201).json(order);
+  } catch (error: any) {
+    console.error('Broker order error:', error);
+    return res.status(400).json({ error: error.message || 'Failed to execute order.' });
+  }
+});
+
+app.delete('/api/broker/order/:orderId', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  const success = brokerService.cancelOrder(req.params.orderId);
+  if (!success) {
+    return res.status(404).json({ error: 'Order not found or cannot be canceled.' });
+  }
+  return res.json({ success: true, message: 'Order canceled successfully.' });
+});
+
+// -------------------------------------------------------------
+// 7F. SOCIAL TRADING & COPY-TRADE FEEDS
+// -------------------------------------------------------------
+
+app.get('/api/social/feed', (req: Request, res: Response) => {
+  const ticker = req.query.ticker as string | undefined;
+  return res.json(getSocialFeed(ticker));
+});
+
+app.get('/api/social/traders', (_req: Request, res: Response) => {
+  return res.json(getVerifiedTraders());
+});
+
+app.post('/api/social/copy-trade', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { traderId } = req.body;
+    const traders = getVerifiedTraders();
+    const trader = traders.find(t => t.id === traderId);
+    if (!trader) {
+      return res.status(404).json({ error: 'Verified trader not found.' });
+    }
+    if (req.user?.id) {
+      const holdings = await Promise.all(
+        trader.holdings.map(async (h) => {
+          const q = await getStockQuote(h.ticker);
+          const allocatedVal = 50000 * (h.weightPct / 100);
+          const qty = Math.max(1, Math.floor(allocatedVal / q.price));
+          return {
+            id: `hold-${Date.now()}-${h.ticker}`,
+            ticker: h.ticker,
+            companyName: q.name,
+            quantity: qty,
+            avgBuyPrice: q.price,
+            averageBuyPrice: q.price,
+            currentPrice: q.price,
+            totalInvested: qty * q.price,
+            currentValue: qty * q.price,
+            pnl: 0,
+            unrealizedPnl: 0,
+            pnlPercent: 0,
+            unrealizedPnlPercent: 0,
+            sector: 'Diversified',
+            currency: q.currency,
+            purchaseDate: new Date().toISOString().split('T')[0],
+            addedAt: new Date().toISOString()
+          };
+        })
+      );
+      const userId = req.user?.id || 'user-alphaquant-demo-1';
+      db.savePortfolio(userId, holdings);
+    }
+    return res.json({
+      success: true,
+      message: `Successfully mirrored portfolio of ${trader.name}. Holdings synchronized.`,
+      trader
+    });
+  } catch (error: any) {
+    console.error('Error copying trader portfolio:', error);
+    return res.status(500).json({ error: 'Failed to synchronize copy trade.' });
   }
 });
 
@@ -972,10 +1192,10 @@ app.post(['/api/support/chat', '/api/support/chat/'], async (req: Request, res: 
     const systemInstruction = `You are the AlphaQuant AI Customer Support and Quantitative Assistant.
 AlphaQuant AI is an institutional-grade, full-stack AI financial stock intelligence platform.
 Key product capabilities:
-1. Access & Protection: Public Home page features an institutional overview and live quantitative preview widget. Gated features like Dashboard, Watchlist, Portfolio, Deep Analysis, Model Metrics, and Alerts require user registration or login.
-2. 90% Conformal Prediction: Implements split-conformal prediction intervals (MAPIE formulation) calculating mathematically grounded finite-sample coverage [lowerBound, upperBound] at 90% confidence, avoiding deceptive deterministic single-point forecasts.
-3. HMM Market Regime Detection: Classifies market conditions into Low Volatility / Bullish (State 0) and High Volatility / Bearish (State 1) to identify volatility shifts and tail-risk cascades.
-4. FinBERT & News Fact Verification: Combines Hugging Face finbert-tone sentiment analysis with Google Fact Check Tools claim verification to filter noise and unverified rumors.
+1. Access & Protection: Public Home page features an institutional overview and quantitative preview widget. Gated features like Dashboard, Watchlist, Portfolio, Deep Analysis, Model Metrics, and Alerts require user registration or login.
+2. Split-Conformal Prediction: Implements split-conformal prediction intervals calculating mathematically grounded finite-sample coverage [lowerBound, upperBound] at nominal confidence (default 90%), avoiding deceptive deterministic single-point forecasts.
+3. Rule-Based Market Regime Detection: Classifies market conditions into Low Volatility / Bullish (State 0) and High Volatility / Bearish (State 1) to identify volatility shifts.
+4. News Sentiment & Credibility Scoring: Combines keyword sentiment analysis with domain publisher credibility weighting to filter noise and unverified rumors.
 5. Kolmogorov-Smirnov Concept Drift Monitor: Evaluates two-sample KS tests (p < 0.05 alert trigger) comparing training baselines against live 30-day inference windows.
 6. Multi-Asset Coverage: Dual-exchange support for Indian NSE equities (RELIANCE.NS, TCS.NS, INFY.NS, etc.) and US NASDAQ/NYSE equities (NVDA, AAPL, MSFT, GOOGL).
 7. Profile & Avatars: Users can customize their identity using 20 Google Play Games-inspired vector avatars or uploading custom pictures.
@@ -1030,6 +1250,60 @@ Guidelines:
       reply: fallbackReply,
       suggestedActions: []
     });
+  }
+});
+
+// Floating AlphaBot Copilot Assistant Endpoint
+app.post('/api/copilot/chat', async (req: Request, res: Response) => {
+  try {
+    const { message, contextTicker } = req.body;
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required.' });
+    }
+
+    if (ai) {
+      try {
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000));
+        const generatePromise = ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `You are AlphaBot, an elite Quantitative Finance & AI Terminal Copilot at AlphaQuant AI.
+Provide mathematical rigor, concise explanations, and terminal guidance.
+Topics:
+- Split-Conformal prediction intervals C(X) = [y_hat - q_{1-alpha}, y_hat + q_{1-alpha}], empirical finite-sample coverage guarantees.
+- Black-Scholes Greeks: Delta, Gamma, Theta, Vega, Rho, IV smile/skew, expected moves.
+- Kolmogorov-Smirnov 2-sample concept drift test D-statistic & p-values.
+- Markowitz MVO & Sharpe Ratio optimization, covariance singularity protection.
+- Alpaca Paper Trading Gateway & order execution (Stop Loss, Profit Targets).
+- Custom quantitative indicators (CVR, RMO).
+
+Context Ticker: ${contextTicker || 'Global Markets'}.
+User Question: "${message}".`
+                }
+              ]
+            }
+          ]
+        });
+
+        const response: any = await Promise.race([generatePromise, timeoutPromise]);
+        const replyText = response?.text;
+        if (replyText && replyText.trim()) {
+          return res.json({ reply: replyText.trim() });
+        }
+      } catch (geminiErr) {
+        console.warn('Gemini Copilot fallback triggered:', geminiErr);
+      }
+    }
+
+    const fallbackAnswer = generateQuantCopilotAnswer(message, contextTicker);
+    return res.json({ reply: fallbackAnswer });
+  } catch (error: any) {
+    console.error('Copilot chat error:', error);
+    return res.status(500).json({ error: 'Failed to process Copilot request.' });
   }
 });
 

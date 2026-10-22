@@ -18,6 +18,12 @@ import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { AuthModal } from './components/AuthModal';
 import { CustomerChatbot } from './components/CustomerChatbot';
+import { OptionsAnalyticsModal } from './components/OptionsAnalyticsModal';
+import { AutomatedBacktestingModal } from './components/AutomatedBacktestingModal';
+import { BrokerRouterModal } from './components/BrokerRouterModal';
+import { SocialCopyTradeModal } from './components/SocialCopyTradeModal';
+import { AIPortfolioOptimizerModal } from './components/AIPortfolioOptimizerModal';
+import { ProductTourModal } from './components/ProductTourModal';
 
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -39,6 +45,14 @@ function AppContent() {
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [portfolioAddTicker, setPortfolioAddTicker] = useState<string | undefined>(undefined);
+
+  // Institutional Terminal Modals
+  const [optionsModalOpen, setOptionsModalOpen] = useState<boolean>(false);
+  const [backtestModalOpen, setBacktestModalOpen] = useState<boolean>(false);
+  const [brokerModalOpen, setBrokerModalOpen] = useState<boolean>(false);
+  const [socialModalOpen, setSocialModalOpen] = useState<boolean>(false);
+  const [optimizerModalOpen, setOptimizerModalOpen] = useState<boolean>(false);
+  const [tourModalOpen, setTourModalOpen] = useState<boolean>(false);
 
   // When authentication status changes to true from false, default to dashboard
   useEffect(() => {
@@ -83,6 +97,22 @@ function AppContent() {
     setActiveTab(tab);
   };
 
+  const handleTourAction = (actionId: string) => {
+    if (actionId.startsWith('nav:')) {
+      handleTabChange(actionId.replace('nav:', ''));
+    } else if (actionId === 'open:options') {
+      setOptionsModalOpen(true);
+    } else if (actionId === 'open:backtest') {
+      setBacktestModalOpen(true);
+    } else if (actionId === 'open:broker') {
+      setBrokerModalOpen(true);
+    } else if (actionId === 'open:social') {
+      setSocialModalOpen(true);
+    } else if (actionId === 'open:optimizer') {
+      setOptimizerModalOpen(true);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-600 dark:text-slate-400 font-mono text-xs transition-colors duration-200">
@@ -104,6 +134,12 @@ function AppContent() {
         setActiveTab={handleTabChange}
         onSearchTicker={handleSelectTicker}
         onOpenAuth={handleOpenAuth}
+        onOpenOptions={() => setOptionsModalOpen(true)}
+        onOpenBacktest={() => setBacktestModalOpen(true)}
+        onOpenBroker={() => setBrokerModalOpen(true)}
+        onOpenSocial={() => setSocialModalOpen(true)}
+        onOpenOptimizer={() => setOptimizerModalOpen(true)}
+        onOpenTour={() => setTourModalOpen(true)}
       />
 
       {/* Main Viewport */}
@@ -128,6 +164,12 @@ function AppContent() {
             activeTab={activeTab}
             setActiveTab={handleTabChange}
             selectedTicker={selectedTicker}
+            onOpenOptions={() => setOptionsModalOpen(true)}
+            onOpenBacktest={() => setBacktestModalOpen(true)}
+            onOpenBroker={() => setBrokerModalOpen(true)}
+            onOpenSocial={() => setSocialModalOpen(true)}
+            onOpenOptimizer={() => setOptimizerModalOpen(true)}
+            onOpenTour={() => setTourModalOpen(true)}
           />
 
           {/* Viewport Content Area */}
@@ -265,6 +307,57 @@ function AppContent() {
         </div>
       )}
 
+      {/* Institutional Derivatives: Options Chains & Black-Scholes Greeks Modal */}
+      <OptionsAnalyticsModal
+        isOpen={optionsModalOpen}
+        onClose={() => setOptionsModalOpen(false)}
+        initialTicker={selectedTicker}
+      />
+
+      {/* Automated Backtesting Engine Modal */}
+      <AutomatedBacktestingModal
+        isOpen={backtestModalOpen}
+        onClose={() => setBacktestModalOpen(false)}
+        defaultTicker={selectedTicker}
+      />
+
+      {/* Direct Broker Router (Alpaca Paper Trading) Modal */}
+      <BrokerRouterModal
+        isOpen={brokerModalOpen}
+        onClose={() => setBrokerModalOpen(false)}
+        defaultTicker={selectedTicker}
+        onOrderSuccess={() => {
+          setActiveTab('portfolio');
+        }}
+      />
+
+      {/* Social Sentiment & Verified Copy-Trade Feeds Modal */}
+      <SocialCopyTradeModal
+        isOpen={socialModalOpen}
+        onClose={() => setSocialModalOpen(false)}
+        onPortfolioSynced={() => {
+          setActiveTab('portfolio');
+        }}
+      />
+
+      {/* AI Portfolio Optimizer & Sync Modal */}
+      <AIPortfolioOptimizerModal
+        isOpen={optimizerModalOpen}
+        onClose={() => setOptimizerModalOpen(false)}
+        onSyncComplete={() => {
+          setActiveTab('portfolio');
+        }}
+      />
+
+      {/* 12-Step Guided Product Tour Walkthrough */}
+      <ProductTourModal
+        isOpen={tourModalOpen}
+        onClose={() => setTourModalOpen(false)}
+        onAction={handleTourAction}
+        onNavigate={handleTabChange}
+        activeTab={activeTab}
+      />
+
       {/* Global Auth Modal */}
       <AuthModal
         isOpen={authModalOpen}
@@ -272,12 +365,18 @@ function AppContent() {
         defaultMode={authMode}
       />
 
-      {/* AI Customer Support & Quant Assistant Chatbot */}
+      {/* Floating AlphaBot Copilot Quantitative Chat Assistant */}
       <CustomerChatbot
         onNavigate={handleTabChange}
         onOpenAuth={handleOpenAuth}
         isAuthenticated={isAuthenticated}
         userName={user?.name}
+        onOpenTour={() => setTourModalOpen(true)}
+        onOpenOptions={() => setOptionsModalOpen(true)}
+        onOpenBacktest={() => setBacktestModalOpen(true)}
+        onOpenBroker={() => setBrokerModalOpen(true)}
+        onOpenSocial={() => setSocialModalOpen(true)}
+        onOpenOptimizer={() => setOptimizerModalOpen(true)}
       />
     </div>
   );

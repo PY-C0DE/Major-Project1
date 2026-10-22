@@ -42,13 +42,25 @@ interface CustomerChatbotProps {
   onOpenAuth: (mode: 'login' | 'register') => void;
   isAuthenticated: boolean;
   userName?: string;
+  onOpenTour?: () => void;
+  onOpenOptions?: () => void;
+  onOpenBacktest?: () => void;
+  onOpenBroker?: () => void;
+  onOpenSocial?: () => void;
+  onOpenOptimizer?: () => void;
 }
 
 export const CustomerChatbot: React.FC<CustomerChatbotProps> = ({
   onNavigate,
   onOpenAuth,
   isAuthenticated,
-  userName
+  userName,
+  onOpenTour,
+  onOpenOptions,
+  onOpenBacktest,
+  onOpenBroker,
+  onOpenSocial,
+  onOpenOptimizer
 }) => {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -62,39 +74,37 @@ export const CustomerChatbot: React.FC<CustomerChatbotProps> = ({
   const initialWelcomeMessage: ChatMessage = {
     id: 'welcome-1',
     role: 'model',
-    content: `### Welcome to AlphaQuant AI Support! 👋
+    content: `### Welcome to AlphaBot Copilot! 🤖✨
 
-I'm your **AI Quantitative & Support Assistant**. I'm here to help you get the most out of our platform:
+I'm your **Quantitative Terminal AI Copilot**. I assist with algorithmic workflows, custom indicator formulation, risk parameter tuning, and derivatives analysis:
 
-- 🚀 **Getting Started**: Learn how to create an account or sign in
-- 📊 **Platform Tour**: Explore the Live Dashboard, Custom Watchlist & Portfolio tracker
-- 🎯 **Quantitative Models**: Understand **90% Conformal Prediction**, **HMM Regimes**, and **FinBERT Sentiment**
-- 🌐 **Markets & Tickers**: Learn how to search NSE and US global equities
+- 🚀 **12-Step Guided Walkthrough**: Tour all terminal tools from telemetry to execution
+- 📐 **Custom Indicators**: Generate formulas for volatility breakout, adaptive momentum & RSI envelopes
+- 🛡️ **Risk Parameter Guidance**: Calibrate stop-loss limits, position sizing, and conformal confidence (80% / 90% / 95%)
+- 📈 **Options & Greeks**: Decipher Black-Scholes Greeks ($\\Delta$, $\\Gamma$, $\\Theta$, $\\nu$) & IV smiles
+- 📊 **Automated Backtesting**: Benchmark strategy outperformance, Sharpe ratios, and max drawdown
 
-*How can I assist you today?*`,
+*What would you like to explore or configure?*`,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    suggestedActions: !isAuthenticated
-      ? [
-          { label: '🚀 Create Free Account', action: 'auth:register' },
-          { label: '🎯 Explain Conformal Prediction', action: 'ask:conformal' },
-          { label: '📊 How to use Watchlist?', action: 'ask:watchlist' }
-        ]
-      : [
-          { label: '📊 Open Dashboard', action: 'nav:dashboard' },
-          { label: '📑 View Watchlist', action: 'nav:watchlist' },
-          { label: '💼 Track Portfolio', action: 'nav:portfolio' }
-        ]
+    suggestedActions: [
+      { label: '🚀 Start 12-Step Tour', action: 'tour:start' },
+      { label: '📈 Options & Greeks', action: 'modal:options' },
+      { label: '📊 Run Backtest', action: 'modal:backtest' },
+      { label: '📐 Custom Indicators', action: 'ask:indicators' },
+      { label: '🛡️ Risk Guidance', action: 'ask:risk' }
+    ]
   };
 
   const [messages, setMessages] = useState<ChatMessage[]>([initialWelcomeMessage]);
 
   const quickPrompts = [
-    { label: '🚀 How to get started?', prompt: 'How do I create an account and get started on AlphaQuant AI?' },
+    { label: '🚀 12-Step Product Tour', prompt: 'Guide me through the 12-step interactive product tour of AlphaQuant AI terminal.' },
+    { label: '📐 Suggest Custom Indicators', prompt: 'Suggest custom algorithmic indicators and volatility breakout envelope parameters for equities.' },
+    { label: '🛡️ Guide Risk Parameters', prompt: 'How should I configure risk parameters, conformal confidence (90% vs 95%), and stop-loss rules?' },
     { label: '🎯 What is 90% Conformal Prediction?', prompt: 'Can you explain how 90% Conformal Prediction works and why it is better than regular price forecasts?' },
-    { label: '📊 How does the Watchlist work?', prompt: 'How do I add stocks to my watchlist and what metrics does it display?' },
-    { label: '💼 How to track my portfolio?', prompt: 'How does portfolio tracking work in AlphaQuant AI?' },
-    { label: '📈 What are HMM Market Regimes?', prompt: 'What are Hidden Markov Model market regimes and how do they help traders?' },
-    { label: '🛡️ Is this financial advice?', prompt: 'Are these predictions guaranteed or considered financial advice?' }
+    { label: '📈 Options Greeks & IV Smile', prompt: 'How do I interpret Black-Scholes Delta, Gamma, Theta, and Vega in the Options terminal?' },
+    { label: '📊 Automated Backtesting', prompt: 'How does the XGBoost + Conformal Quantile Backtesting framework compare to Buy-and-Hold?' },
+    { label: '💼 Portfolio MVO Optimizer', prompt: 'How does Markowitz Modern Portfolio Theory optimize asset weights on the Efficient Frontier?' }
   ];
 
   // Auto-scroll to bottom of messages
@@ -166,6 +176,24 @@ I'm your **AI Quantitative & Support Assistant**. I'm here to help you get the m
       onOpenAuth('register');
     } else if (action === 'auth:login') {
       onOpenAuth('login');
+    } else if (action === 'tour:start') {
+      onOpenTour?.();
+      setIsOpen(false);
+    } else if (action === 'modal:options') {
+      onOpenOptions?.();
+      setIsOpen(false);
+    } else if (action === 'modal:backtest') {
+      onOpenBacktest?.();
+      setIsOpen(false);
+    } else if (action === 'modal:broker') {
+      onOpenBroker?.();
+      setIsOpen(false);
+    } else if (action === 'modal:social') {
+      onOpenSocial?.();
+      setIsOpen(false);
+    } else if (action === 'modal:optimizer') {
+      onOpenOptimizer?.();
+      setIsOpen(false);
     } else if (action.startsWith('nav:')) {
       const targetTab = action.replace('nav:', '');
       onNavigate(targetTab);
@@ -177,6 +205,10 @@ I'm your **AI Quantitative & Support Assistant**. I'm here to help you get the m
         handleSendMessage('How does the Watchlist work?');
       } else if (topic === 'portfolio') {
         handleSendMessage('How do I manage my portfolio?');
+      } else if (topic === 'indicators') {
+        handleSendMessage('Suggest custom algorithmic indicator formulas for volatility breakout trading.');
+      } else if (topic === 'risk') {
+        handleSendMessage('How should I configure risk parameters, stop-loss limits, and conformal confidence levels?');
       }
     }
   };
@@ -261,7 +293,7 @@ I'm your **AI Quantitative & Support Assistant**. I'm here to help you get the m
         {!isOpen && hasPromptTeaser && (
           <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs font-medium rounded-full shadow-lg border border-slate-200 dark:border-slate-800 animate-bounce">
             <Sparkles className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
-            <span>Need help? Ask AlphaQuant AI</span>
+            <span>Need advice? Ask AlphaBot Copilot</span>
             <button
               onClick={e => {
                 e.stopPropagation();
@@ -275,20 +307,21 @@ I'm your **AI Quantitative & Support Assistant**. I'm here to help you get the m
         )}
 
         <button
+          id="tour-alphabot-copilot"
           onClick={() => {
             setIsOpen(!isOpen);
             setHasPromptTeaser(false);
           }}
-          aria-label="Open Customer Support Chatbot"
+          aria-label="Open AlphaBot Copilot"
           className="relative group p-3.5 sm:px-4 sm:py-3.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold shadow-xl shadow-cyan-500/25 flex items-center gap-2.5 transition-all transform hover:scale-105 active:scale-95 cursor-pointer"
         >
           <span className="relative flex h-3 w-3">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-600"></span>
           </span>
-          <MessageSquare className="w-5 h-5 text-slate-950" />
-          <span className="hidden sm:inline text-xs font-semibold tracking-wide">
-            {isOpen ? 'Close Assistant' : 'AI Support'}
+          <Bot className="w-5 h-5 text-slate-950" />
+          <span className="hidden sm:inline text-xs font-bold tracking-wide">
+            {isOpen ? 'Close Copilot' : 'AlphaBot Copilot'}
           </span>
         </button>
       </div>
@@ -306,14 +339,14 @@ I'm your **AI Quantitative & Support Assistant**. I'm here to help you get the m
               <div>
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white font-display">
-                    AlphaQuant Assistant
+                    AlphaBot Copilot
                   </h3>
                   <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/40">
                     Gemini 3.8 Flash
                   </span>
                 </div>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 font-mono">
-                  <span>Customer Support & Quant AI</span>
+                  <span>Quantitative AI Terminal Assistant</span>
                   <span>·</span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Online</span>
                 </div>

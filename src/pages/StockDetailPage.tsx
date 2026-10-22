@@ -1,7 +1,7 @@
 /**
  * AlphaQuant AI - Deep-Dive Stock Analysis Page
- * Features Price Overview, Interactive Technical Chart, Conformal 90% Interval Card,
- * HMM Market Regime Card, FinBERT News Sentiment, and KS Drift Monitor.
+ * Features Price Overview, Interactive Technical Chart, Conformal Interval Card,
+ * Market Regime Card, News Sentiment, and KS Drift Monitor.
  * Supports Dark and Light themes.
  */
 
@@ -28,6 +28,7 @@ import { ConceptDriftCard } from '../components/ConceptDriftCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { PriceAlertModal } from '../components/PriceAlertModal';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   ticker: string;
@@ -36,6 +37,7 @@ interface Props {
 }
 
 export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onSelectTicker }) => {
+  const { user } = useAuth();
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [history, setHistory] = useState<HistoricalBar[]>([]);
   const [prediction, setPrediction] = useState<ConformalPrediction | null>(null);
@@ -62,10 +64,11 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
     async function loadStock() {
       setLoading(true);
       try {
+        const userConf = user?.confidenceLevel ? user.confidenceLevel / 100 : 0.90;
         const [q, h, p, r, n, d] = await Promise.all([
           api.getQuote(ticker),
           api.getHistory(ticker, 250),
-          api.getConformalPrediction(ticker, 1, 0.90),
+          api.getConformalPrediction(ticker, 1, userConf),
           api.getMarketRegime(ticker),
           api.getNews(ticker),
           api.getConceptDrift(ticker)
@@ -111,9 +114,9 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
           lowerBound: prediction?.lowerBound,
           upperBound: prediction?.upperBound,
           confidenceLevel: prediction?.confidenceLevel,
-          empiricalCoverage: Math.min(0.95, prediction?.empiricalCoverage ?? (prediction?.confidenceLevel || 0.95)),
-          directionalAccuracy: Math.min(95.0, prediction?.directionalAccuracy ?? 95.0),
-          priceAccuracy: Math.min(95.0, prediction?.priceAccuracy ?? 95.0),
+          empiricalCoverage: prediction?.empiricalCoverage ?? prediction?.confidenceLevel ?? null,
+          directionalAccuracy: prediction?.directionalAccuracy ?? null,
+          priceAccuracy: prediction?.priceAccuracy ?? null,
           topFeatures: prediction?.topFeatures
         },
         marketRegime: {

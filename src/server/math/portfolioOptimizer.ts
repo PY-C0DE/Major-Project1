@@ -73,11 +73,68 @@ export function optimizePortfolioHoldings(
     const annualReturn = m * 252;
     // Bounded between realistic equity returns (6% - 35%)
     const clampedReturn = Math.max(0.06, Math.min(0.35, annualReturn));
-    const annualVol = Math.sqrt(v) * Math.sqrt(252);
+    const annualVol = Math.sqrt(Math.max(1e-6, v)) * Math.sqrt(252);
     const clampedVol = Math.max(0.12, Math.min(0.48, annualVol));
 
     mu.push(clampedReturn);
     sigma.push(clampedVol);
+  }
+
+  // Handle fewer than 2 assets: return 100% equal allocation safely without singularity issues
+  if (n < 2) {
+    const holding = holdings[0];
+    const annualReturn = mu[0] || 0.12;
+    const annualVol = sigma[0] || 0.20;
+    const sharpe = annualVol > 0 ? (annualReturn - riskFreeRate) / annualVol : 0;
+    return {
+      objective,
+      totalPortfolioValue: totalValue,
+      riskFreeRate,
+      currentMetrics: {
+        expectedReturnAnnualPct: Number((annualReturn * 100).toFixed(2)),
+        volatilityAnnualPct: Number((annualVol * 100).toFixed(2)),
+        sharpeRatio: Number(sharpe.toFixed(2)),
+        diversificationRatio: 1.0
+      },
+      optimalMetrics: {
+        expectedReturnAnnualPct: Number((annualReturn * 100).toFixed(2)),
+        volatilityAnnualPct: Number((annualVol * 100).toFixed(2)),
+        sharpeRatio: Number(sharpe.toFixed(2)),
+        sharpeGainPct: 0,
+        volatilityReductionPct: 0,
+        expectedReturnDeltaPct: 0
+      },
+      suggestions: [{
+        holdingId: holding.id,
+        ticker: holding.ticker,
+        companyName: holding.companyName,
+        currentPrice: holding.currentPrice,
+        currentQuantity: holding.quantity,
+        currentWeightPct: 100,
+        optimalWeightPct: 100,
+        targetWeightPct: 100,
+        weightDeltaPct: 0,
+        currentValue: holding.currentValue,
+        targetValue: holding.currentValue,
+        valueDelta: 0,
+        quantityDelta: 0,
+        targetQuantity: holding.quantity,
+        action: 'HOLD',
+        actionLabel: 'Maintain Allocation (Single Asset)',
+        rationale: 'Single-asset portfolio already 100% allocated. Diversify with additional assets to unlock multi-asset optimization.',
+        expectedReturnAnnualPct: Number((annualReturn * 100).toFixed(1)),
+        volatilityAnnualPct: Number((annualVol * 100).toFixed(1))
+      }],
+      efficientFrontier: [{
+        expectedReturnPct: Number((annualReturn * 100).toFixed(2)),
+        volatilityPct: Number((annualVol * 100).toFixed(2)),
+        sharpeRatio: Number(sharpe.toFixed(2)),
+        isCurrent: true,
+        isOptimal: true
+      }],
+      correlationMatrix: { tickers: [holding.ticker], matrix: [[1.0]] },
+      optimizedAt: new Date().toISOString()
+    };
   }
 
   // 3. Compute Annualized Covariance Matrix Sigma_ij
@@ -184,9 +241,18 @@ export function optimizePortfolioHoldings(
     optimalWeights = bestSharpeWeights;
   }
 
+  // Fallback to equal weighting if weights are singular or NaN
+  if (!optimalWeights || optimalWeights.some(w => isNaN(w) || !isFinite(w))) {
+    optimalWeights = Array(n).fill(1 / n);
+  }
+
   // Normalize optimal weights strictly to 1.00
   const sumWeights = optimalWeights.reduce((a, b) => a + b, 0);
-  optimalWeights = optimalWeights.map(w => w / sumWeights);
+  if (isNaN(sumWeights) || sumWeights <= 0) {
+    optimalWeights = Array(n).fill(1 / n);
+  } else {
+    optimalWeights = optimalWeights.map(w => w / sumWeights);
+  }
 
   const optimalReturnAnnual = portfolioReturn(optimalWeights);
   const optimalVolAnnual = portfolioVol(optimalWeights);
@@ -228,6 +294,8 @@ export function optimizePortfolioHoldings(
       currentQuantity: h.quantity,
       currentWeightPct: Number((curWeight * 100).toFixed(1)),
       optimalWeightPct: Number((optWeight * 100).toFixed(1)),
+      targetWeightPct: Number((optWeight * 100).toFixed(1)),
+      weightDeltaPct: Number(((optWeight - curWeight) * 100).toFixed(1)),
       currentValue: h.currentValue,
       targetValue: Number(targetVal.toFixed(2)),
       valueDelta: Number(valDelta.toFixed(2)),
@@ -235,6 +303,11 @@ export function optimizePortfolioHoldings(
       targetQuantity: targetQty,
       action,
       actionLabel,
+      rationale: action === 'BUY'
+        ? `Increase allocation by ${Math.abs(Number(((optWeight - curWeight) * 100).toFixed(1)))}% to maximize risk-adjusted Sharpe ratio.`
+        : action === 'SELL'
+        ? `Trim allocation by ${Math.abs(Number(((optWeight - curWeight) * 100).toFixed(1)))}% to reduce portfolio volatility.`
+        : 'Weight already matches optimal risk-adjusted allocation.',
       expectedReturnAnnualPct: Number((mu[i] * 100).toFixed(1)),
       volatilityAnnualPct: Number((sigma[i] * 100).toFixed(1))
     };

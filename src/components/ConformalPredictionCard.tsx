@@ -5,7 +5,7 @@
  * Fully supports dark and light modes.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Target, HelpCircle, TrendingUp, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Award, BarChart2 } from 'lucide-react';
 import { ConformalPrediction } from '../types';
 
@@ -24,7 +24,16 @@ export const ConformalPredictionCard: React.FC<Props> = ({
   const [showTooltip, setShowTooltip] = useState(false);
   const [showExplain, setShowExplain] = useState(true);
   const [selectedHorizon, setSelectedHorizon] = useState<number>(prediction?.horizonDays || 1);
-  const [selectedConfidence, setSelectedConfidence] = useState<number>(prediction?.confidenceLevel || 0.95);
+  const [selectedConfidence, setSelectedConfidence] = useState<number>(prediction?.confidenceLevel || 0.90);
+
+  useEffect(() => {
+    if (prediction?.confidenceLevel) {
+      setSelectedConfidence(prediction.confidenceLevel);
+    }
+    if (prediction?.horizonDays) {
+      setSelectedHorizon(prediction.horizonDays);
+    }
+  }, [prediction?.confidenceLevel, prediction?.horizonDays]);
 
   if (!prediction) {
     return (
@@ -76,7 +85,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
               </button>
             </h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-Day Horizon`} · Split-Conformal MAPIE
+              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-Day Horizon`} · Split-Conformal Inference
             </span>
           </div>
         </div>
@@ -85,11 +94,11 @@ export const ConformalPredictionCard: React.FC<Props> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-[11px] font-mono text-emerald-700 dark:text-emerald-400">
             <Award className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-            <span>Acc: {Math.min(95.0, prediction.priceAccuracy || prediction.directionalAccuracy || 95.0)}%</span>
+            <span>Acc: {prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : prediction.directionalAccuracy != null ? `${prediction.directionalAccuracy}%` : 'n/a'}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-[11px] font-mono text-cyan-700 dark:text-cyan-300">
             <ShieldCheck className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-            <span>Coverage: {Math.min(95.0, Number(((prediction.empiricalCoverage ?? (prediction.confidenceLevel || 0.95)) * 100).toFixed(1)))}%</span>
+            <span>Coverage: {prediction.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : `${((prediction.confidenceLevel || 0.90) * 100).toFixed(0)}%`}</span>
           </div>
         </div>
       </div>
@@ -146,10 +155,10 @@ export const ConformalPredictionCard: React.FC<Props> = ({
           </div>
           <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 space-y-1">
             <p>
-              • <strong>Prediction Price Accuracy ({Math.min(95.0, prediction.priceAccuracy || prediction.directionalAccuracy || 95.0)}%):</strong> Evaluated on real held-out actual stock prices, calibrated to an institutional ceiling of 95.0%.
+              • <strong>Prediction Price Accuracy ({prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : 'n/a'}):</strong> Evaluated on held-out actual stock prices (100% - MAPE).
             </p>
             <p>
-              • <strong>Finite-Sample Coverage ({Math.min(95.0, Number(((prediction.empiricalCoverage ?? (prediction.confidenceLevel || 0.95)) * 100).toFixed(1)))}%):</strong> Split-conformal calibration guarantees nominal finite-sample coverage at 95.0% without over-promising.
+              • <strong>Finite-Sample Coverage ({prediction.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : `${((prediction.confidenceLevel || 0.90) * 100).toFixed(0)}%`}):</strong> Observed fraction of validation actuals falling inside the conformal prediction interval for the nominal target of {((prediction.confidenceLevel || 0.90) * 100).toFixed(0)}%.
             </p>
             <p className="text-amber-600 dark:text-amber-400 font-mono text-[10px]">
               ⚠️ Prediction intervals reflect mathematical uncertainty bounds, not guaranteed financial profits.

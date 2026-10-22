@@ -1,6 +1,6 @@
 /**
  * AlphaQuant AI - Financial News & Verification Intelligence Page
- * Powered by FinBERT tone architecture and Google Fact Check Tools claim verification.
+ * Powered by keyword sentiment lexicon and publisher domain credibility scoring.
  * Fully styled for pleasant light mode and dark mode.
  */
 
@@ -59,7 +59,7 @@ export const NewsPage: React.FC<{ onSelectTicker: (ticker: string) => void }> = 
             Financial News Intelligence & Fact Verification
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Real-time corporate disclosures analyzed via <code>yiyanghkust/finbert-tone</code> with credibility grading.
+            Real-time corporate disclosures analyzed via keyword sentiment lexicon with credibility grading.
           </p>
         </div>
 
@@ -85,7 +85,7 @@ export const NewsPage: React.FC<{ onSelectTicker: (ticker: string) => void }> = 
       <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-xs text-xs transition-colors">
         {/* Sentiment Filter */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px] uppercase font-semibold">FinBERT Tone:</span>
+          <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px] uppercase font-semibold">Sentiment Tone:</span>
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
             {(['all', 'positive', 'neutral', 'negative'] as const).map(s => (
               <button

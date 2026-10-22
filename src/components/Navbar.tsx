@@ -29,7 +29,8 @@ import {
   Globe2,
   Newspaper,
   BarChart3,
-  ActivitySquare
+  ActivitySquare,
+  Users
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -42,13 +43,25 @@ interface NavbarProps {
   setActiveTab: (tab: string) => void;
   onSearchTicker: (ticker: string) => void;
   onOpenAuth?: (mode: 'login' | 'register') => void;
+  onOpenOptions?: () => void;
+  onOpenBacktest?: () => void;
+  onOpenBroker?: () => void;
+  onOpenSocial?: () => void;
+  onOpenOptimizer?: () => void;
+  onOpenTour?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
   onSearchTicker,
-  onOpenAuth
+  onOpenAuth,
+  onOpenOptions,
+  onOpenBacktest,
+  onOpenBroker,
+  onOpenSocial,
+  onOpenOptimizer,
+  onOpenTour
 }) => {
   const { user, isAuthenticated, logout, updateProfile, enterDemoMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -73,28 +86,55 @@ export const Navbar: React.FC<NavbarProps> = ({
     setShowSearchDropdown(false);
   };
 
-  const navLinks = isAuthenticated
+  const [showQuantMenu, setShowQuantMenu] = useState(false);
+
+  const coreNavLinks = isAuthenticated
     ? [
-        { id: 'home', label: 'Home' },
         { id: 'dashboard', label: 'Dashboard' },
         { id: 'analysis', label: 'Analysis' },
         { id: 'portfolio', label: 'Portfolio' },
-        { id: 'watchlist', label: 'Watchlist' },
-        { id: 'news', label: 'News' },
-        { id: 'performance', label: 'Metrics' }
+        { id: 'watchlist', label: 'Watchlist' }
       ]
     : [
         { id: 'home', label: 'Home' },
         { id: 'features', label: 'Features' },
         { id: 'usps', label: 'Innovations' },
         { id: 'safety', label: 'Model Safety' },
-        { id: 'dashboard', label: 'Dashboard', locked: true },
-        { id: 'watchlist', label: 'Watchlist', locked: true }
+        { id: 'dashboard', label: 'Dashboard', locked: true }
       ];
 
+  const quantTools = [
+    { id: 'options_greeks', label: 'Options & Greeks', desc: 'Black-Scholes & Volatility Smiles', icon: ActivitySquare },
+    { id: 'backtest', label: 'Backtest Strategy', desc: 'Algorithmic Simulation & Sharpe', icon: BarChart3 },
+    { id: 'broker_router', label: 'Broker Router', desc: 'Alpaca Paper & Execution Gateway', icon: ShieldCheck },
+    { id: 'social_copy', label: 'Social & Copy-Trade', desc: 'Leaderboard & 1-Click Sync', icon: Users },
+    { id: 'optimizer', label: 'AI Portfolio Optimizer', desc: 'Markowitz Mean-Variance Frontier', icon: Sliders },
+    { id: 'performance', label: 'Model Calibration & Accuracy', desc: 'Project-Wide MAPE & Metrics', icon: LineChart }
+  ];
+
   const handleNavClick = (id: string, locked?: boolean) => {
-    if (locked || (!isAuthenticated && (id === 'dashboard' || id === 'watchlist' || id === 'portfolio' || id === 'analysis'))) {
+    if (locked || (!isAuthenticated && (id === 'dashboard' || id === 'watchlist' || id === 'portfolio' || id === 'analysis' || id === 'options_greeks' || id === 'backtest' || id === 'broker_router' || id === 'social_copy' || id === 'optimizer'))) {
       onOpenAuth?.('login');
+      return;
+    }
+    if (id === 'options_greeks') {
+      onOpenOptions?.();
+      return;
+    }
+    if (id === 'backtest') {
+      onOpenBacktest?.();
+      return;
+    }
+    if (id === 'broker_router') {
+      onOpenBroker?.();
+      return;
+    }
+    if (id === 'social_copy') {
+      onOpenSocial?.();
+      return;
+    }
+    if (id === 'optimizer') {
+      onOpenOptimizer?.();
       return;
     }
     if (id === 'home') {
@@ -112,10 +152,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 px-3 sm:px-4 md:px-6 py-2.5 transition-colors duration-200">
+    <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/80 px-2.5 sm:px-4 md:px-6 py-2.5 transition-colors duration-200">
       <div className="w-full flex items-center justify-between gap-2 sm:gap-3 md:gap-4 min-w-0">
-        {/* Zone 1: Single text wordmark in display face */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+        {/* Zone 1: Single text wordmark in display face with Tour Target ID */}
+        <div id="tour-brand-header" className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           <button
             onClick={() => setActiveTab(isAuthenticated ? 'dashboard' : 'home')}
             className="text-left group cursor-pointer focus:outline-none"
@@ -130,16 +170,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           </span>
         </div>
 
-        {/* Zone 2: Navigation Links (Cleanly centered on desktop displays) */}
-        <nav className="hidden xl:flex items-center gap-1.5 2xl:gap-3 text-xs font-medium text-slate-600 dark:text-slate-400 shrink min-w-0">
-          {navLinks.map(link => (
+        {/* Zone 2: Navigation Links (Cleanly structured on desktop displays - zero collision) */}
+        <nav id="tour-nav-links" className="hidden lg:flex items-center gap-1 xl:gap-2 text-xs font-medium text-slate-600 dark:text-slate-400 shrink min-w-0">
+          {coreNavLinks.map(link => (
             <button
               key={link.id}
               onClick={() => handleNavClick(link.id, (link as any).locked)}
-              className={`px-2 py-1 rounded-md transition-colors whitespace-nowrap cursor-pointer hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 ${
                 activeTab === link.id
-                  ? 'text-cyan-600 dark:text-cyan-400 font-semibold bg-cyan-50/70 dark:bg-cyan-950/40'
-                  : ''
+                  ? 'text-cyan-600 dark:text-cyan-400 font-bold bg-cyan-50/80 dark:bg-cyan-950/50 border border-cyan-200/60 dark:border-cyan-800/50'
+                  : 'hover:bg-slate-100 dark:hover:bg-slate-900'
               }`}
             >
               <span>{link.label}</span>
@@ -148,18 +188,91 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
           ))}
+
+          {/* Institutional Quant Tools Dropdown Menu */}
+          {isAuthenticated && (
+            <div className="relative">
+              <button
+                id="tour-quant-tools"
+                onClick={() => setShowQuantMenu(prev => !prev)}
+                className={`px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1.5 font-medium ${
+                  showQuantMenu
+                    ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/60 font-semibold'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-900'
+                }`}
+                title="Institutional Quantitative Instruments & Algorithms"
+              >
+                <Sliders className="w-3.5 h-3.5 text-cyan-500" />
+                <span>Quant Tools</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showQuantMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showQuantMenu && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowQuantMenu(false)} />
+                  <div className="absolute left-0 top-full mt-2 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl py-2 z-40 animate-fadeIn text-xs">
+                    <div className="px-3.5 py-1.5 border-b border-slate-100 dark:border-slate-800/80 text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 font-bold flex items-center justify-between">
+                      <span>Quantitative Instruments</span>
+                      <span className="text-cyan-500">6 Modules</span>
+                    </div>
+                    <div className="py-1">
+                      {quantTools.map(tool => {
+                        const IconComponent = tool.icon;
+                        return (
+                          <button
+                            key={tool.id}
+                            onClick={() => {
+                              setShowQuantMenu(false);
+                              handleNavClick(tool.id);
+                            }}
+                            className="w-full text-left px-3.5 py-2 hover:bg-cyan-50/60 dark:hover:bg-slate-800 flex items-start gap-2.5 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer group"
+                          >
+                            <div className="p-1 rounded-md bg-slate-100 group-hover:bg-cyan-100 dark:bg-slate-800 dark:group-hover:bg-cyan-950 text-slate-500 group-hover:text-cyan-600 dark:text-slate-400 dark:group-hover:text-cyan-400 shrink-0 mt-0.5 transition-colors">
+                              <IconComponent className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-900 dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">
+                                {tool.label}
+                              </div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate font-mono">
+                                {tool.desc}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </nav>
 
         {/* Zone 3: Actions + Theme Toggle + User Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Company Search Combobox (Search by Company Name or Ticker) */}
-          <div className="w-24 xs:w-32 sm:w-40 md:w-48 lg:w-52 shrink min-w-0">
+          {/* Company Search Combobox with Tour ID */}
+          <div id="tour-search-combobox" className="w-28 xs:w-36 sm:w-44 md:w-48 lg:w-48 xl:w-56 shrink min-w-0">
             <CompanySearchCombobox
               compact
               placeholder="Search ticker..."
               onSelect={(item) => handleSelect(item.ticker)}
             />
           </div>
+
+          {/* Guided Tour Launcher with Tour ID */}
+          {onOpenTour && (
+            <button
+              id="tour-nav-tour"
+              onClick={onOpenTour}
+              title="Launch Guided Product Tour"
+              aria-label="Launch Guided Product Tour"
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/60 dark:hover:bg-cyan-900/60 border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-cyan-500 animate-pulse shrink-0" />
+              <span className="hidden sm:inline">Tour</span>
+            </button>
+          )}
 
           {/* Theme Toggle Button (Sun / Moon) */}
           <button
@@ -323,6 +436,103 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </button>
                       </div>
 
+                      {/* Quantitative Terminal Features */}
+                      <div className="py-1 border-t border-slate-100 dark:border-slate-800/80">
+                        <div className="px-3.5 py-1 text-[9px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                          Quantitative Tools
+                        </div>
+                        {onOpenOptions && (
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onOpenOptions();
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <ActivitySquare className="w-4 h-4 text-cyan-500" />
+                              <span>Options & Greeks</span>
+                            </span>
+                            <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-mono">Black-Scholes</span>
+                          </button>
+                        )}
+                        {onOpenBacktest && (
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onOpenBacktest();
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <BarChart3 className="w-4 h-4 text-emerald-500" />
+                              <span>Strategy Backtest</span>
+                            </span>
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono">Simulation</span>
+                          </button>
+                        )}
+                        {onOpenBroker && (
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onOpenBroker();
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <LineChart className="w-4 h-4 text-indigo-500" />
+                              <span>Broker Router</span>
+                            </span>
+                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">Paper Alpaca</span>
+                          </button>
+                        )}
+                        {onOpenSocial && (
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onOpenSocial();
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <Globe2 className="w-4 h-4 text-rose-500" />
+                              <span>Social & Copy-Trade</span>
+                            </span>
+                            <span className="text-[10px] text-rose-600 dark:text-rose-400 font-mono">Feeds</span>
+                          </button>
+                        )}
+                        {onOpenOptimizer && (
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onOpenOptimizer();
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <Sliders className="w-4 h-4 text-amber-500" />
+                              <span>AI Portfolio Optimizer</span>
+                            </span>
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-mono">MVO Sync</span>
+                          </button>
+                        )}
+                        {onOpenTour && (
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              onOpenTour();
+                            }}
+                            className="w-full text-left px-3.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                          >
+                            <span className="flex items-center gap-2.5">
+                              <Sparkles className="w-4 h-4 text-cyan-500" />
+                              <span>12-Step Product Tour</span>
+                            </span>
+                            <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-mono">Guided</span>
+                          </button>
+                        )}
+                      </div>
+
                       {/* Quick Setting Controls in Dropdown */}
                       <div className="p-2.5 mx-2 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800/80 space-y-2">
                         <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
@@ -401,7 +611,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={() => setMobileMenuOpen(prev => !prev)}
             title="Toggle Navigation Menu"
             aria-label="Toggle Navigation Menu"
-            className="md:hidden p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer shrink-0"
+            className="lg:hidden p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer shrink-0"
           >
             {mobileMenuOpen ? <X className="w-4 h-4 text-cyan-600 dark:text-cyan-400" /> : <Menu className="w-4 h-4" />}
           </button>
@@ -410,7 +620,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile & Tablet Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/80 animate-slideUp bg-white dark:bg-slate-950 pb-3">
+        <div className="lg:hidden mt-3 pt-3 border-t border-slate-200 dark:border-slate-800/80 animate-slideUp bg-white dark:bg-slate-950 pb-3">
           <div className="space-y-1 px-1">
             {isAuthenticated ? (
               <>
@@ -560,7 +770,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <span className="flex items-center gap-2.5">
                     <Newspaper className="w-4 h-4 text-teal-500" />
-                    <span>News & FinBERT</span>
+                    <span>News & Sentiment</span>
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono">Sentiment</span>
                 </button>

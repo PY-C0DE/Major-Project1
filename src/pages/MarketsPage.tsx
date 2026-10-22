@@ -21,7 +21,7 @@ import {
   Layers
 } from 'lucide-react';
 import { api } from '../services/api';
-import { TICKER_CATALOG } from '../server/services/stockService';
+import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { StockQuote, CorrelationMatrixData } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { useTheme } from '../context/ThemeContext';

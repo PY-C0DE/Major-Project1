@@ -1,7 +1,7 @@
 /**
  * AlphaQuant AI - Watchlist Intelligence Page
  * Monitor watchlist assets with live quotes, conformal forecast envelopes,
- * HMM regimes, FinBERT sentiment labels, and concept drift status.
+ * market regimes, sentiment labels, and concept drift status.
  * Supports Dark and Light themes.
  */
 
@@ -84,7 +84,7 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
             Watchlist Quantitative Monitor
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Multi-asset monitoring matrix with Conformal 90% envelopes, HMM regimes, and FinBERT tone.
+            Multi-asset monitoring matrix with conformal intervals, market regimes, and sentiment tone.
           </p>
         </div>
 
@@ -134,7 +134,7 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
                 <th className="py-3 px-4 font-medium text-right">Point Forecast</th>
                 <th className="py-3 px-4 font-medium text-center">90% Prediction Interval</th>
                 <th className="py-3 px-4 font-medium text-center">Market Regime</th>
-                <th className="py-3 px-4 font-medium text-center">FinBERT Tone</th>
+                <th className="py-3 px-4 font-medium text-center">Sentiment Tone</th>
                 <th className="py-3 px-4 font-medium text-center">Drift Health</th>
                 <th className="py-3 px-4 font-medium text-center">Action</th>
               </tr>

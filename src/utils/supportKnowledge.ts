@@ -1,11 +1,10 @@
 /**
- * AlphaQuant AI - Customer Support & Quantitative Knowledge Engine
- * Provides comprehensive domain knowledge and resilient customer assistance
- * with structured guidance on platform features, quantitative models, and navigation.
- * Usable across both client-side and server-side contexts.
+ * Domain Knowledge Base & Context Store for AlphaQuant AI
+ * Contains structured domain facts, quantitative finance concepts,
+ * technical indicators, and feature workflows.
  */
 
-export function generateSupportFallback(prompt: string): string {
+export function getPlatformKnowledge(prompt: string): string {
   const p = prompt.toLowerCase();
 
   if (p.includes('sign up') || p.includes('register') || p.includes('create account') || p.includes('get started')) {
@@ -17,7 +16,7 @@ Welcome to AlphaQuant AI! To access the full trading terminal and protected work
 2. **Enter your details**: Provide your full name, email address, and a secure password.
 3. **Instant Access**: Upon registration, you are immediately logged in with full access to:
    - 📊 **Live Market Dashboard** (Indices tape, macro regime indicators, top movers)
-   - 📑 **Custom Watchlist** (Multi-asset tracking with 90% confidence bands)
+   - 📑 **Custom Watchlist** (Multi-asset tracking with conformal confidence bands)
    - 💼 **Portfolio Tracker** (Mark-to-market positions, cost basis, unrealized P&L)
    - 🔍 **Deep Stock Analysis** (Interactive OHLCV charts, SMA 20/50, Bollinger Bands, RSI & MACD)
    - 📈 **Model Performance & Drift Monitors**
@@ -41,70 +40,65 @@ Once verified, your personal session will load automatically, restoring your sav
 
 AlphaQuant AI evaluates models using strictly out-of-sample forward backtesting without time-series lookahead bias:
 
-1. **Price Prediction Accuracy: 95.0% Maximum Institutional Cap**
-   - Derived as $100\\% - \\text{MAPE}$ from real out-of-sample held-out actual stock prices vs multi-factor forward forecasts, strictly calibrated and capped at **95.0%** to prevent overconfidence.
-   - For real market equities (e.g. Reliance, TCS, NVDA, Apple), daily unscaled MAPE is typically 1.0% to 1.6%, calibrated cleanly to a 95.0% maximum institutional threshold.
+1. **Ridge Regression Architecture (8 Technical Features)**:
+   - Predicts forward returns using a regularized Ridge Regression trained on historical OHLCV features (EMA spread, SMA-50 spread, RSI-14 deviation, Bollinger %B, MACD impulse, recent return, volatility ratio, and intercept).
+   - No hardcoded offsets, arbitrary scaling, or synthetic fallback metrics.
 
-2. **Finite-Sample Conformal Coverage: 95.0% (Nominal Target: 95.0%)**
-   - Under the Split-Conformal MAPIE mathematical framework, forward actual closing prices land strictly inside the calibrated $[\\hat{y} - \\hat{q}, \\hat{y} + \\hat{q}]$ prediction intervals at the exact **95.0%** nominal target.
-   - Unlike uncalibrated point estimates, finite-sample coverage is non-parametrically guaranteed at the selected institutional confidence level ($1 - \\alpha$).
+2. **Split-Conformal Prediction Intervals**:
+   - Calculates non-parametric empirical prediction intervals $[\\hat{y} - \\hat{q}, \\hat{y} + \\hat{q}]$ using calibration-window non-conformity scores.
+   - Provides finite-sample validity across changing market regimes.
 
-3. **Error & Variance Metrics**:
-   - **R² Score (Variance Explained)**: **0.97**
-   - **Mean Absolute Percentage Error (MAPE)**: **1.04% – 1.60%** (unscaled real daily price error)
-   - **Root Mean Squared Error (RMSE)**: Scaled dynamically to actual stock currency and volatility without hardcoded offsets.
-   - **Directional & Trajectory Accuracy**: **95.0% Maximum** across all real market assets.
+3. **Evaluation Metrics**:
+   - Evaluated out-of-sample with real MAE, RMSE, MAPE, $R^2$, and directional hit rate.
+   - All baseline comparisons (SMA-20, Plain Linear OLS, Naive Last-Price) are computed on the identical out-of-sample test split.
 
-4. **Institutional Strategy Simulator**:
-   - Backtested Conformal Mean-Reversion strategy achieves a **Sharpe Ratio of 1.82**, **Max Drawdown of -4.2%**, and a **Win Rate of 72.4%**.
-   
-Visit the **"Model Performance"** tab in the sidebar to review full benchmark comparisons against Random Forests and OLS Linear Regression!`;
+Visit the **"Model Performance"** tab in the sidebar to review full live backtest evaluations!`;
   }
 
   if (p.includes('conformal') || p.includes('uncertainty') || p.includes('confidence interval') || p.includes('envelope') || p.includes('bounds')) {
-    return `### 90% Conformal Prediction Explained 🎯
+    return `### Split-Conformal Prediction Intervals Explained 🎯
 
 Conventional financial tools present single deterministic point estimates (e.g. *"Price will be ₹3,025"*), ignoring tail risk and volatility variance.
 
-AlphaQuant AI implements **Split-Conformal Prediction (MAPIE formulation)**:
-- **Finite-Sample Mathematical Coverage**: Guarantees that the true price will reside inside the interval $[\\hat{y} - \\hat{q}, \\hat{y} + \\hat{q}]$ with exactly 90% calibrated confidence.
-- **Calibrated Residuals**: Calibration is computed on out-of-sample forward validation data without unrealistic Gaussian distribution assumptions.
+AlphaQuant AI implements **Split-Conformal Prediction Intervals**:
+- **Finite-Sample Mathematical Coverage**: Guarantees that the true price will reside inside the interval $[\\hat{y} - \\hat{q}, \\hat{y} + \\hat{q}]$ with calibrated nominal coverage (default 90%).
+- **Calibrated Residuals**: Calibration is computed on out-of-sample historical validation data without unrealistic Gaussian distribution assumptions.
 - **Uncertainty Width Metric**: As market turbulence rises, the prediction envelope dynamically widens, warning traders of heightened dispersion before taking a position.`;
   }
 
-  if (p.includes('regime') || p.includes('hmm') || p.includes('markov') || p.includes('market state')) {
-    return `### Hidden Markov Model (HMM) Market Regimes 📊
+  if (p.includes('regime') || p.includes('market state') || p.includes('volatility state')) {
+    return `### Rule-Based Market Regime Classifier 📊
 
-Financial markets transition between distinct underlying macroeconomic regimes:
+Financial markets transition between distinct volatility and trend environments:
 
 1. **State 0: Low Volatility / Bullish**
-   - Steady directional trend, tight Bollinger Bands, positive momentum.
-   - Conformal intervals contract; trend-following signals exhibit highest fidelity.
+   - Price above long-term trend lines, contained volatility, positive directional momentum.
+   - Conformal intervals contract; trend-following signals exhibit lower dispersion.
 2. **State 1: High Volatility / Bearish**
-   - Turbulent return swings, widened spreads, elevated downside tail risk.
-   - Model automatically expands risk intervals and dampens aggressive leverage.
+   - Elevated volatility, negative momentum, and wider price dispersion.
+   - Conformal intervals automatically expand to reflect elevated risk.
 
-The system calculates transition probabilities ($P(\\text{Bull} \\to \\text{Bull})$, $P(\\text{Bear} \\to \\text{Bear})$) in real time and feeds regime state embeddings directly into the forecasting pipeline.`;
+The regime classifier conditions risk envelopes dynamically to align with prevailing market conditions.`;
   }
 
   if (p.includes('drift') || p.includes('kolmogorov') || p.includes('ks') || p.includes('distribution')) {
     return `### Kolmogorov-Smirnov (KS) Concept Drift Monitoring ⚡
 
-Financial time-series data is non-stationary—patterns that worked in historical backtests can degrade when macro policy shifts.
+Financial time-series data is non-stationary—patterns that worked in historical backtests can degrade when market dynamics shift.
 
-- **Two-Sample KS Test**: We continuously evaluate the two-sample Kolmogorov-Smirnov test (\`scipy.stats.ks_2samp\`) comparing historical training distributions with the live 30-day inference window.
+- **Two-Sample KS Test**: We continuously evaluate the two-sample Kolmogorov-Smirnov test comparing historical training distributions with the live inference window.
 - **Statistical Significance ($p < 0.05$)**: When empirical CDF divergence exceeds critical values, an automated **Distribution Drift Alert** is triggered.
-- **Safety Fallback**: Upon drift detection, conformal intervals automatically expand by a calibrated multiplier to safeguard against overfitting.`;
+- **Safety Precaution**: Upon drift detection, traders are alerted to possible distribution shifts in the underlying asset returns.`;
   }
 
-  if (p.includes('finbert') || p.includes('sentiment') || p.includes('news') || p.includes('fact')) {
-    return `### FinBERT Tone & News Fact Verification 📰
+  if (p.includes('sentiment') || p.includes('news') || p.includes('credibility') || p.includes('fact')) {
+    return `### Keyword Sentiment Lexicon & Domain Credibility 📰
 
-AlphaQuant AI fuses quantitative market tape with NLP news intelligence:
+AlphaQuant AI combines price analysis with structured news intelligence:
 
-1. **FinBERT Tone Polarity**: Uses Hugging Face's domain-specific financial language model (\`yiyanghkust/finbert-tone\`) to categorize headlines into discrete probabilities for Positive, Negative, and Neutral sentiment.
-2. **Fact Verification & Credibility Engine**: Cross-references claims against verified sources (Reuters, Bloomberg, NSE filings, SEC disclosures) and applies publisher reputation weighting.
-3. **Multimodal Fusion**: High-credibility positive disclosures reinforce upward price targets, while rumors without verified regulatory filings receive downweighted impact scores.`;
+1. **Keyword Sentiment Lexicon**: Scans financial headlines and summaries for positive and negative market-specific keywords to produce a normalized tone polarity.
+2. **Domain Credibility Engine**: Weights reporting from established institutional publishers (Reuters, Bloomberg, WSJ, Financial Times, Economic Times) higher than unverified social sources.
+3. **Signal Integration**: Sentiment indicators provide supplemental context alongside quantitative technical factors.`;
   }
 
   if (p.includes('watchlist') || p.includes('wishlist') || p.includes('favorite') || p.includes('add stock')) {
@@ -112,13 +106,13 @@ AlphaQuant AI fuses quantitative market tape with NLP news intelligence:
 
 You can monitor your favorite assets in one unified terminal matrix:
 
-1. **Navigation**: Click **"Watchlist"** in the top navigation or sidebar (requires login/signup).
+1. **Navigation**: Click **"Watchlist"** in the top navigation or sidebar.
 2. **Add Tickers**: Use the quick add input (e.g., \`RELIANCE.NS\`, \`TCS.NS\`, \`NVDA\`, \`AAPL\`).
 3. **Intelligence Matrix**: Each card displays:
    - Live mark-to-market quote & daily percentage change
-   - 90% Conformal price envelope [Lower Bound — Upper Bound]
-   - Active HMM market regime state
-   - FinBERT tone polarity score
+   - Split-conformal price interval [Lower Bound — Upper Bound]
+   - Rule-based market regime state
+   - Keyword sentiment polarity score
    - Real-time KS drift validation status`;
   }
 
@@ -141,57 +135,149 @@ The Portfolio feature allows you to track and stress-test your equity investment
 
 AlphaQuant AI covers institutional instruments across dual exchanges:
 
-- **Indian Equities (NSE)**: \`RELIANCE.NS\`, \`TCS.NS\`, \`INFY.NS\`, \`HDFCBANK.NS\`, \`ICICIBANK.NS\`, \`TATAMOTORS.NS\`, \`BHARTIARTL.NS\`, \`WIPRO.NS\`
+- **Indian Equities (NSE)**: \`RELIANCE.NS\`, \`TCS.NS\`, \`INFY.NS\`, \`HDFCBANK.NS\`, \`ICICIBANK.NS\`, \`TMCV.NS\`, \`TMPV.NS\`, \`ETERNAL.NS\`, \`BHARTIARTL.NS\`, \`WIPRO.NS\`
 - **US Equities (NASDAQ / NYSE)**: \`NVDA\`, \`AAPL\`, \`MSFT\`, \`GOOGL\`, \`AMZN\`, \`TSLA\`, \`META\`
 - **Macro Benchmarks**: Nifty 50, Sensex, S&P 500, Nasdaq 100, and India VIX.
 
 Use the search bar in the top navigation to inspect any ticker with one click.`;
   }
 
-  if (p.includes('advice') || p.includes('guarantee') || p.includes('disclaimer') || p.includes('safe') || p.includes('risk')) {
-    return `### Model Uncertainty & Regulatory Disclaimer 🛡️
+  if (p.includes('indicator') || p.includes('custom indicator') || p.includes('formula') || p.includes('breakout') || p.includes('macd') || p.includes('rsi') || p.includes('bollinger')) {
+    return `### Custom Algorithmic Indicators & Mathematical Formulas 📐
 
-**Statistical Models ≠ Financial Guarantees**
+Here are high-conviction quantitative indicator formulations implemented in AlphaQuant AI:
 
-AlphaQuant AI is engineered for quantitative research, backtesting, and educational analysis.
-- Machine-learning forecasts, conformal prediction envelopes, and sentiment scores represent historical statistical associations.
-- They do **not** constitute financial, investment, legal, or tax advice.
-- Markets carry intrinsic systemic risk, and past performance does not guarantee future financial results. Always conduct independent due diligence.`;
+1. **Conformal Volatility Breakout Envelope**:
+   - **Formula**: $Upper_t = SMA_{20}(P) + k \\cdot \\hat{q}_{conf}$, $Lower_t = SMA_{20}(P) - k \\cdot \\hat{q}_{conf}$
+   - **Signal**: Long entry when $Close_t > Upper_{t-1}$ with volume expansion $> 1.5 \\times Vol_{SMA20}$.
+   - **Risk Exit**: Trailing stop at $SMA_{20}(P)$ or calibrated $Lower$ bound.
+
+2. **Adaptive Regime-Momentum (RSI + MACD Impulse)**:
+   - **Condition**: Buy when $MACD_{Hist} > 0$, $EMA_{12} > EMA_{26}$, and $RSI_{14} \\in [42, 65]$.
+   - **Exit**: $MACD_{Hist} < 0$ or $RSI_{14} > 72$ (overbought divergence).
+
+3. **Average True Range (ATR) Scaled Position Sizing**:
+   - $Qty = \\lfloor (Account \\times RiskPct) / (2 \\times ATR_{14}) \\rfloor$.
+
+*You can test these strategies in the **Backtest** module directly from the top navigation!*`;
   }
 
-  if (p.includes('dark') || p.includes('light') || p.includes('theme') || p.includes('mode')) {
-    return `### Theme Preferences (Dark & Light Mode) ☀️🌙
+  if (p.includes('risk') || p.includes('parameter') || p.includes('stop loss') || p.includes('position size') || p.includes('sizing')) {
+    return `### Terminal Risk Parameter Guidance 🛡️
 
-AlphaQuant AI supports both institutional themes:
-- **Dark Mode**: Sleek, high-contrast slate-950 aesthetic optimized for trading environments.
-- **Light Mode**: Crisp, clean light background with refined typography for bright workspaces.
+Rigorous capital preservation rules for trading with conformal forecast models:
 
-Click the **Sun ☀️ / Moon 🌙 button** in the top navigation bar at any time to toggle themes. Your preference is saved automatically in your browser.`;
+1. **Conformal Coverage Level (Confidence)**:
+   - **90% Confidence (Default)**: Optimal balance between interval width and statistical coverage.
+   - **95% Confidence**: Tighter tail risk protection. Produces wider intervals suited for volatile regimes or earnings weeks.
+   - **80% Confidence**: Narrower operational bands, suited for intraday range-bound mean reversion.
+
+2. **Stop-Loss Sizing & Ceilings**:
+   - **Hard Stop-Loss**: Anchor directly below the Conformal Lower Bound: $Stop = LowerBound \\times (1 - 0.005)$.
+   - **Risk Per Trade**: Never risk more than 1.0% to 2.0% of total portfolio equity on any single asset.
+   - **Profit Target Ceilings**: Minimum 2:1 Reward-to-Risk ratio targeting the Conformal Upper Bound.
+
+3. **Broker Protection**:
+   - Configure automatic stop-loss orders in the **Broker Router** ticket before submitting live fills.`;
   }
 
-  if (p.includes('profile') || p.includes('setting') || p.includes('password') || p.includes('2fa') || p.includes('avatar') || p.includes('photo')) {
-    return `### Profile & Account Settings 👤⚙️
+  if (p.includes('option') || p.includes('greek') || p.includes('delta') || p.includes('gamma') || p.includes('theta') || p.includes('vega') || p.includes('smile') || p.includes('black scholes')) {
+    return `### Options Chains & Black-Scholes Greeks Analytics 📈
 
-Click on your **Profile icon** in the top-right corner to open the profile dropdown or full settings workspace:
+Access the derivatives terminal via **"Options & Greeks"** in the top navigation bar:
 
-1. **Profile Photo & Avatar**: Choose from 20 Google Play Games-inspired vector avatars across Cyberbots, Animal Totems, and Space Quants, or upload your own custom photo.
-2. **Profile & Personal Details**: Update your display name, professional role/title, organization, contact phone, and timezone.
-3. **Platform Preferences**: Select default currency (₹ INR / $ USD), primary exchange (NSE / NASDAQ), and custom Conformal Prediction confidence levels (80%, 90%, 95%).
-4. **Security & Password**: Change your password and toggle **Two-Factor Authentication (2FA)** for portfolio protection.
-5. **Notifications & Alarms**: Configure automatic alerts for regime shifts, concept drift, and morning pre-market briefs.
-6. **Data Audit**: Review your logged forecasts history, export account data to JSON, and manage saved data.`;
+1. **Black-Scholes Greeks**:
+   - **Delta (Δ)**: Rate of change of option price with respect to underlying spot price. Calls: $[0, 1]$, Puts: $[-1, 0]$.
+   - **Gamma (Γ)**: Acceleration of Delta per ₹1/$1 underlying movement: $\\Gamma = \\frac{N'(d_1)}{S \\sigma \\sqrt{T}}$.
+   - **Theta (Θ)**: Daily time-decay penalty: Options lose value as expiration approaches.
+   - **Vega (ν)**: Sensitivity to a 1% shift in Implied Volatility ($S \\sqrt{T} N'(d_1)$).
+
+2. **Implied Volatility (IV) Smile**:
+   - Visualizes volatility skew across strikes. Out-of-the-money puts often price higher IV due to crash-protection demand.
+3. **Expected Moves**:
+   - Projections for 1-Day, 7-Day, and 30-Day price dispersion: $\\pm Spot \\times IV \\times \\sqrt{t/365}$.
+4. **Put/Call Ratio (PCR)**:
+   - Volume PCR & Open Interest PCR identifying bullish/bearish market positioning.`;
   }
 
-  // General assistant response
+  if (p.includes('backtest') || p.includes('simulate') || p.includes('sharpe') || p.includes('drawdown') || p.includes('xgboost')) {
+    return `### Automated Quantitative Backtesting Engine 📊
+
+Simulate predictive trading strategies against Buy-and-Hold benchmarks:
+
+1. **Available Strategies**:
+   - **XGBoost + Conformal Quantile Strategy**: Buys when price touches the lower calibrated quantile with positive momentum; trims near the upper bound.
+   - **Conformal Volatility Envelope Breakout**: Captures trending momentum surges piercing outside volatility bands.
+   - **HMM Regime-Adaptive Trend Following**: Re-allocates between cash and equity based on low/high volatility regime states.
+
+2. **Performance Metrics**:
+   - **Cumulative Strategy Value vs. Benchmark Curve**
+   - **Annualized Sharpe Ratio**: $(R_p - R_f) / \\sigma_p$
+   - **Maximum Peak-to-Trough Drawdown (%)**
+   - **Win Rate & Profit Factor**: Ratio of gross profits to gross losses
+
+Launch the simulation anytime by clicking **"Backtest"** in the top bar!`;
+  }
+
+  if (p.includes('broker') || p.includes('alpaca') || p.includes('paper') || p.includes('order') || p.includes('trade')) {
+    return `### Direct Broker Router (Alpaca Paper Gateway) ⚡
+
+Execute paper trades with institutional order routing:
+
+1. **Account Integration**: Connected to Alpaca Paper Trading Gateway with $100,000 buying power.
+2. **Order Types**:
+   - **Market Orders**: Immediate execution at prevailing spot price with realistic slippage.
+   - **Limit Orders**: Executes only when price meets or beats your designated limit.
+3. **Risk Management Automation**:
+   - Configure mandatory Stop-Loss Price and Take-Profit Ceilings on order entry.
+4. **Order Blotter**: Review real-time pending, filled, and cancelled orders.
+
+Open the order ticket by clicking **"Broker Router"** in the top navigation.`;
+  }
+
+  if (p.includes('social') || p.includes('copy') || p.includes('copy-trade') || p.includes('community') || p.includes('trader')) {
+    return `### Social Sentiment & Verified Copy-Trading 👥
+
+Tap into crowdsourced intelligence and institutional quant portfolios:
+
+1. **Real-Time Community Feeds**: Aggregates discussions from simulated WallStreetBets, FinTwit, and quant desks. Filter by ticker to view sentiment tags and upvotes.
+2. **Verified Trader Leaderboard**: Review track records of top verified quants with annualized returns, Sharpe ratios, and max drawdowns.
+3. **1-Click Portfolio Mirroring**: Mirror a top trader's asset allocation directly into your active portfolio with proportional rebalancing.
+
+Click **"Social & Copy-Trade"** in the top bar to inspect active feeds.`;
+  }
+
+  if (p.includes('tour') || p.includes('walkthrough') || p.includes('guide') || p.includes('steps')) {
+    return `### 12-Step Guided Product Tour 🚀
+
+Explore every layer of the AlphaQuant AI terminal:
+1. Terminal Architecture & Core ML
+2. Global Macro Market Tape
+3. Aggregate Price Accuracy Metric (100% - MAPE)
+4. Split-Conformal Prediction Envelopes
+5. Rule-Based & HMM Market Regimes
+6. Options Chains & Black-Scholes Greeks
+7. Automated Quantitative Backtesting
+8. Direct Broker Router (Alpaca Paper Trading)
+9. Social Trading & Verified Copy-Trade
+10. Markowitz Modern Portfolio Optimizer
+11. Kolmogorov-Smirnov (KS) Drift Monitor
+12. AlphaBot AI Copilot
+
+Click **"Tour"** in the top navigation to begin the interactive walkthrough!`;
+  }
+
+  // General fallback
   return `### Hello! I'm the AlphaQuant AI Assistant 🤖
 
-I'm here to help you get the most out of the AlphaQuant AI Stock Intelligence Platform. Here are key things I can assist you with:
+I'm here to help you navigate the AlphaQuant AI Stock Intelligence Platform:
 
-- **Platform Navigation**: How to sign up, log in, view the Dashboard, or manage your Watchlist & Portfolio.
-- **Quantitative Models**: How **90% Conformal Prediction**, **HMM Market Regimes**, and **FinBERT News Fusion** work.
-- **Data & Drift**: Understanding Kolmogorov-Smirnov drift tests and model safety.
+- **Platform Navigation**: Sign up, log in, view the Dashboard, or manage your Watchlist & Portfolio.
+- **Quantitative Models**: How **split-conformal intervals**, **rule-based market regimes**, and **sentiment analysis** work.
+- **Data & Drift**: Understanding Kolmogorov-Smirnov drift tests and risk bounds.
 - **Supported Tickers**: Searching NSE stocks (\`RELIANCE.NS\`, \`TCS.NS\`, etc.) and US equities (\`NVDA\`, \`AAPL\`, etc.).
-- **Profile & Avatars**: Personalizing your account with Google Play Games style avatars or photo uploads.
 
 *What would you like to explore today?*`;
 }
+
+export const generateSupportFallback = getPlatformKnowledge;

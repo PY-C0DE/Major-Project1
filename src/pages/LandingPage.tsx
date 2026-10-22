@@ -63,13 +63,13 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
       name: 'Reliance Industries Ltd.',
       exchange: 'NSE',
       currency: '₹',
-      price: 1218.00,
-      change: 31.00,
-      changePercent: 2.61,
-      predicted: 1202.58,
-      lowerBound: 1152.62,
-      upperBound: 1252.54,
-      intervalPct: 8.42,
+      price: 2980.50,
+      change: 36.50,
+      changePercent: 1.24,
+      predicted: 3012.40,
+      lowerBound: 2915.20,
+      upperBound: 3109.60,
+      intervalPct: 6.52,
       regime: 'Low Volatility / Bullish',
       regimeProb: 88,
       sentiment: 'Positive',
@@ -159,8 +159,8 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
 
               <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-xl leading-relaxed">
                 Conventional financial systems offer single deterministic price points that ignore tail risk.
-                AlphaQuant AI unifies <strong>Conformal Prediction 90% confidence envelopes</strong>,
-                <strong>Hidden Markov Model regime detection</strong>, and <strong>FinBERT news fact verification</strong> into a
+                AlphaQuant AI unifies <strong>Split-Conformal prediction intervals</strong>,
+                <strong>rule-based market regime classification</strong>, and <strong>keyword sentiment intelligence</strong> into a
                 rigorous, audited trading intelligence platform.
               </p>
 
@@ -192,7 +192,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                 <span aria-hidden="true">·</span>
                 <span>Dual-Exchange (NSE / NASDAQ)</span>
                 <span aria-hidden="true">·</span>
-                <span>FinBERT NLP Verification</span>
+                <span>Sentiment & Credibility</span>
                 <span aria-hidden="true">·</span>
                 <span>Two-Sample KS Drift Audit</span>
               </div>
@@ -257,14 +257,14 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                   />
                 </div>
               ) : (
-                /* View 2: High-Density Live Telemetry Matrix */
+                /* View 2: High-Density Telemetry Matrix (Illustrative Sample Data) */
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 shadow-xl overflow-hidden backdrop-blur-md animate-fadeIn">
                   {/* Terminal Header */}
                   <div className="p-3.5 bg-slate-100 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 inline-block" />
                       <span className="text-xs font-mono font-bold text-slate-800 dark:text-white">
-                        LIVE QUANTITATIVE PREVIEW
+                        QUANTITATIVE PREVIEW (ILLUSTRATIVE SAMPLE DATA)
                       </span>
                     </div>
                     <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/40">
@@ -288,7 +288,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                       </button>
                     ))}
                     <span className="text-[11px] text-slate-400 font-mono ml-auto">
-                      {currentHeroData.exchange}
+                      {currentHeroData.exchange} · Sample Data
                     </span>
                   </div>
 
@@ -309,7 +309,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                           <TrendingUp className="w-3.5 h-3.5" />
                           +{currentHeroData.change} (+{currentHeroData.changePercent}%)
                         </span>
-                        <span className="text-[10px] text-slate-400">Live Tick</span>
+                        <span className="text-[10px] text-slate-400">Sample Quote (Illustrative)</span>
                       </div>
                     </div>
 
@@ -344,10 +344,10 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                       </div>
                     </div>
 
-                    {/* Macro Regime & FinBERT Sentiment Row */}
+                    {/* Macro Regime & Keyword Sentiment Row */}
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
-                        <div className="text-[10px] text-slate-400 uppercase">HMM Market Regime</div>
+                        <div className="text-[10px] text-slate-400 uppercase">Market Regime</div>
                         <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 font-sans mt-0.5 truncate">
                           {currentHeroData.regime}
                         </div>
@@ -357,7 +357,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                       </div>
 
                       <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800">
-                        <div className="text-[10px] text-slate-400 uppercase">FinBERT Tone Polarity</div>
+                        <div className="text-[10px] text-slate-400 uppercase">Sentiment Polarity</div>
                         <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 font-sans mt-0.5">
                           {currentHeroData.sentiment}
                         </div>
@@ -398,8 +398,12 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
         </div>
       </section>
 
-      {/* CONTINUOUS LIVE MARQUEE MARKET TAPE (Smooth Infinite Motion) */}
-      <div className="py-2.5 bg-slate-900 border-b border-slate-800/90 text-white overflow-hidden relative select-none">
+      {/* CONTINUOUS MARQUEE MARKET TAPE (Illustrative Sample Market Data) */}
+      <div className="py-2.5 bg-slate-900 border-b border-slate-800/90 text-white overflow-hidden relative select-none flex items-center">
+        <div className="hidden sm:flex items-center gap-1.5 px-3 z-10 bg-slate-900 border-r border-slate-800 shrink-0 text-[10px] font-mono text-cyan-400 uppercase tracking-wider">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+          <span>Sample Quotes:</span>
+        </div>
         <div className="animate-marquee flex items-center gap-6 whitespace-nowrap text-xs font-mono">
           {[
             { ticker: 'NIFTY 50', price: '24,850.40', chg: '+0.68%', up: true },
@@ -449,7 +453,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               Test Live Model Adaptations & Finite Bounds
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Select macroeconomic regimes and adjust non-parametric coverage bounds (1 - α) to observe how the <strong>conformal confidence envelope</strong> and <strong>HMM latent regime</strong> adapt in real time.
+              Select macroeconomic regimes and adjust non-parametric coverage bounds (1 - α) to observe how the <strong>conformal confidence envelope</strong> and <strong>market regime</strong> adapt in real time.
             </p>
           </div>
 
@@ -564,10 +568,10 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                   </p>
                 </div>
 
-                {/* Simulation Card 2: HMM Transition Probability */}
+                {/* Simulation Card 2: Market Regime State */}
                 <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3 transition-all">
                   <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="text-slate-500 font-medium">HMM Latent State</span>
+                    <span className="text-slate-500 font-medium">Market Regime State</span>
                     <span className="font-bold text-slate-900 dark:text-white tabular-nums">
                       {simRegime === 'bullish' ? 'State 0: Trending (92%)' : simRegime === 'sideways' ? 'State 1: Ranging (74%)' : 'State 2: Shock (88%)'}
                     </span>
@@ -682,7 +686,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white font-display group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Custom Asset Watchlist</h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Add Indian (NSE) and US stocks to your personal watchlist. View live quotes, 90% conformal intervals, HMM regimes, and concept drift warnings side-by-side.
+                Add Indian (NSE) and US stocks to your personal watchlist. View live quotes, 90% conformal intervals, market regimes, and concept drift warnings side-by-side.
               </p>
               <button
                 onClick={() => handleFeatureClick('watchlist')}
@@ -774,7 +778,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white font-display group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">Alerts & News Intelligence</h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Automated breakout triggers, regime transition alarms, and FinBERT tone filtering with source credibility and claim verification.
+                Automated breakout triggers, regime transition alarms, and sentiment tone filtering with publisher credibility scoring.
               </p>
               <button
                 onClick={() => handleFeatureClick('alerts')}
@@ -810,10 +814,10 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                 <Target className="w-5 h-5" />
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white font-display">
-                01. Conformal Prediction (MAPIE)
+                01. Split-Conformal Prediction Intervals
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Rather than claiming a false deterministic future (e.g. "Price will be ₹3,025"), the model calculates a <strong>90% finite-sample prediction interval</strong> [₹2,915 — ₹3,136]. Users observe exact uncertainty widths based on calibrated out-of-sample residuals.
+                Rather than claiming a false deterministic future (e.g. "Price will be ₹3,025"), the model calculates a <strong>finite-sample prediction interval</strong>. Users observe exact uncertainty widths based on calibrated out-of-sample residuals.
               </p>
               <div className="p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300">
                 <div className="text-cyan-600 dark:text-cyan-400 font-semibold mb-1">Guaranteed Finite Coverage:</div>
@@ -828,15 +832,15 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                 <Layers className="w-5 h-5" />
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white font-display">
-                02. HMM Market Regime Detection
+                02. Rule-Based Regime Classification
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Markets oscillate between quiet trending phases and turbulent tail-risk cascades. Our Gaussian Hidden Markov Model isolates <strong>Low Volatility / Bullish</strong> and <strong>High Volatility / Bearish</strong> regimes, adjusting predictions before shocks materialize.
+                Markets oscillate between quiet trending phases and turbulent tail-risk cascades. Our rule-based classifier isolates <strong>Low Volatility / Bullish</strong> and <strong>High Volatility / Bearish</strong> regimes, adjusting prediction intervals before shocks materialize.
               </p>
               <div className="p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300">
                 <div className="text-emerald-600 dark:text-emerald-400 font-semibold mb-1">State Transition Engine:</div>
                 <div>P(Bull → Bull): 88% · P(Bear → Bear): 82%</div>
-                <div className="text-slate-500 text-[10px] mt-1">Fed as conditioned input into XGBoost model</div>
+                <div className="text-slate-500 text-[10px] mt-1">Fed as conditioned input into ridge regression model</div>
               </div>
             </div>
 
@@ -846,14 +850,14 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                 <Newspaper className="w-5 h-5" />
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white font-display">
-                03. FinBERT & Fact Verification Fusion
+                03. Keyword Sentiment & Domain Credibility
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Raw financial headlines are processed through Hugging Face's <code>yiyanghkust/finbert-tone</code> to extract discrete positive/neutral/negative probabilities, coupled with Google Fact Check Tools claim verification and domain reputation scoring.
+                Financial headlines are processed through a domain keyword sentiment lexicon to extract positive and negative tone, coupled with financial publisher domain credibility weighting.
               </p>
               <div className="p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300">
                 <div className="text-indigo-600 dark:text-indigo-400 font-semibold mb-1">Multimodal Input Vector:</div>
-                <div>Tone: Positive (81%) · Fact-Check Weight: 0.94</div>
+                <div>Tone: Positive (81%) · Domain Weight: 0.94</div>
                 <div className="text-slate-500 text-[10px] mt-1">Filters unverified rumors from certified disclosures</div>
               </div>
             </div>
@@ -896,12 +900,12 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 relative">
             {[
-              { step: '01', title: 'Market OHLCV', desc: 'Real tick bars from NSE & US exchanges', badge: 'Live Ticks' },
-              { step: '02', title: 'Technical Factors', desc: 'SMA, RSI, MACD, Bollinger, ATR', badge: '14 Factors' },
-              { step: '03', title: 'FinBERT NLP', desc: 'Hugging Face financial tone scoring', badge: 'NLP Vector' },
-              { step: '04', title: 'HMM Regimes', desc: 'Gaussian 2-state volatility modeling', badge: 'Regime Prob' },
-              { step: '05', title: 'XGBoost Fusion', desc: 'Non-linear tree ensemble inference', badge: 'Ensemble' },
-              { step: '06', title: 'Conformal 90%', desc: 'Calibrated prediction interval', badge: '1-α Coverage' }
+              { step: '01', title: 'Market OHLCV', desc: 'Real tick bars from NSE & US exchanges', badge: 'Market Bars' },
+              { step: '02', title: 'Technical Factors', desc: 'SMA, RSI, MACD, Bollinger, ATR', badge: '8 Features' },
+              { step: '03', title: 'Sentiment Lexicon', desc: 'Keyword financial tone scoring', badge: 'NLP Lexicon' },
+              { step: '04', title: 'Regime Filter', desc: 'Rule-based trend & volatility classifier', badge: 'Regime State' },
+              { step: '05', title: 'Ridge Regression', desc: 'Regularized 8-factor linear model', badge: 'Regression' },
+              { step: '06', title: 'Conformal Intervals', desc: 'Calibrated prediction interval', badge: '1-α Coverage' }
             ].map((w, idx) => (
               <div
                 key={w.step}

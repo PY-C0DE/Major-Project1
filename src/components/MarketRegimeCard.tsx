@@ -17,7 +17,7 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
   if (!regime) {
     return (
       <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-5 animate-pulse min-h-[260px] flex items-center justify-center">
-        <span className="text-xs font-mono text-slate-500">Estimating Gaussian HMM Latent Regimes...</span>
+        <span className="text-xs font-mono text-slate-500">Estimating Rule-Based Market Regimes...</span>
       </div>
     );
   }
@@ -35,7 +35,7 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Market Regime Detection</h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              2-State Gaussian Hidden Markov Model (HMM)
+              Rule-Based Trend & Volatility Classifier
             </span>
           </div>
         </div>
@@ -97,15 +97,15 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
           <div className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
             {isBullish ? 'Low Noise / Clean Signal' : 'High Vol / Widened Bounds'}
           </div>
-          <div className="text-[10px] text-slate-500 mt-1">Fed into XGBoost feature matrix</div>
+          <div className="text-[10px] text-slate-500 mt-1">Conditioning input for prediction intervals</div>
         </div>
       </div>
 
-      {/* HMM Empirical Transition Matrix */}
+      {/* Empirical Transition Matrix */}
       <div className="p-3 bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/60 rounded-lg">
         <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
-          <span>HMM Transition Probability Matrix (A)</span>
-          <span className="text-[10px] text-slate-400">Markov Property</span>
+          <span>Regime Transition Probability Matrix</span>
+          <span className="text-[10px] text-slate-400">Markov Transition</span>
         </div>
         <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
           <div className="p-2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">

@@ -1,11 +1,11 @@
 /**
  * NLP & Verification Engine
- * Implements FinBERT Financial Sentiment Scoring and Fact Verification / Credibility Assessment.
+ * Implements Keyword Financial Sentiment Scoring and Publisher Credibility Assessment.
  */
 
 import { NewsItem } from '../../types';
 
-// FinBERT Financial Lexicon & Weights (aligned with yiyanghkust/finbert-tone)
+// Financial Sentiment Lexicon & Markers
 const POSITIVE_MARKERS = [
   'surge', 'jump', 'gain', 'beat', 'record', 'profit', 'outperform', 'upgrade',
   'growth', 'bullish', 'strong', 'expansion', 'dividend', 'rally', 'breakthrough',
@@ -37,7 +37,7 @@ const CREDIBLE_DOMAINS: Record<string, number> = {
 };
 
 /**
- * Analyzes headline using FinBERT tone modeling
+ * Analyzes headline using keyword sentiment lexicon
  */
 export function analyzeFinBERTTone(headline: string, summary = ''): {
   sentiment: 'positive' | 'negative' | 'neutral';

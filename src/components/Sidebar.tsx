@@ -17,8 +17,12 @@ import {
   ActivitySquare,
   Bell,
   Settings,
+  Sparkles,
+  Send,
+  Users,
+  Sliders,
+  Scale,
   ShieldCheck,
-  User,
   LogOut
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -28,9 +32,25 @@ interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   selectedTicker: string;
+  onOpenOptions?: () => void;
+  onOpenBacktest?: () => void;
+  onOpenBroker?: () => void;
+  onOpenSocial?: () => void;
+  onOpenOptimizer?: () => void;
+  onOpenTour?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, selectedTicker }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  setActiveTab,
+  selectedTicker,
+  onOpenOptions,
+  onOpenBacktest,
+  onOpenBroker,
+  onOpenSocial,
+  onOpenOptimizer,
+  onOpenTour
+}) => {
   const { user, logout } = useAuth();
   const mainItems = [
     { id: 'home', label: 'Home Overview', icon: Home },
@@ -103,6 +123,69 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, selec
                 </button>
               );
             })}
+          </nav>
+        </div>
+
+        {/* Terminal Tools & Modals */}
+        <div>
+          <div className="px-3 mb-2 text-[10px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-semibold">
+            Institutional Tools
+          </div>
+          <nav className="space-y-1">
+            {onOpenOptions && (
+              <button
+                onClick={onOpenOptions}
+                className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors cursor-pointer text-left"
+              >
+                <ActivitySquare className="w-4 h-4 shrink-0 text-cyan-500" />
+                <span className="truncate">Options & Greeks</span>
+              </button>
+            )}
+            {onOpenBacktest && (
+              <button
+                onClick={onOpenBacktest}
+                className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors cursor-pointer text-left"
+              >
+                <BarChart3 className="w-4 h-4 shrink-0 text-emerald-500" />
+                <span className="truncate">Backtest Engine</span>
+              </button>
+            )}
+            {onOpenBroker && (
+              <button
+                onClick={onOpenBroker}
+                className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors cursor-pointer text-left"
+              >
+                <Send className="w-4 h-4 shrink-0 text-indigo-500" />
+                <span className="truncate">Broker Router</span>
+              </button>
+            )}
+            {onOpenSocial && (
+              <button
+                onClick={onOpenSocial}
+                className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors cursor-pointer text-left"
+              >
+                <Users className="w-4 h-4 shrink-0 text-rose-500" />
+                <span className="truncate">Social & Copy-Trade</span>
+              </button>
+            )}
+            {onOpenOptimizer && (
+              <button
+                onClick={onOpenOptimizer}
+                className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-900/60 transition-colors cursor-pointer text-left"
+              >
+                <Scale className="w-4 h-4 shrink-0 text-amber-500" />
+                <span className="truncate">Portfolio Optimizer</span>
+              </button>
+            )}
+            {onOpenTour && (
+              <button
+                onClick={onOpenTour}
+                className="w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-xs font-medium text-cyan-700 dark:text-cyan-300 bg-cyan-50/70 dark:bg-cyan-950/40 border border-cyan-200/60 dark:border-cyan-800/50 hover:bg-cyan-100 dark:hover:bg-cyan-900/60 transition-colors cursor-pointer text-left"
+              >
+                <Sparkles className="w-4 h-4 shrink-0 text-cyan-500 animate-pulse" />
+                <span className="truncate font-semibold">12-Step Tour</span>
+              </button>
+            )}
           </nav>
         </div>
       </div>
