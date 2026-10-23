@@ -179,17 +179,27 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
 
           <div className="space-y-1.5 pt-1">
             <div className="flex items-baseline justify-between gap-2">
-              <div className="text-xl sm:text-2xl lg:text-3xl font-black font-mono text-emerald-500 dark:text-cyan-400 tabular-nums tracking-tight">
-                {accuracy ? `${accuracy.priceAccuracyPct.toFixed(2)}%` : '96.42%'}
-              </div>
-              <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded shrink-0">
-                MAPE {accuracy ? `${accuracy.mape.toFixed(2)}%` : '3.58%'}
-              </span>
+              {(prediction?.priceAccuracy != null || accuracy?.priceAccuracyPct != null) ? (
+                <div className="text-xl sm:text-2xl lg:text-3xl font-black font-mono text-emerald-500 dark:text-cyan-400 tabular-nums tracking-tight">
+                  {(prediction?.priceAccuracy ?? accuracy?.priceAccuracyPct)?.toFixed(1)}%
+                </div>
+              ) : (
+                <div className="h-8 w-28 bg-slate-200 dark:bg-slate-800 animate-pulse rounded-md" />
+              )}
+              {(prediction?.priceAccuracy != null || accuracy?.mape != null) && (
+                <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded shrink-0">
+                  MAPE {prediction?.priceAccuracy != null ? (100 - prediction.priceAccuracy).toFixed(1) : accuracy?.mape?.toFixed(1)}%
+                </span>
+              )}
             </div>
             <div className="flex items-center justify-between text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-mono pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
-              <span className="truncate">Sample: {accuracy?.evaluatedAssetsCount || 60} assets</span>
+              <span className="truncate">
+                {prediction?.priceAccuracy != null
+                  ? `Model: ${selectedTicker.replace('.NS', '')} (Analyzed)`
+                  : `Universe: ${accuracy?.evaluatedAssetsCount ?? 'Analyzing'} models`}
+              </span>
               <span className="text-cyan-600 dark:text-cyan-400 font-semibold shrink-0">
-                Coverage {accuracy ? `${accuracy.conformalCoveragePct.toFixed(1)}%` : '91.2%'}
+                Coverage {prediction?.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : accuracy?.conformalCoveragePct != null ? `${accuracy.conformalCoveragePct.toFixed(1)}%` : '...'}
               </span>
             </div>
           </div>

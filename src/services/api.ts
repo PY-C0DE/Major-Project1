@@ -368,26 +368,11 @@ export const api = {
     }
   },
 
-  // Project-Wide Price Accuracy Metric
+  // Project-Wide Price Accuracy Metric obtained by analyzing model predictions
   async getProjectWideAccuracy(): Promise<ProjectWideAccuracyResult> {
-    const fallback: ProjectWideAccuracyResult = {
-      priceAccuracyPct: 96.42,
-      mape: 3.58,
-      evaluatedAssetsCount: 60,
-      mae: 14.2,
-      rmse: 19.8,
-      directionalAccuracyPct: 78.4,
-      conformalCoveragePct: 91.2,
-      benchmark: 'Ridge Multi-Factor + Split-Conformal Calibration',
-      evaluatedAt: new Date().toISOString()
-    };
-    try {
-      const res = await fetch(`${API_BASE}/metrics/accuracy`);
-      if (!res.ok) return fallback;
-      return await safeParseJson(res, fallback);
-    } catch {
-      return fallback;
-    }
+    const res = await fetch(`${API_BASE}/metrics/accuracy`);
+    if (!res.ok) throw new Error('Failed to load project-wide accuracy metrics');
+    return res.json();
   },
 
   // Options Chains & Greeks Analytics

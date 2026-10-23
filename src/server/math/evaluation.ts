@@ -279,49 +279,69 @@ export async function computeProjectWideAccuracy(
   const evaluatedDirs: number[] = [];
   const evaluatedCovs: number[] = [];
 
-  const batch = catalogTickers.slice(0, 60);
-  const evalPromises = batch.map(async (t) => {
-    try {
-      const history = await fetchHistory(t, 120);
-      if (history && history.length >= 40) {
-        return runModelEvaluation(history, t);
-      }
-    } catch {}
-    return null;
-  });
+  // Evaluate assets in small concurrent batches to prevent Yahoo Finance network rate-limiting
+  const targetUniverse = catalogTickers && catalogTickers.length > 0 ? catalogTickers : ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS', 'MSFT', 'HDFCBANK.NS', 'GOOGL', 'TSLA', 'TMCV.NS'];
+  const batchSize = 6;
+  const sampleTickers = targetUniverse.slice(0, 36);
 
-  const results = await Promise.all(evalPromises);
+  for (let i = 0; i < sampleTickers.length; i += batchSize) {
+    const batch = sampleTickers.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async (t) => {
+        try {
+          const history = await fetchHistory(t, 120);
+          if (history && history.length >= 40) {
+            return runModelEvaluation(history, t);
+          }
+        } catch {}
+        return null;
+      })
+    );
 
-  for (const r of results) {
-    if (r) {
-      evaluatedMapes.push(r.mape);
-      evaluatedMaes.push(r.mae);
-      evaluatedRmses.push(r.rmse);
-      evaluatedDirs.push(r.directionalAccuracy);
-      if (r.conformalCoverage !== undefined) {
-        evaluatedCovs.push(r.conformalCoverage);
+    for (const r of batchResults) {
+      if (r) {
+        evaluatedMapes.push(r.mape);
+        evaluatedMaes.push(r.mae);
+        evaluatedRmses.push(r.rmse);
+        evaluatedDirs.push(r.directionalAccuracy);
+        if (r.conformalCoverage !== undefined) {
+          evaluatedCovs.push(r.conformalCoverage);
+        }
       }
+    }
+
+    // Small pause between batches
+    if (i + batchSize < sampleTickers.length) {
+      await new Promise(r => setTimeout(r, 40));
     }
   }
 
-  const sampleCount = evaluatedMapes.length || catalogTickers.length || 60;
-  const avgMape = evaluatedMapes.length > 0
-    ? evaluatedMapes.reduce((a, b) => a + b, 0) / evaluatedMapes.length
-    : 3.58;
-  const avgMae = evaluatedMaes.length > 0
-    ? evaluatedMaes.reduce((a, b) => a + b, 0) / evaluatedMaes.length
-    : 14.2;
-  const avgRmse = evaluatedRmses.length > 0
-    ? evaluatedRmses.reduce((a, b) => a + b, 0) / evaluatedRmses.length
-    : 19.8;
-  const avgDir = evaluatedDirs.length > 0
-    ? evaluatedDirs.reduce((a, b) => a + b, 0) / evaluatedDirs.length
-    : 78.4;
-  const avgCov = evaluatedCovs.length > 0
-    ? evaluatedCovs.reduce((a, b) => a + b, 0) / evaluatedCovs.length
-    : 91.2;
+  // If initial batch failed due to network, guarantee real evaluation over primary benchmark
+  if (evaluatedMapes.length === 0) {
+    for (const t of ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL']) {
+      try {
+        const history = await fetchHistory(t, 120);
+        if (history && history.length >= 30) {
+          const r = runModelEvaluation(history, t);
+          evaluatedMapes.push(r.mape);
+          evaluatedMaes.push(r.mae);
+          evaluatedRmses.push(r.rmse);
+          evaluatedDirs.push(r.directionalAccuracy);
+          if (r.conformalCoverage !== undefined) evaluatedCovs.push(r.conformalCoverage);
+        }
+      } catch {}
+    }
+  }
 
-  const priceAccuracyPct = Number(Math.max(88, Math.min(99.5, 100 - avgMape)).toFixed(2));
+  const sampleCount = Math.max(1, evaluatedMapes.length);
+  const avgMape = evaluatedMapes.reduce((a, b) => a + b, 0) / sampleCount;
+  const avgMae = evaluatedMaes.reduce((a, b) => a + b, 0) / sampleCount;
+  const avgRmse = evaluatedRmses.reduce((a, b) => a + b, 0) / sampleCount;
+  const avgDir = evaluatedDirs.reduce((a, b) => a + b, 0) / sampleCount;
+  const avgCov = evaluatedCovs.reduce((a, b) => a + b, 0) / sampleCount;
+
+  // Genuine accuracy obtained strictly by analyzing model out-of-sample prediction error
+  const priceAccuracyPct = Number(Math.max(0, Math.min(100, 100 - avgMape)).toFixed(2));
 
   const result: ProjectWideAccuracyResult = {
     priceAccuracyPct,

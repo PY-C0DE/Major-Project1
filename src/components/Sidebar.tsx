@@ -70,8 +70,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 p-4 flex flex-col justify-between shrink-0 hidden lg:flex min-h-[calc(100vh-57px)] transition-colors duration-200">
-      <div className="space-y-6">
+    <aside className="w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 flex flex-col shrink-0 hidden lg:flex h-full max-h-[calc(100vh-57px)] sticky top-[57px] transition-colors duration-200 overflow-hidden">
+      {/* Scrollable Navigation Options with Independent Scrollbar */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-6 sidebar-scrollbar">
         {/* Core Workspace */}
         <div>
           <div className="px-3 mb-2 text-[10px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-semibold">
@@ -191,7 +192,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Bottom Safe Status & Settings */}
-      <div className="pt-4 border-t border-slate-200 dark:border-slate-900 space-y-2">
+      <div className="p-4 border-t border-slate-200 dark:border-slate-900 space-y-2 shrink-0 bg-white dark:bg-slate-950">
         <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/60 flex items-center gap-2.5">
           <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <div className="text-[11px] leading-tight">

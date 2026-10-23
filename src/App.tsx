@@ -127,7 +127,7 @@ function AppContent() {
   // Universal Layout: Top Navbar (with theme toggle, brand, links & auth actions) is ALWAYS visible.
   // Home page is displayed first; other features (Dashboard, Watchlist, Portfolio, etc.) require Login or Sign Up.
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
+    <div className={`${!isAuthenticated || activeTab === 'home' ? 'min-h-screen' : 'h-screen max-h-screen overflow-hidden'} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200`}>
       {/* Top Bar Navigation (Includes Dark Mode / Light Mode toggle and Auth triggers) */}
       <Navbar
         activeTab={activeTab}
@@ -158,7 +158,7 @@ function AppContent() {
           />
         </div>
       ) : (
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden h-[calc(100vh-57px)]">
           {/* Left Sidebar for Authenticated Workspace */}
           <Sidebar
             activeTab={activeTab}
@@ -173,7 +173,7 @@ function AppContent() {
           />
 
           {/* Viewport Content Area */}
-          <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-8 max-w-7xl mx-auto w-full pb-24 lg:pb-8 min-w-0">
+          <main className="flex-1 h-full overflow-y-auto p-3 sm:p-5 lg:p-8 max-w-7xl mx-auto w-full pb-24 lg:pb-8 min-w-0">
             <div key={activeTab} className="animate-fadeIn w-full min-w-0">
               {activeTab === 'dashboard' && (
                 <DashboardPage

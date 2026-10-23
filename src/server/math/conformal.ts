@@ -110,43 +110,51 @@ export function runConformalPrediction(
   const intervalWidth = Number((upperBound - lowerBound).toFixed(2));
   const intervalWidthPercent = Number(((intervalWidth / currentPrice) * 100).toFixed(2));
 
-  // Compute empirical coverage and MAPE strictly on the validation set
+  // Compute empirical coverage and MAPE strictly by analyzing out-of-sample model predictions
   let inBoundsHits = 0;
-  let sumResiduals = 0;
+  let sumPctErrors = 0;
   let dirHits = 0;
+  let evaluatedSamples = 0;
 
   for (let i = calibStartIndex; i < n; i++) {
     const prevBar = bars[i - 1];
     const prevPrice = prevBar.close;
+    if (prevPrice <= 0) continue;
+
     const feats = extractFeatureVector(bars, i - 1);
     const predRet = predictReturnFromFeatures(weights, feats);
     const predPrice = prevPrice * (1 + predRet);
     const actual = bars[i].close;
+    if (actual <= 0) continue;
+
     const dailyVol = Math.max(0.006, (prevBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
     const band = qNorm * prevPrice * dailyVol;
     if (actual >= predPrice - band && actual <= predPrice + band) {
       inBoundsHits++;
     }
-    sumResiduals += Math.abs(actual - predPrice);
+
+    const absError = Math.abs(actual - predPrice);
+    const barPctError = (absError / actual) * 100;
+    sumPctErrors += barPctError;
 
     const actualRet = (actual - prevPrice) / prevPrice;
     if ((predRet >= 0 && actualRet >= 0) || (predRet < 0 && actualRet < 0)) {
       dirHits++;
     }
+    evaluatedSamples++;
   }
 
-  // Real empirical coverage derived directly from the validation bars
-  const rawCoverage = Number((inBoundsHits / (calibSize || 1)).toFixed(3));
-  const empiricalCoverage = rawCoverage;
+  const sampleCount = evaluatedSamples > 0 ? evaluatedSamples : 1;
 
-  // Real Price Prediction Accuracy: 100% - MAPE
-  const meanAbsResidual = sumResiduals / (calibSize || 1);
-  const realMape = (meanAbsResidual / currentPrice) * 100;
-  const rawPriceAccuracy = Number((100 - realMape).toFixed(1));
-  const priceAccuracy = rawPriceAccuracy;
+  // Real empirical coverage derived directly from the validation bars
+  const empiricalCoverage = Number((inBoundsHits / sampleCount).toFixed(3));
+
+  // Real Price Prediction Accuracy: 100% - MAPE directly obtained from analyzing model predictions
+  const realMape = sumPctErrors / sampleCount;
+  const priceAccuracy = Number(Math.max(0, Math.min(100, 100 - realMape)).toFixed(1));
 
   // Directional trajectory accuracy computed on validation bars
-  const directionalAccuracy = calibSize > 0 ? Number(((dirHits / calibSize) * 100).toFixed(1)) : 50.0;
+  const directionalAccuracy = Number(((dirHits / sampleCount) * 100).toFixed(1));
 
   // 3. Feature Attributions based on normalized model factor inputs
   const rsi = latestBar.rsi14 ?? 50;

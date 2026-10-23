@@ -173,7 +173,9 @@ export const ConformalPredictionCard: React.FC<Props> = ({
         <div>
           <div className="text-[11px] sm:text-xs uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
             <span>Predicted Target ({prediction.horizonDays}D Ahead)</span>
-            <span className="text-[10px] font-mono text-slate-400">Model Acc: {Math.min(95.0, prediction.priceAccuracy || prediction.directionalAccuracy || 95.0)}%</span>
+            <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+              Model Acc: {prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : prediction.directionalAccuracy != null ? `${prediction.directionalAccuracy}%` : 'Analyzing...'}
+            </span>
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono tracking-tight text-slate-950 dark:text-white tabular-nums">

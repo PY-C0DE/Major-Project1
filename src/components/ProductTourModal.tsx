@@ -338,15 +338,36 @@ export const ProductTourModal: React.FC<Props> = ({
       }
 
       if (el) {
-        // Smoothly scroll the page so the selected component is centered
-        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        // Smoothly scroll the main content area so the element is cleanly placed in view
+        const mainEl = document.querySelector('main');
+        if (mainEl) {
+          const mainRect = mainEl.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          const currentScroll = mainEl.scrollTop;
+          const relativeTop = elRect.top - mainRect.top + currentScroll;
+          // Scroll so target has 24px clearance from top of view
+          mainEl.scrollTo({
+            top: Math.max(0, relativeTop - 24),
+            behavior: 'smooth'
+          });
+        } else {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+        }
 
-        // Update rect after scrolling settles
-        const scrollTimer = setTimeout(() => {
+        // Continuously update targetRect while scrolling settles
+        const interval = setInterval(() => {
           measureTarget();
-        }, 320);
+        }, 50);
 
-        return () => clearTimeout(scrollTimer);
+        const scrollTimer = setTimeout(() => {
+          clearInterval(interval);
+          measureTarget();
+        }, 450);
+
+        return () => {
+          clearInterval(interval);
+          clearTimeout(scrollTimer);
+        };
       } else {
         setTargetFound(false);
         setTargetRect(null);
@@ -373,12 +394,18 @@ export const ProductTourModal: React.FC<Props> = ({
     };
   }, [isOpen, measureTarget]);
 
-  // Keyboard navigation
+  // Keyboard navigation (Supports Arrow Right, Arrow Left, Enter, Space, Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
-      if (e.key === 'ArrowRight') {
-        setCurrentStepIdx(prev => Math.min(TOUR_STEPS.length - 1, prev + 1));
+      if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        setCurrentStepIdx(prev => {
+          if (prev >= TOUR_STEPS.length - 1) {
+            onClose();
+            return prev;
+          }
+          return prev + 1;
+        });
       } else if (e.key === 'ArrowLeft') {
         setCurrentStepIdx(prev => Math.max(0, prev - 1));
       } else if (e.key === 'Escape') {
@@ -417,142 +444,310 @@ export const ProductTourModal: React.FC<Props> = ({
   };
 
   // Calculate dynamic floating tooltip placement
+  // Screen-adaptive floating tooltip placement and sizing
   const calculateTooltipStyle = (): React.CSSProperties => {
+    const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+
     if (!targetRect || !targetFound) {
       // Centered fallback if target is not currently in view
+      const maxHeight = Math.min(460, Math.max(220, viewportH - 32));
       return {
         position: 'fixed',
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        maxWidth: '520px',
+        maxWidth: '460px',
         width: 'calc(100vw - 32px)',
+        maxHeight: `${maxHeight}px`,
         zIndex: 60
       };
     }
 
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-    const cardWidth = Math.min(480, viewportW - 32);
-    const cardHeightEstimate = 360;
+    const isMobile = viewportW < 640;
+    const isTablet = viewportW >= 640 && viewportW < 1024;
+    const cardWidth = isMobile
+      ? Math.min(viewportW - 24, 400)
+      : isTablet
+      ? Math.min(viewportW - 32, 430)
+      : 440;
 
-    // Horizontal placement: align with target, clamp within screen
-    let left = targetRect.left + (targetRect.width / 2) - (cardWidth / 2);
-    left = Math.max(16, Math.min(viewportW - cardWidth - 16, left));
+    // Horizontal placement: center with target, clamp within screen margins
+    let left = targetRect.left + targetRect.width / 2 - cardWidth / 2;
+    left = Math.max(12, Math.min(viewportW - cardWidth - 12, left));
 
-    // Vertical placement: prefer below target if space permits, otherwise place above
-    let top: number;
-    const spaceBelow = viewportH - targetRect.bottom;
-    const spaceAbove = targetRect.top;
+    // Vertical clearances around target
+    const spaceBelow = viewportH - targetRect.bottom - 16;
+    const spaceAbove = targetRect.top - 16;
 
-    if (spaceBelow >= cardHeightEstimate || spaceBelow >= spaceAbove) {
-      top = targetRect.bottom + 14;
-      // Clamp to bottom of screen
-      if (top + cardHeightEstimate > viewportH - 12) {
-        top = Math.max(12, viewportH - cardHeightEstimate - 12);
+    // Mobile layout: smart bottom/top dock with strict height bounds
+    if (isMobile) {
+      if (targetRect.top > viewportH * 0.45) {
+        // Target is in bottom half -> place card at top
+        const maxHeight = Math.max(180, Math.min(320, targetRect.top - 20));
+        return {
+          position: 'fixed',
+          top: '12px',
+          left: '12px',
+          width: 'calc(100vw - 24px)',
+          maxHeight: `${maxHeight}px`,
+          zIndex: 60
+        };
+      } else {
+        // Target is in top half -> place card at bottom
+        const maxHeight = Math.max(180, Math.min(340, viewportH - targetRect.bottom - 20));
+        return {
+          position: 'fixed',
+          bottom: '12px',
+          left: '12px',
+          width: 'calc(100vw - 24px)',
+          maxHeight: `${maxHeight}px`,
+          zIndex: 60
+        };
       }
-    } else {
-      top = Math.max(12, targetRect.top - cardHeightEstimate - 14);
     }
 
-    return {
-      position: 'fixed',
-      top: `${top}px`,
-      left: `${left}px`,
-      width: `${cardWidth}px`,
-      zIndex: 60
-    };
+    // Wide screen / desktop: side placement (e.g. step 3 in user screenshot where target is to the left)
+    const spaceRight = viewportW - targetRect.right - 20;
+    const spaceLeft = targetRect.left - 20;
+    if (viewportW >= 1024 && (spaceBelow < 280 || spaceRight >= cardWidth)) {
+      if (spaceRight >= cardWidth) {
+        const targetH = Math.min(390, Math.max(220, viewportH - 32));
+        // Clamp top so that top + targetH <= viewportH - 16
+        const top = Math.max(16, Math.min(viewportH - targetH - 16, Math.max(16, targetRect.top - 16)));
+        const maxHeight = Math.max(200, viewportH - top - 16);
+        return {
+          position: 'fixed',
+          top: `${top}px`,
+          left: `${targetRect.right + 16}px`,
+          width: `${cardWidth}px`,
+          maxHeight: `${maxHeight}px`,
+          zIndex: 60
+        };
+      } else if (spaceLeft >= cardWidth) {
+        const targetH = Math.min(390, Math.max(220, viewportH - 32));
+        const top = Math.max(16, Math.min(viewportH - targetH - 16, Math.max(16, targetRect.top - 16)));
+        const maxHeight = Math.max(200, viewportH - top - 16);
+        return {
+          position: 'fixed',
+          top: `${top}px`,
+          left: `${targetRect.left - cardWidth - 16}px`,
+          width: `${cardWidth}px`,
+          maxHeight: `${maxHeight}px`,
+          zIndex: 60
+        };
+      }
+    }
+
+    // Standard Desktop / Tablet placement:
+    // Prefer placing below if space permits (>= 270px) or if spaceBelow >= spaceAbove
+    if (spaceBelow >= 270 || spaceBelow >= spaceAbove) {
+      const targetH = Math.min(380, Math.max(180, spaceBelow));
+      let top = targetRect.bottom + 12;
+      if (top + targetH > viewportH - 16) {
+        top = Math.max(16, viewportH - targetH - 16);
+      }
+      const maxHeight = Math.max(200, viewportH - top - 16);
+      return {
+        position: 'fixed',
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${cardWidth}px`,
+        maxHeight: `${maxHeight}px`,
+        zIndex: 60
+      };
+    } else {
+      // Place above target
+      const targetH = Math.min(380, Math.max(180, spaceAbove));
+      let bottom = viewportH - targetRect.top + 12;
+      if (bottom + targetH > viewportH - 16) {
+        bottom = Math.max(16, viewportH - targetH - 16);
+      }
+      const maxHeight = Math.max(200, viewportH - bottom - 16);
+      return {
+        position: 'fixed',
+        bottom: `${bottom}px`,
+        left: `${left}px`,
+        width: `${cardWidth}px`,
+        maxHeight: `${maxHeight}px`,
+        zIndex: 60
+      };
+    }
+  };
+
+  const getDirectionHint = () => {
+    if (!targetRect || !targetFound) return null;
+    const viewportW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+    const viewportH = typeof window !== 'undefined' ? window.innerHeight : 800;
+    if (viewportW < 640) {
+      return targetRect.top > viewportH * 0.45 ? '↑ Target in Lower View' : '↓ Target in Upper View';
+    }
+    const spaceBelow = viewportH - targetRect.bottom - 16;
+    const spaceAbove = targetRect.top - 16;
+    if (viewportW >= 1024 && (spaceBelow < 280 || viewportW - targetRect.right - 20 >= 440)) {
+      if (viewportW - targetRect.right - 20 >= 440) return '← Target to Left';
+      if (targetRect.left - 20 >= 440) return '→ Target to Right';
+    }
+    return spaceBelow >= 270 || spaceBelow >= spaceAbove ? '↑ Feature Above' : '↓ Feature Below';
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden font-sans">
-      {/* 1. Backdrop overlay with slight darkening for high contrast */}
-      <div
-        className="fixed inset-0 bg-slate-950/75 backdrop-blur-[2px] transition-opacity duration-300"
-        onClick={onClose}
-      />
+    <div
+      className="fixed inset-0 z-50 overflow-hidden font-sans"
+      onWheel={(e) => {
+        // Allow wheel scrolling anywhere on screen to smoothly scroll the page content
+        const target = e.target as HTMLElement;
+        const isInsideCardBody = target.closest('.tour-card-body');
+        if (!isInsideCardBody) {
+          const mainEl = document.querySelector('main');
+          if (mainEl) {
+            mainEl.scrollTop += e.deltaY;
+            measureTarget();
+          }
+        }
+      }}
+    >
+      {/* 1. Backdrop overlay with SVG Cutout Mask:
+          The hole punched over targetRect has 0% opacity, so the underlying feature is 100% visible and NOT translucent!
+          The rest of the screen is darkened to focus the user's attention. */}
+      <svg className="fixed inset-0 w-full h-full pointer-events-none z-40 transition-opacity duration-300">
+        <defs>
+          <mask id="tour-spotlight-cutout-mask">
+            {/* White fills everything (opaque backdrop) */}
+            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+            {/* Black punches out the hole for the focused element so it remains 100% crystal clear */}
+            {targetFound && targetRect && (
+              <rect
+                x={Math.max(0, targetRect.left - 6)}
+                y={Math.max(0, targetRect.top - 6)}
+                width={targetRect.width + 12}
+                height={targetRect.height + 12}
+                rx="16"
+                ry="16"
+                fill="black"
+              />
+            )}
+          </mask>
+        </defs>
+        {/* Shaded backdrop with cutout hole */}
+        <rect
+          x="0"
+          y="0"
+          width="100%"
+          height="100%"
+          fill="rgba(2, 6, 23, 0.78)"
+          mask="url(#tour-spotlight-cutout-mask)"
+          className="pointer-events-auto cursor-pointer"
+          onClick={onClose}
+        />
+      </svg>
 
-      {/* 2. Interactive Spotlight Halo Ring directly over the selected element */}
+      {/* 2. Focused Feature Halo: ONLY the border glows, with zero tint or haze over the inner feature */}
       {targetFound && targetRect && (
         <div
           style={{
-            top: `${Math.max(0, targetRect.top - 8)}px`,
-            left: `${Math.max(0, targetRect.left - 8)}px`,
-            width: `${targetRect.width + 16}px`,
-            height: `${targetRect.height + 16}px`
+            top: `${Math.max(0, targetRect.top - 6)}px`,
+            left: `${Math.max(0, targetRect.left - 6)}px`,
+            width: `${targetRect.width + 12}px`,
+            height: `${targetRect.height + 12}px`
           }}
-          className="fixed pointer-events-none rounded-2xl ring-4 ring-cyan-400 ring-offset-2 ring-offset-slate-950 shadow-[0_0_50px_rgba(6,182,212,0.85)] border-2 border-cyan-300 transition-all duration-300 ease-out z-50 animate-pulse"
+          className="fixed pointer-events-none rounded-2xl border-2 border-cyan-400 ring-2 ring-cyan-400/40 shadow-[0_0_20px_rgba(6,182,212,0.85),0_0_35px_rgba(6,182,212,0.4)] transition-all duration-300 ease-out z-50"
         >
-          {/* Animated Glowing Outer Aura */}
-          <div className="absolute -inset-1.5 rounded-2xl bg-cyan-400/25 blur-md pointer-events-none" />
+          {/* Subtle perimeter border pulse (strictly border, no fill) */}
+          <div className="absolute inset-0 rounded-2xl border border-cyan-300/60 animate-ping opacity-25 pointer-events-none" />
 
-          {/* Floating Target Spotlight Badge */}
-          <div className="absolute -top-3.5 left-4 px-2.5 py-0.5 rounded-full bg-cyan-500 text-slate-950 text-[10px] font-mono font-black tracking-wider uppercase shadow-lg shadow-cyan-500/40 flex items-center gap-1.5 shrink-0 pointer-events-auto">
-            <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping shrink-0" />
+          {/* Floating Focused Feature Badge */}
+          <div className="absolute -top-3.5 left-4 px-2.5 py-0.5 rounded-full bg-cyan-500 text-slate-950 text-[10px] font-mono font-black tracking-wider uppercase shadow-md shadow-cyan-500/40 flex items-center gap-1.5 shrink-0 pointer-events-auto">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping shrink-0" />
             <Eye className="w-3 h-3 shrink-0" />
-            <span>Spotlight Target</span>
+            <span>Target Focused</span>
           </div>
         </div>
       )}
 
-      {/* 3. Floating Spotlight Tooltip Dialog Card */}
+      {/* 3. Floating Spotlight Tooltip Dialog Card - Screen Adaptive */}
       <div
         ref={tooltipRef}
         style={calculateTooltipStyle()}
-        className="bg-white dark:bg-slate-900 border border-cyan-500/40 dark:border-cyan-500/50 rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 animate-fadeIn"
+        className="bg-white dark:bg-slate-900 border border-cyan-500/40 dark:border-cyan-500/50 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 animate-fadeIn select-none"
       >
         {/* Top Progress Ribbon */}
-        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800">
+        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 shrink-0">
           <div
             className="h-full bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-400 transition-all duration-300"
             style={{ width: `${progressPct}%` }}
           />
         </div>
 
-        {/* Card Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
-              <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+        {/* Card Header (Fixed height, never shrinks away) */}
+        <div className="p-3 sm:p-3.5 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
+              <Icon className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/40 shrink-0">
                   {step.badge}
                 </span>
-                <span className="text-[11px] font-mono text-slate-400 truncate">
+                <span className="text-[11px] font-mono text-slate-400 truncate hidden xs:inline">
                   {step.category}
                 </span>
+                {getDirectionHint() && (
+                  <span className="hidden sm:inline-flex text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                    {getDirectionHint()}
+                  </span>
+                )}
               </div>
-              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white font-display mt-0.5 truncate">
+              <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white font-display mt-0.5 truncate">
                 {step.title}
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Exit Tour"
-            title="Exit Tour (Esc)"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
-          >
-            <X className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {targetFound && (
+              <button
+                onClick={measureTarget}
+                title="Re-center view on feature"
+                className="hidden md:inline-flex items-center gap-1 text-[10px] font-mono text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 px-1.5 py-1 rounded-md hover:bg-cyan-50 dark:hover:bg-cyan-950/40 transition-colors cursor-pointer"
+              >
+                <Eye className="w-3 h-3" />
+                <span>Re-center</span>
+              </button>
+            )}
+            {/* Quick Header Next Button (Always accessible at top of card) */}
+            <button
+              onClick={handleNext}
+              className="text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 px-2.5 sm:px-3 py-1 rounded-lg flex items-center gap-1 shadow-xs shadow-cyan-500/20 cursor-pointer transition-transform active:scale-95"
+            >
+              <span>{isLast ? 'Finish' : 'Next'}</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onClose}
+              aria-label="Exit Tour"
+              title="Exit Tour (Esc)"
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Card Body */}
-        <div className="p-4 sm:p-5 space-y-3.5 max-h-[50vh] overflow-y-auto">
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+        {/* Card Body (Independently scrollable to ensure footer is NEVER cut off) */}
+        <div className="tour-card-body flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-2.5 sidebar-scrollbar">
+          <p className="text-xs sm:text-[13px] text-slate-600 dark:text-slate-300 leading-relaxed">
             {step.description}
           </p>
 
           {/* Highlights Box */}
-          <div className="p-3 sm:p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1.5">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-1">
             <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
               Quantitative Principles & Features
             </div>
-            <ul className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
+            <ul className="space-y-1 text-xs text-slate-700 dark:text-slate-300">
               {step.highlights.map((h, i) => (
-                <li key={i} className="flex items-start gap-2">
+                <li key={i} className="flex items-start gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
                   <span className="leading-tight">{h}</span>
                 </li>
@@ -562,42 +757,47 @@ export const ProductTourModal: React.FC<Props> = ({
 
           {/* Formula or Architecture Callout */}
           {step.formulaOrMetric && (
-            <div className="p-2.5 rounded-xl bg-cyan-50/70 dark:bg-cyan-950/30 border border-cyan-200/80 dark:border-cyan-800/50 flex items-center justify-between text-[11px] font-mono text-cyan-800 dark:text-cyan-300">
+            <div className="p-2 rounded-xl bg-cyan-50/70 dark:bg-cyan-950/30 border border-cyan-200/80 dark:border-cyan-800/50 flex items-center justify-between text-[10px] sm:text-[11px] font-mono text-cyan-800 dark:text-cyan-300">
               <span className="truncate">{step.formulaOrMetric}</span>
             </div>
           )}
 
           {/* Step Dots Selector */}
-          <div className="flex items-center justify-center gap-1.5 pt-1">
+          <div className="flex items-center justify-center gap-1.5 pt-0.5">
             {TOUR_STEPS.map((s, idx) => (
               <button
                 key={s.step}
                 onClick={() => setCurrentStepIdx(idx)}
                 aria-label={`Jump to step ${s.step}: ${s.title}`}
-                className={`h-2 rounded-full transition-all cursor-pointer ${
+                className={`h-1.5 sm:h-2 rounded-full transition-all cursor-pointer ${
                   currentStepIdx === idx
                     ? 'w-6 bg-cyan-500 shadow-xs shadow-cyan-500/50'
-                    : 'w-2 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600'
+                    : 'w-1.5 sm:w-2 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600'
                 }`}
               />
             ))}
           </div>
         </div>
 
-        {/* Card Footer */}
-        <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/60 dark:bg-slate-950/50 flex items-center justify-between gap-2">
-          <button
-            onClick={onClose}
-            className="text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer px-2 py-1"
-          >
-            Exit Tour
-          </button>
+        {/* Card Footer (Always pinned & visible at bottom, never cut off) */}
+        <div className="p-2.5 sm:p-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/90 dark:bg-slate-950/90 flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="text-xs font-mono text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer px-1 py-0.5"
+            >
+              Exit Tour
+            </button>
+            <span className="hidden sm:inline text-[10px] font-mono text-slate-400">
+              {currentStepIdx + 1}/12 · Enter/→ keys
+            </span>
+          </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
             {!isFirst && (
               <button
                 onClick={handlePrev}
-                className="px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 cursor-pointer transition-colors"
+                className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
                 <span className="hidden xs:inline">Prev</span>
