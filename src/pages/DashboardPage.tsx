@@ -24,6 +24,8 @@ import { ConformalPredictionCard } from '../components/ConformalPredictionCard';
 import { MarketRegimeCard } from '../components/MarketRegimeCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
+import { NewsTicker } from '../components/NewsTicker';
+import { MarketHeatmap } from '../components/MarketHeatmap';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -95,6 +97,14 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fadeIn">
+      {/* 0. Real-time Market News Ticker Marquee */}
+      <NewsTicker
+        onSelectTicker={(ticker) => {
+          setSelectedTicker(ticker);
+          onSelectTicker(ticker);
+        }}
+      />
+
       {/* 1. Global Market Indices Ticker Ribbon */}
       <div id="tour-macro-tape" className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 md:p-5 lg:p-6 shadow-xs hover:shadow-sm transition-all">
         <div className="flex flex-wrap items-center justify-between pb-2.5 mb-2.5 sm:mb-3.5 border-b border-slate-100 dark:border-slate-800/80 gap-2">
@@ -375,6 +385,14 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
         </div>
         <MarketRegimeCard regime={regime} />
       </div>
+
+      {/* 4.5 Sector Volatility & Heatmap Treemap (D3.js) */}
+      <MarketHeatmap
+        onSelectTicker={(ticker: string) => {
+          setSelectedTicker(ticker);
+          onSelectTicker(ticker);
+        }}
+      />
 
       {/* 5. Deep-dive Action Bar with Fluid Sizing and High-Contrast Light Mode */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 sm:p-4.5 md:p-5 lg:p-6 rounded-2xl bg-gradient-to-r from-cyan-50/90 via-sky-50 to-emerald-50/90 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-slate-900/80 border border-cyan-200/90 dark:border-slate-800 shadow-xs">

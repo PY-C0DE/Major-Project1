@@ -250,7 +250,7 @@ export const InteractiveStockChart: React.FC<Props> = ({ bars, prediction, curre
                 stroke="#10b981"
                 strokeDasharray="4 4"
                 label={{
-                  value: `Forecast ${currSym}${prediction.predictedPrice}`,
+                  value: `Forecast ${currSym}${prediction.predictedPrice} (${prediction.targetDate || `${prediction.horizonDays}D`})`,
                   fill: '#10b981',
                   fontSize: 10,
                   position: 'left'

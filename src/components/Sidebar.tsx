@@ -23,7 +23,8 @@ import {
   Sliders,
   Scale,
   ShieldCheck,
-  LogOut
+  LogOut,
+  GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import avatarImg from '../assets/images/avatar_lead_quant_1791318574843.jpg';
@@ -38,6 +39,7 @@ interface SidebarProps {
   onOpenSocial?: () => void;
   onOpenOptimizer?: () => void;
   onOpenTour?: () => void;
+  onOpenInvestorGuide?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -49,7 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenBroker,
   onOpenSocial,
   onOpenOptimizer,
-  onOpenTour
+  onOpenTour,
+  onOpenInvestorGuide
 }) => {
   const { user, logout } = useAuth();
   const mainItems = [
@@ -176,6 +179,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Scale className="w-4 h-4 shrink-0 text-amber-500" />
                 <span className="truncate">Portfolio Optimizer</span>
+              </button>
+            )}
+            {onOpenInvestorGuide && (
+              <button
+                id="tour-investor-guide-tool"
+                onClick={onOpenInvestorGuide}
+                className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer text-left group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <GraduationCap className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span className="truncate">Beginner's Guide</span>
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-200/80 dark:bg-emerald-800/80 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.2 rounded shrink-0">
+                  Tool
+                </span>
               </button>
             )}
             {onOpenTour && (

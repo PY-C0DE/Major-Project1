@@ -183,6 +183,12 @@ export const api = {
     return res.json();
   },
 
+  async getMarketHeadlines(): Promise<NewsItem[]> {
+    const res = await fetch(`${API_BASE}/news`);
+    if (!res.ok) throw new Error('Failed to fetch market headlines');
+    return res.json();
+  },
+
   async getNews(ticker: string): Promise<NewsItem[]> {
     const res = await fetch(`${API_BASE}/news/${encodeURIComponent(ticker)}`);
     if (!res.ok) throw new Error('Failed to fetch news');
@@ -221,6 +227,17 @@ export const api = {
       body: JSON.stringify(data)
     });
     if (!res.ok) throw new Error('Failed to add holding');
+    return res.json();
+  },
+
+  async importPortfolioBatch(payload: Array<{ ticker: string; quantity: number; avgBuyPrice: number; purchaseDate?: string; notes?: string }> | { holdings: any[]; mode?: string }): Promise<{ success: boolean; importedCount: number; holdings: PortfolioHolding[] }> {
+    const bodyData = Array.isArray(payload) ? { holdings: payload } : payload;
+    const res = await fetch(`${API_BASE}/portfolio/batch`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(bodyData)
+    });
+    if (!res.ok) throw new Error('Failed to import portfolio batch');
     return res.json();
   },
 

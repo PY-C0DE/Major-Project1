@@ -283,45 +283,82 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
   return results.slice(0, 16);
 }
 
+function hashString(str: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
+}
+
+function getDeterministicDailyReturn(ticker: string, dateStr: string): number {
+  const r1 = hashString(`${ticker}_ret_${dateStr}`);
+  const r2 = hashString(`${ticker}_vol_${dateStr}`);
+  // Mean drift +0.0003 with realistic 1.2% daily volatility
+  const shock = (r1 - 0.492) * 2 * 0.012 * (0.85 + 0.3 * r2);
+  return Math.max(-0.045, Math.min(0.045, shock + 0.0003));
+}
+
 /**
- * Generates synthetic deterministic historical OHLCV series for fallback
+ * Generates synthetic deterministic historical OHLCV series anchored directly to the true asset price.
+ * Eliminates random walk drift jumps across days and anchors yesterday and today's bars consistently.
  */
-function generateSyntheticHistory(meta: TickerMeta, days = 250): PriceBar[] {
-  const bars: PriceBar[] = [];
+function generateSyntheticHistory(meta: TickerMeta, days = 250, targetClosePrice?: number): PriceBar[] {
+  const anchorPrice = targetClosePrice || meta.basePrice;
   const now = new Date();
-  let price = meta.basePrice * 0.82;
 
-  let seed = 0;
-  for (let i = 0; i < meta.ticker.length; i++) seed += meta.ticker.charCodeAt(i);
+  // Collect the last `days` valid weekday trading dates up to today
+  const tradingDates: string[] = [];
+  const cur = new Date(now.getTime());
+  cur.setUTCHours(12, 0, 0, 0);
 
-  function pseudoRand(): number {
-    seed = (seed * 9301 + 49297) % 233280;
-    return seed / 233280;
+  while (tradingDates.length < days) {
+    const day = cur.getUTCDay();
+    if (day !== 0 && day !== 6) { // skip Saturday and Sunday
+      const yyyy = cur.getUTCFullYear();
+      const mm = String(cur.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(cur.getUTCDate()).padStart(2, '0');
+      tradingDates.push(`${yyyy}-${mm}-${dd}`);
+    }
+    cur.setUTCDate(cur.getUTCDate() - 1);
   }
 
-  for (let i = days; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 86400000);
-    const dayOfWeek = d.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+  // tradingDates[0] is today (latest), tradingDates[1] is yesterday, ..., tradingDates[days - 1] is oldest
+  // Compute price series backward from today's anchorPrice
+  const closes: number[] = new Array(tradingDates.length);
+  closes[0] = anchorPrice;
 
-    const drift = 0.0006;
-    const volatility = 0.016;
-    const shock = (pseudoRand() - 0.49) * 2 * volatility;
-    const dailyReturn = drift + shock;
+  for (let i = 0; i < tradingDates.length - 1; i++) {
+    const todayDate = tradingDates[i];
+    const ret = getDeterministicDailyReturn(meta.ticker, todayDate);
+    // Since close[i] = close[i + 1] * (1 + ret), close[i + 1] = close[i] / (1 + ret)
+    closes[i + 1] = closes[i] / (1 + ret);
+  }
 
-    const open = price;
-    price = Math.max(1, price * (1 + dailyReturn));
-    const close = price;
+  // Build the chronological bars array
+  const bars: PriceBar[] = [];
+  for (let i = tradingDates.length - 1; i >= 0; i--) {
+    const dateStr = tradingDates[i];
+    const close = closes[i];
+    const prevClose = i < tradingDates.length - 1 ? closes[i + 1] : close * 0.998;
+    const open = Number(prevClose.toFixed(2));
 
-    const high = Math.max(open, close) * (1 + pseudoRand() * 0.012);
-    const low = Math.min(open, close) * (1 - pseudoRand() * 0.012);
-    const volume = Math.floor(800000 + pseudoRand() * 2400000);
+    const rHigh = hashString(`${meta.ticker}_high_${dateStr}`);
+    const rLow = hashString(`${meta.ticker}_low_${dateStr}`);
+    const rVol = hashString(`${meta.ticker}_vol_${dateStr}`);
+
+    const maxOC = Math.max(open, close);
+    const minOC = Math.min(open, close);
+    const high = Number((maxOC * (1 + rHigh * 0.012)).toFixed(2));
+    const low = Number((minOC * (1 - rLow * 0.012)).toFixed(2));
+    const volume = Math.floor(1000000 + rVol * 3000000);
 
     bars.push({
-      date: d.toISOString().split('T')[0],
-      open: Number(open.toFixed(2)),
-      high: Number(high.toFixed(2)),
-      low: Number(low.toFixed(2)),
+      date: dateStr,
+      open,
+      high,
+      low,
       close: Number(close.toFixed(2)),
       volume
     });
@@ -490,7 +527,8 @@ export async function getHistoricalData(tickerOrName: string, days = 250): Promi
   }
 
   if (rawBars.length < 30) {
-    rawBars = generateSyntheticHistory(meta, days);
+    const cachedPrice = quoteCache.get(ticker)?.data.price;
+    rawBars = generateSyntheticHistory(meta, days, cachedPrice);
   }
 
   const computed = computeAllIndicators(rawBars);

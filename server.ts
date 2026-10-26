@@ -25,7 +25,7 @@ import {
 import { detectMarketRegime } from './src/server/math/hmmRegime';
 import { runConformalPrediction } from './src/server/math/conformal';
 import { detectConceptDrift } from './src/server/math/driftDetector';
-import { getNewsForTicker, analyzeFinBERTTone } from './src/server/math/nlpEngine';
+import { getNewsForTicker, analyzeFinBERTTone, getAllMarketHeadlines } from './src/server/math/nlpEngine';
 import { runModelEvaluation, computeProjectWideAccuracy } from './src/server/math/evaluation';
 import { runStrategyBacktest } from './src/server/math/strategySimulator';
 import { runAutomatedBacktest } from './src/server/math/automatedBacktest';
@@ -394,6 +394,16 @@ app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
 // -------------------------------------------------------------
 // 3. NEWS & KEYWORD SENTIMENT ENDPOINTS (USP 3)
 // -------------------------------------------------------------
+
+app.get('/api/news', (_req: Request, res: Response) => {
+  try {
+    const headlines = getAllMarketHeadlines();
+    return res.json(headlines);
+  } catch (error: any) {
+    console.error('Error fetching market headlines:', error);
+    return res.status(500).json({ error: 'Failed to retrieve market news headlines.' });
+  }
+});
 
 app.get('/api/news/:ticker', async (req: Request, res: Response) => {
   try {
@@ -885,6 +895,61 @@ app.post('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, 
   } catch (error: any) {
     console.error('Error adding holding:', error);
     return res.status(500).json({ error: 'Failed to add holding.' });
+  }
+});
+
+app.post('/api/portfolio/batch', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || 'user-alphaquant-demo-1';
+    const { holdings: incomingHoldings } = req.body;
+
+    if (!incomingHoldings || !Array.isArray(incomingHoldings) || incomingHoldings.length === 0) {
+      return res.status(400).json({ error: 'Holdings array is required.' });
+    }
+
+    const createdHoldings = [];
+    for (const item of incomingHoldings) {
+      if (!item.ticker || !item.quantity || !item.avgBuyPrice) continue;
+      try {
+        const sym = await resolveTickerOrName(item.ticker);
+        const quote = await getStockQuote(sym);
+        const qty = parseFloat(item.quantity);
+        const buyPrice = parseFloat(item.avgBuyPrice);
+        const totalInvested = Number((qty * buyPrice).toFixed(2));
+        const currentValue = Number((qty * quote.price).toFixed(2));
+        const pnl = Number((currentValue - totalInvested).toFixed(2));
+        const pnlPercent = Number(((pnl / totalInvested) * 100).toFixed(2));
+
+        const holding = {
+          id: `hold-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          ticker: sym,
+          companyName: quote.name,
+          quantity: qty,
+          avgBuyPrice: buyPrice,
+          currentPrice: quote.price,
+          totalInvested,
+          currentValue,
+          pnl,
+          pnlPercent,
+          purchaseDate: item.purchaseDate || new Date().toISOString().split('T')[0],
+          notes: item.notes || 'Imported via External CSV/File'
+        };
+        db.addHolding(userId, holding);
+        createdHoldings.push(holding);
+      } catch (err) {
+        console.warn(`Failed to resolve imported ticker ${item.ticker}:`, err);
+      }
+    }
+
+    const currentAll = db.getPortfolio(userId);
+    return res.status(201).json({
+      success: true,
+      importedCount: createdHoldings.length,
+      holdings: currentAll
+    });
+  } catch (error: any) {
+    console.error('Error batch importing portfolio:', error);
+    return res.status(500).json({ error: 'Failed to batch import portfolio.' });
   }
 });
 

@@ -171,8 +171,15 @@ export const ConformalPredictionCard: React.FC<Props> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 p-4 sm:p-5 rounded-xl bg-slate-50/90 dark:bg-slate-950/70 border border-slate-200/90 dark:border-slate-800/80">
         {/* Point Estimate */}
         <div>
-          <div className="text-[11px] sm:text-xs uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
-            <span>Predicted Target ({prediction.horizonDays}D Ahead)</span>
+          <div className="text-[11px] sm:text-xs uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between flex-wrap gap-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span>Predicted Target</span>
+              {prediction.targetDateFormatted && (
+                <span className="px-2 py-0.5 rounded-md bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 text-[10px] font-bold normal-case tracking-normal">
+                  📅 {prediction.targetDateFormatted} ({prediction.horizonDays}D)
+                </span>
+              )}
+            </div>
             <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
               Model Acc: {prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : prediction.directionalAccuracy != null ? `${prediction.directionalAccuracy}%` : 'Analyzing...'}
             </span>

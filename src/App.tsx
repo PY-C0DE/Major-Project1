@@ -24,6 +24,7 @@ import { BrokerRouterModal } from './components/BrokerRouterModal';
 import { SocialCopyTradeModal } from './components/SocialCopyTradeModal';
 import { AIPortfolioOptimizerModal } from './components/AIPortfolioOptimizerModal';
 import { ProductTourModal } from './components/ProductTourModal';
+import { NewInvestorGuideModal } from './components/NewInvestorGuideModal';
 
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -36,6 +37,7 @@ import { ModelPerformancePage } from './pages/ModelPerformancePage';
 import { DriftMonitorPage } from './pages/DriftMonitorPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { AccountPage } from './pages/AccountPage';
+import { InvestorGuidePage } from './pages/InvestorGuidePage';
 
 function AppContent() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -53,6 +55,7 @@ function AppContent() {
   const [socialModalOpen, setSocialModalOpen] = useState<boolean>(false);
   const [optimizerModalOpen, setOptimizerModalOpen] = useState<boolean>(false);
   const [tourModalOpen, setTourModalOpen] = useState<boolean>(false);
+  const [guideModalOpen, setGuideModalOpen] = useState<boolean>(false);
 
   // When authentication status changes to true from false, default to dashboard
   useEffect(() => {
@@ -110,6 +113,8 @@ function AppContent() {
       setSocialModalOpen(true);
     } else if (actionId === 'open:optimizer') {
       setOptimizerModalOpen(true);
+    } else if (actionId === 'open:guide') {
+      setGuideModalOpen(true);
     }
   };
 
@@ -170,6 +175,7 @@ function AppContent() {
             onOpenSocial={() => setSocialModalOpen(true)}
             onOpenOptimizer={() => setOptimizerModalOpen(true)}
             onOpenTour={() => setTourModalOpen(true)}
+            onOpenInvestorGuide={() => setGuideModalOpen(true)}
           />
 
           {/* Viewport Content Area */}
@@ -224,6 +230,8 @@ function AppContent() {
               {activeTab === 'alerts' && <AlertsPage />}
 
               {activeTab === 'account' && <AccountPage />}
+
+              {activeTab === 'guide' && <InvestorGuidePage onSelectTicker={handleSelectTicker} />}
             </div>
           </main>
 
@@ -356,6 +364,13 @@ function AppContent() {
         onAction={handleTourAction}
         onNavigate={handleTabChange}
         activeTab={activeTab}
+      />
+
+      {/* Beginner Investor Guide & Stock Ideas Modal */}
+      <NewInvestorGuideModal
+        isOpen={guideModalOpen}
+        onClose={() => setGuideModalOpen(false)}
+        onSelectTicker={handleSelectTicker}
       />
 
       {/* Global Auth Modal */}

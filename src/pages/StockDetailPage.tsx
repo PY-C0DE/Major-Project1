@@ -16,7 +16,8 @@ import {
   FileSpreadsheet,
   Bell,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 import { api } from '../services/api';
 import { StockQuote, HistoricalBar, ConformalPrediction, MarketRegime, NewsItem, ConceptDriftResult, AlertRule } from '../types';
@@ -28,6 +29,7 @@ import { ConceptDriftCard } from '../components/ConceptDriftCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { PriceAlertModal } from '../components/PriceAlertModal';
+import { StockDecisionAndHistoryCard } from '../components/StockDecisionAndHistoryCard';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -46,10 +48,23 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
   const [drift, setDrift] = useState<ConceptDriftResult | null>(null);
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
   const [showPriceAlertModal, setShowPriceAlertModal] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [watchlistSuccess, setWatchlistSuccess] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentDateTime(
+        now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
+      );
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const loadAlerts = useCallback(async () => {
     try {
@@ -214,6 +229,14 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             </span>
             <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">Today</span>
 
+            {/* Live Date and Time in the Analysis (Requirement 13) */}
+            {currentDateTime && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                <Clock className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 animate-pulse" />
+                <span>{currentDateTime}</span>
+              </div>
+            )}
+
             {/* Threshold Met Indicator Badge */}
             {metAlerts.length > 0 && (
               <button
@@ -279,25 +302,25 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             </button>
           )}
 
-          <button
-            onClick={handleExportFactsheet}
-            disabled={isExporting}
-            className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-          >
-            <Download className="w-4 h-4 text-amber-500" />
-            <span>{isExporting ? 'Exporting...' : 'Export Factsheet'}</span>
-          </button>
+            <button
+              onClick={handleExportFactsheet}
+              disabled={isExporting}
+              className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+            >
+              <Download className="w-4 h-4 text-amber-500" />
+              <span>{isExporting ? 'Exporting...' : 'Export Factsheet'}</span>
+            </button>
 
-          <button
-            onClick={handleSavePrediction}
-            className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
-          >
-            <History className="w-4 h-4" />
-            <span>{savedSuccess ? 'Forecast Logged!' : 'Log Forecast'}</span>
-          </button>
+            <button
+              onClick={handleSavePrediction}
+              className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+            >
+              <History className="w-4 h-4" />
+              <span>{savedSuccess ? 'Forecast Logged!' : 'Log Forecast'}</span>
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
       {/* 2. Key Valuation & 52-Week Statistics Tape */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -315,6 +338,13 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
           </div>
         ))}
       </div>
+
+      {/* 2.5 Algorithmic Decision Support, Previous Day Stats Audit & Classified Financial Events */}
+      <StockDecisionAndHistoryCard
+        prediction={prediction}
+        currency={quote?.currency || 'INR'}
+        ticker={ticker}
+      />
 
       {/* 3. Interactive OHLCV Multi-Indicator Chart */}
       <InteractiveStockChart

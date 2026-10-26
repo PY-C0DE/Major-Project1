@@ -85,9 +85,14 @@ export interface ConformalPrediction {
   predictionTimestamp: string;
   topFeatures: FeatureContribution[];
   methodology: string;
+  targetDate?: string; // e.g. "2026-10-27"
+  targetDateFormatted?: string; // e.g. "Tue, Oct 27, 2026"
   empiricalCoverage?: number;
   directionalAccuracy?: number;
   priceAccuracy?: number;
+  previousDayStats?: PreviousDayStats;
+  classifiedEvents?: ClassifiedFinancialEvent[];
+  decisionSignal?: DecisionSignal;
 }
 
 export interface EquityCurvePoint {
@@ -501,4 +506,128 @@ export interface VerifiedTrader {
   strategyDescription: string;
   holdings: Array<{ ticker: string; weightPct: number }>;
 }
+
+export interface PreviousDayStats {
+  previousDate: string;
+  previousClose: number;
+  previousHigh: number;
+  previousLow: number;
+  previousOpen: number;
+  predictedClose: number;
+  lowerBound: number;
+  upperBound: number;
+  confidenceLevel: number;
+  hit: boolean; // Did actual close fall inside lowerBound and upperBound?
+  errorAbsolute: number;
+  errorPercent: number;
+  actualReturnPercent: number;
+  predictedReturnPercent: number;
+  trailing5DayHits: Array<{
+    date: string;
+    actualClose: number;
+    predictedClose: number;
+    lowerBound: number;
+    upperBound: number;
+    hit: boolean;
+    errorPct: number;
+  }>;
+}
+
+export interface ClassifiedFinancialEvent {
+  id: string;
+  title: string;
+  summary: string;
+  category: 'Mergers & Acquisitions (M&A)' | 'Earnings & Guidance' | 'Regulatory & Legal' | 'Product & Expansion' | 'Dividends & Capital' | 'Macro & Monetary';
+  eventImpact: 'High Bullish Catalyst' | 'Moderate Bullish' | 'Neutral Event' | 'Moderate Bearish' | 'High Risk Headwind';
+  predictedPriceEffectPct: number;
+  confidenceScore: number;
+  source: string;
+  timeAgo: string;
+  incorporationInModel: string;
+}
+
+export interface DecisionSignal {
+  recommendation: 'STRONG BUY' | 'BUY' | 'HOLD' | 'TAKE PROFIT / SELL';
+  targetPrice: number;
+  stopLossPrice: number;
+  riskRewardRatio: number;
+  confidenceScore: number;
+  holdingActionRationale: string;
+  sellTriggerCondition: string;
+  holdSafetyCondition: string;
+  factors: {
+    conformalPosition: 'Below Lower Bound' | 'Inside Channel' | 'Above Upper Bound';
+    regimeAlignment: string;
+    rsiState: string;
+    costBasisComparison?: string;
+  };
+}
+
+export interface StressTestScenario {
+  id: string;
+  name: string;
+  historicalPeriod: string;
+  description: string;
+  marketDropPct: number;
+  volatilitySpikePct: number;
+  techDropPct: number;
+  financialsDropPct: number;
+  energyDropPct: number;
+  defensiveDropPct: number;
+  interestRateBps: number;
+}
+
+export interface StressTestResult {
+  scenarioName: string;
+  marketShockPct: number;
+  initialPortfolioValue: number;
+  projectedPortfolioValue: number;
+  projectedLossDollar: number;
+  projectedLossPct: number;
+  var95Dollar: number;
+  var99Dollar: number;
+  maxDrawdownProjectedPct: number;
+  assetImpacts: Array<{
+    ticker: string;
+    companyName: string;
+    currentValue: number;
+    projectedValue: number;
+    shockDollar: number;
+    shockPct: number;
+    beta: number;
+    sector: string;
+    vulnerabilityLevel: 'Low' | 'Moderate' | 'Severe';
+  }>;
+  riskMitigations: Array<{
+    category: string;
+    recommendation: string;
+    expectedProtectionDollar: number;
+  }>;
+}
+
+export interface NewInvestorShareIdea {
+  ticker: string;
+  name: string;
+  category: 'Conservative Wealth Builder' | 'Balanced Growth' | 'High Alpha Momentum' | 'Defensive Dividend';
+  recommendedAction: 'BUY' | 'HOLD' | 'SELL';
+  currentPrice: number;
+  targetPrice: number;
+  stopLoss: number;
+  expectedAnnualReturn: string;
+  riskRating: 'Low Risk' | 'Medium Risk' | 'Higher Volatility';
+  simpleExplanation: string;
+  whyInvestNow: string;
+  minimumInvestmentAmount: number;
+}
+
+export interface InvestorGuideTopic {
+  id: string;
+  title: string;
+  icon: string;
+  shortSummary: string;
+  fullExplanation: string;
+  keyTakeaway: string;
+  exampleScenario: string;
+}
+
 
