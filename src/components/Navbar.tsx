@@ -279,13 +279,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={toggleTheme}
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             aria-label="Toggle Theme"
-            className="p-1.5 sm:p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer shrink-0"
+            className="p-1.5 sm:p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 transition-all duration-300 cursor-pointer shrink-0 group"
           >
-            {theme === 'dark' ? (
-              <Sun className="w-4 h-4 text-amber-400" />
-            ) : (
-              <Moon className="w-4 h-4 text-slate-700" />
-            )}
+            <div className="relative w-4 h-4 flex items-center justify-center transition-transform duration-300 group-hover:rotate-12">
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400 animate-scaleIn" />
+              ) : (
+                <Moon className="w-4 h-4 text-slate-700 dark:text-slate-300 animate-scaleIn" />
+              )}
+            </div>
           </button>
 
           {/* User state & Actions */}

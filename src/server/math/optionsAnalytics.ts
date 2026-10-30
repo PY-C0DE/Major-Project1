@@ -256,3 +256,178 @@ export function generateOptionsChain(
     strikes
   };
 }
+
+/**
+ * Builds a 3D Implied Volatility Surface across multiple strike prices and expirations
+ * (Strikes x Tenors) with full Black-Scholes Greeks, skew telemetry, and term structure.
+ */
+export function generateVolatilitySurface(
+  ticker: string,
+  spotPrice: number,
+  baseHistoricalVol = 0.24
+) {
+  const r = 0.0525;
+  const baseAtmIV = Math.max(0.12, Math.min(0.85, baseHistoricalVol * 1.15));
+
+  // Determine strike step size depending on stock price magnitude
+  let step = 10;
+  if (spotPrice > 5000) step = 100;
+  else if (spotPrice > 2000) step = 50;
+  else if (spotPrice > 500) step = 20;
+  else if (spotPrice > 100) step = 5;
+  else if (spotPrice > 20) step = 2.5;
+  else step = 1;
+
+  const atmStrike = Math.round(spotPrice / step) * step;
+
+  // 13 strike steps around spot: 6 OTM puts, 1 ATM, 6 OTM calls
+  const strikeCount = 13;
+  const halfCount = Math.floor(strikeCount / 2);
+  const strikes: number[] = [];
+  for (let i = -halfCount; i <= halfCount; i++) {
+    strikes.push(atmStrike + i * step);
+  }
+
+  // Multi-tenor term structure cycles
+  const tenors = [
+    { days: 7, label: '7D Weekly' },
+    { days: 14, label: '14D Bi-Weekly' },
+    { days: 30, label: '30D 1-Month' },
+    { days: 60, label: '60D 2-Month' },
+    { days: 90, label: '90D Quarterly' },
+    { days: 180, label: '180D Semi-Annual' }
+  ];
+
+  const expirationsMeta: Array<{
+    days: number;
+    label: string;
+    date: string;
+    atmIV: number;
+    expMove: number;
+  }> = [];
+
+  const points: Array<{
+    strike: number;
+    moneyness: number;
+    daysToExpiry: number;
+    expiryLabel: string;
+    expiryDate: string;
+    callIV: number;
+    putIV: number;
+    midIV: number;
+    deltaCall: number;
+    deltaPut: number;
+    gamma: number;
+    vega: number;
+    theta: number;
+    callPrice: number;
+    putPrice: number;
+    isATM: boolean;
+  }> = [];
+
+  let overallMinIV = 999;
+  let overallMaxIV = 0;
+
+  tenors.forEach(tenor => {
+    const T = tenor.days / 365;
+    // Term structure slight contango / mean-reversion
+    const tenorAtmIV = Math.max(0.12, baseAtmIV * (1 + 0.04 * Math.log(tenor.days / 30)));
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + tenor.days);
+    const dateStr = expDate.toISOString().split('T')[0];
+    const expMove = Number((spotPrice * tenorAtmIV * Math.sqrt(T)).toFixed(2));
+
+    expirationsMeta.push({
+      days: tenor.days,
+      label: tenor.label,
+      date: dateStr,
+      atmIV: Number((tenorAtmIV * 100).toFixed(1)),
+      expMove
+    });
+
+    // Curvature scales with 1 / sqrt(T) (SABR / Heston asymptotic property)
+    const curvatureFactor = Math.min(2.4, Math.max(0.55, 0.42 / Math.sqrt(Math.max(0.015, T))));
+
+    strikes.forEach(strike => {
+      const moneyness = strike / spotPrice;
+      const isATM = strike === atmStrike;
+
+      // Realistic downside skew: OTM Puts have steep IV, OTM Calls flatten or rise mildly
+      const callSkew = Math.max(
+        0.08,
+        tenorAtmIV + curvatureFactor * 0.12 * Math.pow(moneyness - 1, 2) + (moneyness < 1 ? 0.04 * (1 - moneyness) : -0.015 * (moneyness - 1))
+      );
+      const putSkew = Math.max(
+        0.08,
+        tenorAtmIV + curvatureFactor * 0.16 * Math.pow(moneyness - 1, 2) + (moneyness < 1 ? 0.09 * (1 - moneyness) : 0.01 * (moneyness - 1))
+      );
+
+      const callBS = calculateBlackScholes(spotPrice, strike, T, r, callSkew, 'CALL');
+      const putBS = calculateBlackScholes(spotPrice, strike, T, r, putSkew, 'PUT');
+
+      const callIVPct = Number((callSkew * 100).toFixed(1));
+      const putIVPct = Number((putSkew * 100).toFixed(1));
+      const midIVPct = Number(((callIVPct + putIVPct) / 2).toFixed(1));
+
+      overallMinIV = Math.min(overallMinIV, callIVPct, putIVPct);
+      overallMaxIV = Math.max(overallMaxIV, callIVPct, putIVPct);
+
+      points.push({
+        strike,
+        moneyness: Number(moneyness.toFixed(3)),
+        daysToExpiry: tenor.days,
+        expiryLabel: tenor.label,
+        expiryDate: dateStr,
+        callIV: callIVPct,
+        putIV: putIVPct,
+        midIV: midIVPct,
+        deltaCall: callBS.delta,
+        deltaPut: putBS.delta,
+        gamma: callBS.gamma,
+        vega: callBS.vega,
+        theta: callBS.theta,
+        callPrice: callBS.price,
+        putPrice: putBS.price,
+        isATM
+      });
+    });
+  });
+
+  // Calculate 25-Delta Skew at 30-day maturity
+  const month30Points = points.filter(p => p.daysToExpiry === 30);
+  const put25 = month30Points.reduce((prev, curr) =>
+    Math.abs(Math.abs(curr.deltaPut) - 0.25) < Math.abs(Math.abs(prev.deltaPut) - 0.25) ? curr : prev,
+    month30Points[0] || points[0]
+  );
+  const call25 = month30Points.reduce((prev, curr) =>
+    Math.abs(curr.deltaCall - 0.25) < Math.abs(prev.deltaCall - 0.25) ? curr : prev,
+    month30Points[0] || points[0]
+  );
+
+  const skew25Delta = Number(((put25?.putIV || 0) - (call25?.callIV || 0)).toFixed(2));
+
+  // Determine Term Structure slope
+  const atm7 = expirationsMeta.find(e => e.days === 7)?.atmIV || 0;
+  const atm180 = expirationsMeta.find(e => e.days === 180)?.atmIV || 0;
+  let termStructureSlope: 'Contango' | 'Backwardation' | 'Flat' = 'Flat';
+  if (atm180 - atm7 > 1.2) {
+    termStructureSlope = 'Contango';
+  } else if (atm7 - atm180 > 1.2) {
+    termStructureSlope = 'Backwardation';
+  }
+
+  return {
+    ticker,
+    spotPrice,
+    atmIV: Number((baseAtmIV * 100).toFixed(1)),
+    expirations: expirationsMeta,
+    strikes,
+    points,
+    skew25Delta,
+    termStructureSlope,
+    ivMin: Number(overallMinIV.toFixed(1)),
+    ivMax: Number(overallMaxIV.toFixed(1)),
+    generatedAt: new Date().toISOString()
+  };
+}
+

@@ -24,6 +24,7 @@ import { api } from '../services/api';
 import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { StockQuote, CorrelationMatrixData } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import { OptionsVolatilitySurface } from '../components/OptionsVolatilitySurface';
 import { useTheme } from '../context/ThemeContext';
 
 interface Props {
@@ -32,7 +33,8 @@ interface Props {
 
 export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
   const { theme } = useTheme();
-  const [activeTab, setActiveTab] = useState<'screener' | 'correlation'>('screener');
+  const [activeTab, setActiveTab] = useState<'screener' | 'correlation' | 'vol_surface'>('screener');
+  const [selectedVolTicker, setSelectedVolTicker] = useState('NVDA');
   const [exchangeFilter, setExchangeFilter] = useState<'ALL' | 'NSE' | 'NASDAQ' | 'US'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
@@ -155,6 +157,17 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
           >
             <Grid className="w-3.5 h-3.5" />
             <span>Correlation Heatmap</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('vol_surface')}
+            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'vol_surface'
+                ? 'bg-cyan-500 text-slate-950 font-bold shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Options Vol Surface</span>
           </button>
         </div>
       </div>
@@ -353,6 +366,40 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
               <span className="text-[11px] text-slate-400">Updated: {new Date().toLocaleTimeString()}</span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Options Volatility Surface & Smile Tab */}
+      {activeTab === 'vol_surface' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs">
+            <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+              Select Underlier for D3 Volatility Surface & Smile:
+            </span>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {['NVDA', 'RELIANCE.NS', 'AAPL', 'MSFT', 'TSLA', 'TCS.NS'].map(sym => (
+                <button
+                  key={sym}
+                  onClick={() => setSelectedVolTicker(sym)}
+                  className={`px-3 py-1 text-xs font-mono rounded-lg transition-colors cursor-pointer ${
+                    selectedVolTicker === sym
+                      ? 'bg-cyan-500 text-slate-950 font-bold shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {sym.replace('.NS', '')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <OptionsVolatilitySurface
+            ticker={selectedVolTicker}
+            spotPrice={quotes[selectedVolTicker]?.price}
+            onSelectStrike={(strike) => {
+              onSelectTicker(selectedVolTicker);
+            }}
+          />
         </div>
       )}
 

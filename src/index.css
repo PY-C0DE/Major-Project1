@@ -13,6 +13,7 @@
     font-family: var(--font-sans);
     letter-spacing: -0.01em;
     overflow-x: hidden;
+    transition: background-color 380ms cubic-bezier(0.16, 1, 0.3, 1), color 300ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   h1, h2, h3, .font-display {
@@ -236,3 +237,59 @@ html:not(.dark) ::-webkit-scrollbar-thumb:hover {
   background-size: 200% auto;
   animation: shimmer 4s linear infinite;
 }
+
+/* ==========================================================================
+   Global Theme Cross-Fade Animation (View Transitions API + CSS Fallback)
+   ========================================================================== */
+
+/* View Transitions API Global Cross-Fade */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 380ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-old(root) {
+  animation-name: themeFadeOut;
+}
+
+::view-transition-new(root) {
+  animation-name: themeFadeIn;
+}
+
+@keyframes themeFadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.998);
+  }
+}
+
+@keyframes themeFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(1.002);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Comprehensive Cross-Fade for Elements during Theme Toggle */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 380ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 380ms cubic-bezier(0.16, 1, 0.3, 1),
+              color 300ms cubic-bezier(0.16, 1, 0.3, 1),
+              fill 380ms cubic-bezier(0.16, 1, 0.3, 1),
+              stroke 380ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 380ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition-delay: 0s !important;
+}
+

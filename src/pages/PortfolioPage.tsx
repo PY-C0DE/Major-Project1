@@ -37,7 +37,9 @@ import {
   EyeOff,
   LineChart,
   ShieldAlert,
-  GraduationCap
+  GraduationCap,
+  CalendarDays,
+  Receipt
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -61,6 +63,9 @@ import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { PortfolioPerformanceD3Chart } from '../components/PortfolioPerformanceD3Chart';
 import { PortfolioStressTest } from '../components/PortfolioStressTest';
 import { PortfolioImportExportModal } from '../components/PortfolioImportExportModal';
+import { DividendCalendar } from '../components/DividendCalendar';
+import { TaxFeeEstimator } from '../components/TaxFeeEstimator';
+import { PortfolioCorrelation } from '../components/PortfolioCorrelation';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -68,7 +73,7 @@ interface Props {
 }
 
 export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerToAdd }) => {
-  const [activeTab, setActiveTab] = useState<'holdings' | 'performance' | 'stresstest' | 'optimizer'>('holdings');
+  const [activeTab, setActiveTab] = useState<'holdings' | 'performance' | 'correlation' | 'stresstest' | 'optimizer' | 'dividends' | 'taxes'>('holdings');
   const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -321,6 +326,20 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
               <span>Performance (D3)</span>
             </button>
             <button
+              onClick={() => setActiveTab('correlation')}
+              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'correlation'
+                  ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold border border-cyan-500/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-cyan-500" />
+              <span>Correlation (D3)</span>
+              <span className="text-[10px] bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-mono px-1.5 py-0.2 rounded-full border border-cyan-500/30 font-bold">
+                Heatmap
+              </span>
+            </button>
+            <button
               onClick={() => setActiveTab('stresstest')}
               className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'stresstest'
@@ -348,6 +367,34 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
               <span>MVO Rebalance</span>
               <span className="text-[10px] bg-cyan-500 text-slate-950 font-bold px-1.5 py-0.2 rounded-full">
                 MVO
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('dividends')}
+              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'dividends'
+                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <CalendarDays className="w-3.5 h-3.5 text-amber-500" />
+              <span>Dividend Calendar</span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono px-1.5 py-0.2 rounded-full border border-amber-500/30 font-bold">
+                Payouts
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('taxes')}
+              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'taxes'
+                  ? 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Receipt className="w-3.5 h-3.5 text-indigo-500" />
+              <span>Tax & Fee Estimator</span>
+              <span className="text-[10px] bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-mono px-1.5 py-0.2 rounded-full border border-indigo-500/30 font-bold">
+                Capital Gains
               </span>
             </button>
           </div>
@@ -617,12 +664,24 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
         <PortfolioPerformanceD3Chart
           holdings={holdings}
         />
+      ) : activeTab === 'correlation' ? (
+        <PortfolioCorrelation
+          holdings={holdings}
+          correlationMatrix={optResult?.correlationMatrix}
+          onSelectTicker={onSelectTicker}
+          onAddPositionClick={() => setShowAddModal(true)}
+        />
       ) : activeTab === 'stresstest' ? (
         <PortfolioStressTest
           holdings={holdings}
           portfolioTotalValue={totalValue}
         />
-      ) : (
+      ) : activeTab === 'dividends' ? (
+        <DividendCalendar
+          holdings={holdings}
+          onSelectTicker={onSelectTicker}
+        />
+      ) : activeTab === 'optimizer' ? (
         /* TAB 4: MEAN-VARIANCE OPTIMIZATION & REBALANCING */
         <div className="space-y-6">
           {/* MVO Objective Selector and Controls */}
@@ -1120,76 +1179,20 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
             </div>
           </div>
 
-          {/* Cross-Asset Correlation Heatmap Matrix */}
-          {optResult?.correlationMatrix && optResult.correlationMatrix.tickers.length > 1 && (
-            <div className="p-5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-cyan-500" />
-                    Asset Correlation & Covariance Heatmap
-                  </h3>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                    Pairwise Pearson correlation matrix (R) driving mean-variance diversification
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded bg-emerald-500 inline-block" /> Low Corr (&lt; 0.3)
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded bg-amber-500 inline-block" /> Mod Corr (0.3 - 0.7)
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded bg-rose-500 inline-block" /> High Corr (&gt; 0.7)
-                  </span>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-center text-xs font-mono">
-                  <thead>
-                    <tr>
-                      <th className="p-2 text-left text-slate-400 uppercase text-[10px]">Asset</th>
-                      {optResult.correlationMatrix.tickers.map(t => (
-                        <th key={t} className="p-2 text-slate-600 dark:text-slate-300 font-bold">
-                          {t}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {optResult.correlationMatrix.tickers.map((rowTicker, rowIdx) => (
-                      <tr key={rowTicker} className="border-t border-slate-100 dark:border-slate-800/60">
-                        <td className="p-2 text-left font-bold text-slate-900 dark:text-white font-sans">
-                          {rowTicker}
-                        </td>
-                        {optResult.correlationMatrix.matrix[rowIdx]?.map((corrVal, colIdx) => {
-                          const isDiag = rowIdx === colIdx;
-                          let bgClass = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
-                          if (!isDiag) {
-                            if (corrVal < 0.35) bgClass = 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold';
-                            else if (corrVal < 0.65) bgClass = 'bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold';
-                            else bgClass = 'bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold';
-                          }
-
-                          return (
-                            <td key={colIdx} className="p-2">
-                              <span className={`px-2 py-1 rounded text-xs block ${bgClass}`}>
-                                {corrVal.toFixed(2)}
-                              </span>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+          {/* Cross-Asset Correlation Heatmap Matrix (D3) */}
+          <PortfolioCorrelation
+            holdings={holdings}
+            correlationMatrix={optResult?.correlationMatrix}
+            onSelectTicker={onSelectTicker}
+            onAddPositionClick={() => setShowAddModal(true)}
+          />
         </div>
-      )}
+      ) : activeTab === 'taxes' ? (
+        <TaxFeeEstimator
+          holdings={holdings}
+          onSelectTicker={onSelectTicker}
+        />
+      ) : null}
 
       {/* Confirmation Modal for Rebalance Execution */}
       {showConfirmModal && optResult && (

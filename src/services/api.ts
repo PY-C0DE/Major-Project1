@@ -21,15 +21,54 @@ import {
   RebalanceSuggestion,
   ProjectWideAccuracyResult,
   OptionsChainResponse,
+  VolatilitySurfaceData,
   AutomatedBacktestResult,
   BrokerOrder,
   BrokerAccount,
   SocialDiscussion,
-  VerifiedTrader
+  VerifiedTrader,
+  StockSearchResult
 } from '../types';
+import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { generateSupportFallback } from '../utils/supportKnowledge';
 
 const API_BASE = '/api';
+
+export function searchLocalCatalog(query: string): StockSearchResult[] {
+  const q = (query || '').trim().toLowerCase();
+  if (!q) {
+    return TICKER_CATALOG.slice(0, 12).map(t => ({
+      ticker: t.ticker,
+      name: t.name,
+      exchange: t.exchange,
+      currency: t.currency,
+      price: t.basePrice,
+      sector: t.sector
+    }));
+  }
+
+  const results: StockSearchResult[] = [];
+  for (const t of TICKER_CATALOG) {
+    const tickLower = t.ticker.toLowerCase();
+    const nameLower = t.name.toLowerCase();
+    const matchesTick = tickLower === q || tickLower.replace('.ns', '') === q || tickLower.startsWith(q);
+    const matchesName = nameLower.includes(q);
+    const matchesAlias = t.aliases && t.aliases.some(a => a.toLowerCase().includes(q));
+
+    if (matchesTick || matchesName || matchesAlias) {
+      results.push({
+        ticker: t.ticker,
+        name: t.name,
+        exchange: t.exchange,
+        currency: t.currency,
+        price: t.basePrice,
+        sector: t.sector
+      });
+    }
+    if (results.length >= 15) break;
+  }
+  return results;
+}
 
 async function safeParseJson<T>(res: Response, fallbackValue: T): Promise<T> {
   try {
@@ -117,10 +156,20 @@ export const api = {
   },
 
   // Stocks & History
-  async searchStocks(query: string) {
-    const res = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(query)}`);
-    if (!res.ok) throw new Error('Failed to search stocks');
-    return res.json();
+  async searchStocks(query: string): Promise<StockSearchResult[]> {
+    try {
+      const res = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(query)}`);
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      }
+    } catch {
+      // Graceful fallback to client catalog
+    }
+    return searchLocalCatalog(query);
   },
 
   async getQuote(ticker: string): Promise<StockQuote> {
@@ -270,6 +319,19 @@ export const api = {
     return res.json();
   },
 
+  async getPortfolioCorrelation(
+    holdings?: PortfolioHolding[],
+    lookbackDays = 90
+  ): Promise<CorrelationMatrixData & { weights?: Record<string, number> }> {
+    const res = await fetch(`${API_BASE}/portfolio/correlation`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ holdings, lookbackDays })
+    });
+    if (!res.ok) throw new Error('Failed to compute portfolio correlation matrix');
+    return res.json();
+  },
+
   async applyRebalance(suggestions: RebalanceSuggestion[]): Promise<{ success: boolean; message: string; holdings: PortfolioHolding[] }> {
     const res = await fetch(`${API_BASE}/portfolio/rebalance/apply`, {
       method: 'POST',
@@ -313,7 +375,17 @@ export const api = {
     return res.json();
   },
 
-  async createAlert(data: { ticker: string; type: string; threshold?: number; label: string }): Promise<AlertRule> {
+  async createAlert(data: {
+    ticker: string;
+    type: string;
+    threshold?: number;
+    label: string;
+    channels?: ('email' | 'push')[];
+    email?: string;
+    pushEnabled?: boolean;
+    emailEnabled?: boolean;
+    driftThresholdPct?: number;
+  }): Promise<AlertRule> {
     const res = await fetch(`${API_BASE}/alerts`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -400,6 +472,15 @@ export const api = {
     }
     return res.json();
   },
+
+  async getOptionsSurface(ticker: string): Promise<VolatilitySurfaceData> {
+    const res = await fetch(`${API_BASE}/options/${encodeURIComponent(ticker)}/surface`);
+    if (!res.ok) {
+      throw new Error(`Failed to load volatility surface for ${ticker}`);
+    }
+    return res.json();
+  },
+
 
   // Automated Backtesting Framework
   async getAutomatedBacktest(

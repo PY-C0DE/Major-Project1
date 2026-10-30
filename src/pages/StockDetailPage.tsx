@@ -17,7 +17,8 @@ import {
   Bell,
   CheckCircle2,
   AlertCircle,
-  Clock
+  Clock,
+  Layers
 } from 'lucide-react';
 import { api } from '../services/api';
 import { StockQuote, HistoricalBar, ConformalPrediction, MarketRegime, NewsItem, ConceptDriftResult, AlertRule } from '../types';
@@ -30,6 +31,8 @@ import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { PriceAlertModal } from '../components/PriceAlertModal';
 import { StockDecisionAndHistoryCard } from '../components/StockDecisionAndHistoryCard';
+import { OptionsAnalyticsModal } from '../components/OptionsAnalyticsModal';
+import { OptionsVolatilitySurface } from '../components/OptionsVolatilitySurface';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -48,6 +51,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
   const [drift, setDrift] = useState<ConceptDriftResult | null>(null);
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
   const [showPriceAlertModal, setShowPriceAlertModal] = useState(false);
+  const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -312,6 +316,15 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             </button>
 
             <button
+              onClick={() => setShowOptionsModal(true)}
+              className="px-3.5 py-2 rounded-lg bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/60 dark:hover:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-300 dark:border-cyan-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="View Implied Volatility Surface & Smile"
+            >
+              <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+              <span>Options & Vol Surface</span>
+            </button>
+
+            <button
               onClick={handleSavePrediction}
               className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
             >
@@ -354,6 +367,12 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
         ticker={ticker}
       />
 
+      {/* 3.5 D3 Implied Volatility Surface & Smile Engine */}
+      <OptionsVolatilitySurface
+        ticker={ticker}
+        spotPrice={quote?.price}
+      />
+
       {/* 4. Core Innovation Cards (USPs 1 & 2) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ConformalPredictionCard
@@ -372,6 +391,13 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
 
       {/* Regulatory & Methodology Disclaimer */}
       <DisclaimerBanner />
+
+      {/* Options Chains & D3 Volatility Surface Modal */}
+      <OptionsAnalyticsModal
+        isOpen={showOptionsModal}
+        onClose={() => setShowOptionsModal(false)}
+        initialTicker={ticker}
+      />
     </div>
   );
 };

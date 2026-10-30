@@ -219,6 +219,19 @@ export interface BacktestDataPoint {
   residual: number;
 }
 
+export interface AssetBreakdownItem {
+  ticker: string;
+  name: string;
+  priceAccuracy: number;
+  mape: number;
+  conformalCoverage: number;
+  r2: number;
+  directionalAccuracy: number;
+  samples: number;
+  rmse: number;
+  mae: number;
+}
+
 export interface ModelEvaluation {
   ticker: string;
   modelName: string;
@@ -234,6 +247,9 @@ export interface ModelEvaluation {
   evaluatedAt: string;
   comparison: ModelComparisonItem[];
   backtestSeries: BacktestDataPoint[];
+  assetBreakdown?: AssetBreakdownItem[];
+  totalAssetsCount?: number;
+  isAllAssets?: boolean;
 }
 
 export interface PortfolioHolding {
@@ -341,6 +357,11 @@ export interface AlertRule {
   enabled: boolean;
   createdAt: string;
   lastTriggered?: string;
+  channels?: ('email' | 'push')[];
+  email?: string;
+  pushEnabled?: boolean;
+  emailEnabled?: boolean;
+  driftThresholdPct?: number;
 }
 
 export interface UserProfile {
@@ -629,5 +650,45 @@ export interface InvestorGuideTopic {
   keyTakeaway: string;
   exampleScenario: string;
 }
+
+export interface VolatilitySurfacePoint {
+  strike: number;
+  moneyness: number; // K / S
+  daysToExpiry: number;
+  expiryLabel: string;
+  expiryDate: string;
+  callIV: number;
+  putIV: number;
+  midIV: number;
+  deltaCall?: number;
+  deltaPut?: number;
+  gamma?: number;
+  vega?: number;
+  theta?: number;
+  callPrice?: number;
+  putPrice?: number;
+  isATM?: boolean;
+}
+
+export interface VolatilitySurfaceData {
+  ticker: string;
+  spotPrice: number;
+  atmIV: number;
+  expirations: Array<{
+    days: number;
+    label: string;
+    date: string;
+    atmIV: number;
+    expMove: number;
+  }>;
+  strikes: number[];
+  points: VolatilitySurfacePoint[];
+  skew25Delta: number;
+  termStructureSlope: 'Contango' | 'Backwardation' | 'Flat';
+  ivMin: number;
+  ivMax: number;
+  generatedAt: string;
+}
+
 
 

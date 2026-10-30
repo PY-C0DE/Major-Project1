@@ -89,7 +89,8 @@ export async function resolveTickerOrName(query: string): Promise<string> {
     const res = await fetch(yUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     });
-    if (res.ok) {
+    const cType = res.headers.get('content-type') || '';
+    if (res.ok && cType.includes('application/json')) {
       const data = await res.json();
       const firstQuote = data?.quotes?.find((q: any) => q.symbol && (q.quoteType === 'EQUITY' || !q.quoteType));
       if (firstQuote?.symbol) {
@@ -204,7 +205,8 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
       });
 
-      if (res.ok) {
+      const cType = res.headers.get('content-type') || '';
+      if (res.ok && cType.includes('application/json')) {
         const data = await res.json();
         const quotes = data?.quotes || [];
 

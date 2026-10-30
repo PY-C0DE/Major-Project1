@@ -26,10 +26,10 @@ import { detectMarketRegime } from './src/server/math/hmmRegime';
 import { runConformalPrediction } from './src/server/math/conformal';
 import { detectConceptDrift } from './src/server/math/driftDetector';
 import { getNewsForTicker, analyzeFinBERTTone, getAllMarketHeadlines } from './src/server/math/nlpEngine';
-import { runModelEvaluation, computeProjectWideAccuracy } from './src/server/math/evaluation';
+import { runModelEvaluation, computeProjectWideAccuracy, runAggregateModelEvaluation } from './src/server/math/evaluation';
 import { runStrategyBacktest } from './src/server/math/strategySimulator';
 import { runAutomatedBacktest } from './src/server/math/automatedBacktest';
-import { generateOptionsChain } from './src/server/math/optionsAnalytics';
+import { generateOptionsChain, generateVolatilitySurface } from './src/server/math/optionsAnalytics';
 import { computeCorrelationMatrix } from './src/server/math/correlation';
 import { optimizePortfolioHoldings } from './src/server/math/portfolioOptimizer';
 import { brokerService } from './src/server/services/brokerService';
@@ -573,6 +573,10 @@ app.get('/api/drift/:ticker', async (req: Request, res: Response) => {
 app.get('/api/model/metrics', async (req: Request, res: Response) => {
   try {
     const rawTicker = (req.query.ticker as string) || 'RELIANCE.NS';
+    if (rawTicker.trim().toUpperCase() === 'ALL') {
+      const evaluation = await runAggregateModelEvaluation(getHistoricalData, TICKER_CATALOG);
+      return res.json(evaluation);
+    }
     const ticker = await resolveTickerOrName(rawTicker);
     const history = await getHistoricalData(ticker, 250);
     const evaluation = runModelEvaluation(history, ticker);
@@ -639,7 +643,7 @@ app.get('/api/model/health', async (req: Request, res: Response) => {
 app.get('/api/strategy/backtest', async (req: Request, res: Response) => {
   try {
     const rawTicker = (req.query.ticker as string) || 'RELIANCE.NS';
-    const ticker = await resolveTickerOrName(rawTicker);
+    const ticker = rawTicker.trim().toUpperCase() === 'ALL' ? 'RELIANCE.NS' : await resolveTickerOrName(rawTicker);
     const strategy = (req.query.strategy as any) || 'conformal_reversion';
     const history = await getHistoricalData(ticker, 250);
     const backtestResult = runStrategyBacktest(history, ticker, strategy);
@@ -691,6 +695,19 @@ app.get('/api/options/:ticker', async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Failed to generate options analytics.' });
   }
 });
+
+app.get('/api/options/:ticker/surface', async (req: Request, res: Response) => {
+  try {
+    const sym = await resolveTickerOrName(req.params.ticker);
+    const quote = await getStockQuote(sym);
+    const surface = generateVolatilitySurface(sym, quote.price, 0.25);
+    return res.json(surface);
+  } catch (error: any) {
+    console.error(`Error generating volatility surface for ${req.params.ticker}:`, error);
+    return res.status(500).json({ error: 'Failed to generate volatility surface.' });
+  }
+});
+
 
 // -------------------------------------------------------------
 // 7D. AUTOMATED BACKTESTING FRAMEWORK (STRATEGY VS BENCHMARK)
@@ -1032,6 +1049,69 @@ app.post('/api/portfolio/optimize', authenticateToken, async (req: Authenticated
   }
 });
 
+// Dedicated Portfolio Cross-Asset Correlation Matrix Endpoint
+app.post('/api/portfolio/correlation', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || 'user-alphaquant-demo-1';
+    let holdings: any[] = req.body?.holdings;
+    const lookbackDays = parseInt(req.body?.lookbackDays || '90', 10);
+
+    if (!holdings || !Array.isArray(holdings) || holdings.length === 0) {
+      holdings = db.getPortfolio(userId);
+    }
+
+    if (holdings.length === 0) {
+      return res.status(400).json({ error: 'Cannot compute correlation on an empty portfolio. Add positions first.' });
+    }
+
+    // Filter unique tickers
+    const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker).filter(Boolean)));
+    const totalVal = holdings.reduce((sum, h) => sum + (h.currentValue || (h.quantity * (h.currentPrice || h.avgBuyPrice || 1))), 0) || 1;
+    const weights: Record<string, number> = {};
+    const companyNames: Record<string, string> = {};
+
+    holdings.forEach(h => {
+      const val = h.currentValue || (h.quantity * (h.currentPrice || h.avgBuyPrice || 1));
+      weights[h.ticker] = Number(((val / totalVal) * 100).toFixed(1));
+      if (h.companyName) companyNames[h.ticker] = h.companyName;
+    });
+
+    const histMap: Record<string, any> = {};
+    const regimeMap: Record<string, string> = {};
+
+    await Promise.all(
+      uniqueTickers.map(async t => {
+        try {
+          const h = await getHistoricalData(t, Math.max(60, lookbackDays));
+          const r = detectMarketRegime(h, t);
+          histMap[t] = h;
+          regimeMap[t] = r.currentRegime;
+        } catch {
+          histMap[t] = [];
+          regimeMap[t] = 'Normal Volatility';
+        }
+      })
+    );
+
+    const correlation = computeCorrelationMatrix(uniqueTickers, histMap, regimeMap);
+    // Enrich asset names if present in holdings
+    if (correlation.assets) {
+      correlation.assets = correlation.assets.map(a => ({
+        ...a,
+        name: companyNames[a.ticker] || a.name
+      }));
+    }
+
+    return res.json({
+      ...correlation,
+      weights
+    });
+  } catch (error: any) {
+    console.error('Error computing portfolio correlation:', error);
+    return res.status(500).json({ error: 'Failed to compute portfolio correlation matrix.' });
+  }
+});
+
 app.post('/api/portfolio/rebalance/apply', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
@@ -1146,17 +1226,22 @@ app.get('/api/alerts', authenticateToken, (req: AuthenticatedRequest, res: Respo
 
 app.post('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
-  const { ticker, type, threshold, label } = req.body;
+  const { ticker, type, threshold, label, channels, email, pushEnabled, emailEnabled, driftThresholdPct } = req.body;
   if (!ticker || !type || !label) {
     return res.status(400).json({ error: 'Ticker, type, and label are required.' });
   }
-  const sym = await resolveTickerOrName(ticker);
+  const sym = ticker === 'ALL' ? 'ALL' : await resolveTickerOrName(ticker);
   const newAlert = {
     id: `alert-${Date.now()}`,
     ticker: sym,
     type,
     threshold: threshold ? parseFloat(threshold) : undefined,
     label,
+    channels: channels || ['email', 'push'],
+    email: email || req.user?.email || 'user@alphaquant.ai',
+    pushEnabled: pushEnabled !== false,
+    emailEnabled: emailEnabled !== false,
+    driftThresholdPct: driftThresholdPct ? parseFloat(driftThresholdPct) : undefined,
     enabled: true,
     createdAt: new Date().toISOString()
   };

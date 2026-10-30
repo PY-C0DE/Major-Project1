@@ -106,10 +106,23 @@ export const CompanySearchCombobox: React.FC<Props> = ({
     const timer = setTimeout(async () => {
       try {
         const data = await api.searchStocks(trimmed);
-        setResults(data && data.length > 0 ? data : []);
-      } catch (err) {
-        console.error('Error searching companies:', err);
-        setResults([]);
+        if (data && data.length > 0) {
+          setResults(data);
+        } else {
+          const fallback = defaultSuggestions.filter(
+            s =>
+              s.name.toLowerCase().includes(trimmed.toLowerCase()) ||
+              s.ticker.toLowerCase().includes(trimmed.toLowerCase())
+          );
+          setResults(fallback);
+        }
+      } catch {
+        const fallback = defaultSuggestions.filter(
+          s =>
+            s.name.toLowerCase().includes(trimmed.toLowerCase()) ||
+            s.ticker.toLowerCase().includes(trimmed.toLowerCase())
+        );
+        setResults(fallback);
       } finally {
         setLoading(false);
       }

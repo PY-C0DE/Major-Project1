@@ -26,6 +26,7 @@ import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { NewsTicker } from '../components/NewsTicker';
 import { MarketHeatmap } from '../components/MarketHeatmap';
+import { DailyMarketDigest } from '../components/DailyMarketDigest';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -103,6 +104,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
           setSelectedTicker(ticker);
           onSelectTicker(ticker);
         }}
+        onNavigate={onNavigate}
       />
 
       {/* 1. Global Market Indices Ticker Ribbon */}
@@ -305,6 +307,15 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
           </div>
         </div>
       </div>
+
+      {/* 2.5 Daily Market Intelligence Digest (Synthesizes News & Model Sentiment for Watchlist) */}
+      <DailyMarketDigest
+        onSelectTicker={(ticker) => {
+          setSelectedTicker(ticker);
+          onSelectTicker(ticker);
+        }}
+        onNavigate={onNavigate}
+      />
 
       {/* 3. Quick Watchlist & Company Search Bar with Responsive Layout */}
       <div className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-4.5 md:p-5 lg:p-6 shadow-xs space-y-3 sm:space-y-4 transition-all">

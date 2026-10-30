@@ -36,6 +36,7 @@ import {
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { OptionsChainResponse } from '../types';
+import { OptionsVolatilitySurface } from './OptionsVolatilitySurface';
 
 interface Props {
   isOpen: boolean;
@@ -57,7 +58,7 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
   const [data, setData] = useState<OptionsChainResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'matrix' | 'smile'>('matrix');
+  const [viewMode, setViewMode] = useState<'surface' | 'matrix' | 'smile'>('surface');
 
   const popularTickers = ['NVDA', 'RELIANCE.NS', 'AAPL', 'TCS.NS', 'MSFT', 'TSLA'];
 
@@ -161,9 +162,22 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
 
           <div className="flex items-center gap-1.5 bg-slate-200/70 dark:bg-slate-950 p-1 rounded-lg border border-slate-300 dark:border-slate-800">
             <button
+              onClick={() => setViewMode('surface')}
+              className={`px-3 py-1 rounded text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                viewMode === 'surface'
+                  ? 'bg-white dark:bg-slate-800 text-cyan-700 dark:text-cyan-400 font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              D3 Vol Surface
+            </button>
+            <button
               onClick={() => setViewMode('matrix')}
               className={`px-3 py-1 rounded text-xs transition-colors cursor-pointer ${
-                viewMode === 'matrix' ? 'bg-white dark:bg-slate-800 text-cyan-700 dark:text-cyan-400 font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                viewMode === 'matrix'
+                  ? 'bg-white dark:bg-slate-800 text-cyan-700 dark:text-cyan-400 font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Strike Matrix
@@ -171,7 +185,9 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
             <button
               onClick={() => setViewMode('smile')}
               className={`px-3 py-1 rounded text-xs transition-colors cursor-pointer ${
-                viewMode === 'smile' ? 'bg-white dark:bg-slate-800 text-cyan-700 dark:text-cyan-400 font-bold shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                viewMode === 'smile'
+                  ? 'bg-white dark:bg-slate-800 text-cyan-700 dark:text-cyan-400 font-bold shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               IV Smile Curve
@@ -255,6 +271,19 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
                 </div>
               </div>
 
+              {/* View Mode 0: D3 Implied Volatility Surface & Smile Engine */}
+              {viewMode === 'surface' && (
+                <OptionsVolatilitySurface
+                  ticker={ticker}
+                  spotPrice={data.spotPrice}
+                  onSelectStrike={(strike, days, type) => {
+                    if (onTradeOption) {
+                      onTradeOption(ticker, strike, type || 'CALL');
+                    }
+                  }}
+                />
+              )}
+
               {/* View Mode 1: IV Smile Curve Chart */}
               {viewMode === 'smile' && (
                 <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
@@ -314,6 +343,7 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
               )}
 
               {/* View Mode 2: Interactive Call/Put Strike Matrix Table */}
+              {(viewMode === 'matrix' || viewMode === 'smile') && (
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/80 overflow-hidden shadow-inner">
                 <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-mono">
                   <div className="flex items-center gap-2">
@@ -421,6 +451,7 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
                   </table>
                 </div>
               </div>
+              )}
 
               {/* Explanatory Footnote */}
               <div className="p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-start gap-2">

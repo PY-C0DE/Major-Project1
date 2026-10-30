@@ -24,9 +24,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return 'light';
   });
 
-  useEffect(() => {
+  const applyThemeClasses = (targetTheme: Theme) => {
     const root = document.documentElement;
-    if (theme === 'dark') {
+    if (targetTheme === 'dark') {
       root.classList.add('dark');
       root.classList.remove('light');
       root.style.colorScheme = 'dark';
@@ -35,15 +35,54 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       root.classList.add('light');
       root.style.colorScheme = 'light';
     }
-    localStorage.setItem('alphaquant_theme', theme);
-  }, [theme]);
+    localStorage.setItem('alphaquant_theme', targetTheme);
+  };
+
+  useEffect(() => {
+    applyThemeClasses(theme);
+  }, []);
+
+  const transitionTheme = (nextTheme: Theme) => {
+    if (nextTheme === theme) return;
+
+    const root = document.documentElement;
+
+    // 1. Native View Transitions API for GPU-accelerated global viewport cross-fade
+    if (typeof document !== 'undefined' && 'startViewTransition' in document) {
+      root.classList.add('theme-transitioning');
+      try {
+        const transition = (document as any).startViewTransition(() => {
+          applyThemeClasses(nextTheme);
+          setThemeState(nextTheme);
+        });
+        transition.finished.finally(() => {
+          root.classList.remove('theme-transitioning');
+        });
+      } catch {
+        applyThemeClasses(nextTheme);
+        setThemeState(nextTheme);
+        setTimeout(() => {
+          root.classList.remove('theme-transitioning');
+        }, 420);
+      }
+    } else {
+      // 2. CSS-based smooth cross-fade fallback
+      root.classList.add('theme-transitioning');
+      applyThemeClasses(nextTheme);
+      setThemeState(nextTheme);
+      setTimeout(() => {
+        root.classList.remove('theme-transitioning');
+      }, 420);
+    }
+  };
 
   const toggleTheme = () => {
-    setThemeState(prev => (prev === 'dark' ? 'light' : 'dark'));
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    transitionTheme(nextTheme);
   };
 
   const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
+    transitionTheme(newTheme);
   };
 
   return (

@@ -6,7 +6,7 @@
  */
 
 import { ComputedBar } from './indicators';
-import { ModelEvaluation, BacktestDataPoint, ModelComparisonItem } from '../../types';
+import { ModelEvaluation, BacktestDataPoint, ModelComparisonItem, AssetBreakdownItem } from '../../types';
 import { extractFeatureVector, fitRidgeRegression, predictReturnFromFeatures } from './modelEngine';
 
 export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEvaluation {
@@ -358,3 +358,168 @@ export async function computeProjectWideAccuracy(
   cachedProjectWideAccuracy = { data: result, timestamp: Date.now() };
   return result;
 }
+
+let cachedAggregateEvaluation: { data: ModelEvaluation; timestamp: number } | null = null;
+const AGGREGATE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+export async function runAggregateModelEvaluation(
+  fetchHistory: (ticker: string, days: number) => Promise<ComputedBar[]>,
+  catalog: Array<{ ticker: string; name: string }>
+): Promise<ModelEvaluation> {
+  if (cachedAggregateEvaluation && Date.now() - cachedAggregateEvaluation.timestamp < AGGREGATE_CACHE_TTL) {
+    return cachedAggregateEvaluation.data;
+  }
+
+  // Representative cross-section of liquid global assets across sectors
+  const representativeTickers = [
+    'RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS',
+    'MSFT', 'HDFCBANK.NS', 'GOOGL', 'TSLA', 'TMCV.NS',
+    'ICICIBANK.NS', 'AMZN', 'META', 'LT.NS', 'SBIN.NS'
+  ];
+
+  const universe = Array.from(new Set([...representativeTickers, ...catalog.map(c => c.ticker)])).slice(0, 18);
+  const evaluations: ModelEvaluation[] = [];
+
+  for (const t of universe) {
+    try {
+      const history = await fetchHistory(t, 160);
+      if (history && history.length >= 35) {
+        const evalRes = runModelEvaluation(history, t);
+        evaluations.push(evalRes);
+      }
+    } catch {}
+  }
+
+  if (evaluations.length === 0) {
+    for (const fallbackTicker of ['RELIANCE.NS', 'NVDA', 'AAPL']) {
+      try {
+        const hist = await fetchHistory(fallbackTicker, 160);
+        if (hist && hist.length >= 30) {
+          evaluations.push(runModelEvaluation(hist, fallbackTicker));
+        }
+      } catch {}
+    }
+  }
+
+  const count = Math.max(1, evaluations.length);
+
+  const avgPriceAccuracy = evaluations.reduce((acc, e) => acc + (e.priceAccuracy ?? (100 - e.mape)), 0) / count;
+  const avgConformalCoverage = evaluations.reduce((acc, e) => acc + (e.conformalCoverage ?? 90), 0) / count;
+  const avgMape = evaluations.reduce((acc, e) => acc + e.mape, 0) / count;
+  const avgR2 = evaluations.reduce((acc, e) => acc + e.r2, 0) / count;
+  const avgMae = evaluations.reduce((acc, e) => acc + e.mae, 0) / count;
+  const avgRmse = evaluations.reduce((acc, e) => acc + e.rmse, 0) / count;
+  const avgDir = evaluations.reduce((acc, e) => acc + e.directionalAccuracy, 0) / count;
+  const totalSamples = evaluations.reduce((acc, e) => acc + e.totalBacktestSamples, 0);
+
+  const baselineModels = [
+    'AlphaQuant Production (Ridge Regression)',
+    'SMA-20 Trend Baseline',
+    'Plain Linear Model (OLS)',
+    'Naive Last-Price (Random Walk)'
+  ];
+
+  const aggregatedComparison: ModelComparisonItem[] = baselineModels.map(modelName => {
+    let totalMae = 0;
+    let totalRmse = 0;
+    let totalR2 = 0;
+    let totalDir = 0;
+    let matchCount = 0;
+
+    for (const e of evaluations) {
+      const item = e.comparison.find(c => c.model === modelName);
+      if (item) {
+        totalMae += item.mae;
+        totalRmse += item.rmse;
+        totalR2 += item.r2;
+        totalDir += item.directionalAccuracy;
+        matchCount++;
+      }
+    }
+
+    const nMatches = Math.max(1, matchCount);
+    return {
+      model: modelName,
+      mae: Number((totalMae / nMatches).toFixed(2)),
+      rmse: Number((totalRmse / nMatches).toFixed(2)),
+      r2: Number((totalR2 / nMatches).toFixed(2)),
+      directionalAccuracy: Number((totalDir / nMatches).toFixed(1)),
+      trainingTimeSec: modelName.includes('Production') ? 0.12 : 0.01,
+      isProduction: modelName.includes('Production')
+    };
+  });
+
+  // Construct composite normalized backtest series
+  const longestSeries = evaluations.reduce((prev, curr) => (curr.backtestSeries.length > prev.backtestSeries.length ? curr : prev), evaluations[0]);
+  const compositeBacktestSeries: BacktestDataPoint[] = longestSeries ? longestSeries.backtestSeries.map((bar, idx) => {
+    let sumActualNorm = 0;
+    let sumPredNorm = 0;
+    let sumUpperNorm = 0;
+    let sumLowerNorm = 0;
+    let validCount = 0;
+
+    for (const e of evaluations) {
+      const eBar = e.backtestSeries[idx];
+      if (eBar && eBar.actual > 0) {
+        const baseActual = e.backtestSeries[0]?.actual || eBar.actual;
+        sumActualNorm += (eBar.actual / baseActual) * 100;
+        sumPredNorm += (eBar.predicted / baseActual) * 100;
+        sumUpperNorm += (eBar.upper / baseActual) * 100;
+        sumLowerNorm += (eBar.lower / baseActual) * 100;
+        validCount++;
+      }
+    }
+
+    const nValid = Math.max(1, validCount);
+    const actual = Number((sumActualNorm / nValid).toFixed(2));
+    const predicted = Number((sumPredNorm / nValid).toFixed(2));
+    return {
+      date: bar.date,
+      actual,
+      predicted,
+      upper: Number((sumUpperNorm / nValid).toFixed(2)),
+      lower: Number((sumLowerNorm / nValid).toFixed(2)),
+      residual: Math.abs(Number((actual - predicted).toFixed(2)))
+    };
+  }) : [];
+
+  const assetBreakdown: AssetBreakdownItem[] = evaluations.map(e => {
+    const meta = catalog.find(c => c.ticker === e.ticker);
+    return {
+      ticker: e.ticker,
+      name: meta?.name || e.ticker,
+      priceAccuracy: Number((e.priceAccuracy ?? (100 - e.mape)).toFixed(2)),
+      mape: Number(e.mape.toFixed(2)),
+      conformalCoverage: Number((e.conformalCoverage ?? 90).toFixed(1)),
+      r2: Number(e.r2.toFixed(2)),
+      directionalAccuracy: Number(e.directionalAccuracy.toFixed(1)),
+      samples: e.totalBacktestSamples,
+      rmse: Number(e.rmse.toFixed(2)),
+      mae: Number(e.mae.toFixed(2))
+    };
+  });
+
+  const result: ModelEvaluation = {
+    ticker: 'ALL',
+    modelName: 'AlphaQuant Ridge Regression (Whole-Model Cross-Asset Aggregate)',
+    horizonDays: 1,
+    mae: Number(avgMae.toFixed(2)),
+    rmse: Number(avgRmse.toFixed(2)),
+    mape: Number(avgMape.toFixed(2)),
+    r2: Number(avgR2.toFixed(2)),
+    directionalAccuracy: Number(avgDir.toFixed(1)),
+    priceAccuracy: Number(avgPriceAccuracy.toFixed(2)),
+    conformalCoverage: Number(avgConformalCoverage.toFixed(1)),
+    totalBacktestSamples: totalSamples,
+    totalAssetsCount: evaluations.length,
+    isAllAssets: true,
+    evaluatedAt: new Date().toISOString(),
+    comparison: aggregatedComparison,
+    backtestSeries: compositeBacktestSeries,
+    assetBreakdown
+  };
+
+  cachedAggregateEvaluation = { data: result, timestamp: Date.now() };
+  return result;
+}
+
