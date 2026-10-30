@@ -195,10 +195,10 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
-                Yesterday's Empirical Prediction Performance ({prevStats.previousDate})
+                Latest Completed Session Audit ({prevStats.previousDate})
               </h4>
               <p className="text-xs text-slate-500 mt-0.5">
-                Audit how yesterday's actual price compared to the model's conformal forecast and statistical bounds.
+                Audit how this session's actual closing price compared to the quantitative ensemble forecast and conformal bounds.
               </p>
             </div>
 
@@ -224,7 +224,7 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block uppercase">Yesterday Forecast</span>
+              <span className="text-[10px] text-slate-400 block uppercase">Session Forecast</span>
               <span className="text-base font-bold text-cyan-600 dark:text-cyan-400 mt-1 block">
                 {currSym}{prevStats.predictedClose.toFixed(2)}
               </span>
@@ -253,6 +253,70 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
               </span>
             </div>
           </div>
+
+          {/* Trailing Sessions Accuracy Ledger */}
+          {prevStats.trailing5DayHits && prevStats.trailing5DayHits.length > 0 && (
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <h5 className="text-[11px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+                  Trailing Sessions Accuracy Ledger (Actual Close vs Forecast)
+                </h5>
+                <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400">
+                  Ensemble v2.0 Calibrated
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 uppercase">
+                      <th className="py-2 px-3 font-medium">Session Date</th>
+                      <th className="py-2 px-3 font-medium text-right">Actual Close</th>
+                      <th className="py-2 px-3 font-medium text-right text-cyan-600 dark:text-cyan-400">Model Forecast</th>
+                      <th className="py-2 px-3 font-medium text-right">Conformal Channel</th>
+                      <th className="py-2 px-3 font-medium text-right">Abs Error</th>
+                      <th className="py-2 px-3 font-medium text-right">Error %</th>
+                      <th className="py-2 px-3 font-medium text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900/40">
+                    {[...prevStats.trailing5DayHits].reverse().map((day) => (
+                      <tr key={day.date} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">
+                          {day.date}
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-white">
+                          {currSym}{day.actualClose.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-3 text-right font-bold text-cyan-600 dark:text-cyan-400">
+                          {currSym}{day.predictedClose.toFixed(2)}
+                        </td>
+                        <td className="py-2 px-3 text-right text-slate-500 text-[11px]">
+                          [{currSym}{day.lowerBound.toFixed(1)} – {currSym}{day.upperBound.toFixed(1)}]
+                        </td>
+                        <td className="py-2 px-3 text-right font-medium text-slate-700 dark:text-slate-300">
+                          {currSym}{Math.abs(day.actualClose - day.predictedClose).toFixed(2)}
+                        </td>
+                        <td className={`py-2 px-3 text-right font-semibold ${
+                          day.errorPct < 1.0 ? 'text-emerald-600 dark:text-emerald-400' : day.errorPct < 2.5 ? 'text-cyan-600 dark:text-cyan-400' : 'text-amber-600 dark:text-amber-400'
+                        }`}>
+                          {day.errorPct.toFixed(2)}%
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            day.hit
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                          }`}>
+                            {day.hit ? 'HIT' : 'MISS'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -8,7 +8,13 @@
 
 import { ComputedBar } from './indicators';
 import { ConformalPrediction, FeatureContribution, PreviousDayStats, DecisionSignal } from '../../types';
-import { extractFeatureVector, fitRidgeRegression, predictReturnFromFeatures } from './modelEngine';
+import {
+  extractFeatureVector,
+  fitRidgeRegression,
+  predictReturnFromFeatures,
+  fitEnsembleModel,
+  predictEnsembleReturn
+} from './modelEngine';
 import { getClassifiedEventsForTicker } from './nlpEngine';
 
 export function calculateTargetDate(baseDateStr?: string, horizonDays = 1): { targetDate: string; targetDateFormatted: string } {
@@ -73,7 +79,7 @@ export function runConformalPrediction(
       intervalWidth: Number((fallbackPrice * 0.08).toFixed(2)),
       intervalWidthPercent: 8.0,
       horizonDays: safeHorizon,
-      modelVersion: 'alphaquant-ridge-regression-v1.0',
+      modelVersion: 'alphaquant-ensemble-v2.0 (Recency-Weighted Ridge + Boosting Stumps + Residual Feedback)',
       predictionTimestamp: new Date().toISOString(),
       topFeatures: [],
       methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,
@@ -88,25 +94,16 @@ export function runConformalPrediction(
   const latestBar = bars[n - 1];
   const currentPrice = latestBar.close;
 
-  // 1. Train multi-factor model on historical bars
+  // 1. Train multi-factor ensemble model on historical bars
   const trainStart = Math.min(25, Math.floor(n * 0.15));
-  const Xtrain: number[][] = [];
-  const ytrain: number[] = [];
-  for (let i = trainStart; i < n - 1; i++) {
-    const p = bars[i - 1].close;
-    if (p <= 0) continue;
-    Xtrain.push(extractFeatureVector(bars, i - 1));
-    ytrain.push((bars[i].close - p) / p);
-  }
-  const weights = fitRidgeRegression(Xtrain, ytrain, 0.05);
+  const ensembleModel = fitEnsembleModel(bars, trainStart, n - 2);
 
-  // Extract latest feature vector at bar n - 1
-  const latestFeatures = extractFeatureVector(bars, n - 1);
-  const base1dReturn = predictReturnFromFeatures(weights, latestFeatures);
+  // Extract latest feature vector and ensemble predicted return at bar n - 1
+  const base1dReturn = predictEnsembleReturn(ensembleModel, bars, n - 1, true);
 
-  // Multi-day horizon scaling: sub-linear variance scaling
+  // Multi-day horizon scaling: sub-linear variance scaling with Bayesian empirical shrinkage
   const horizonDrift = base1dReturn * Math.sqrt(safeHorizon);
-  const maxMove = Math.min(0.35, 0.06 * Math.sqrt(safeHorizon));
+  const maxMove = Math.min(0.25, 0.045 * Math.sqrt(safeHorizon));
   const predictedChangePct = Math.max(-maxMove, Math.min(maxMove, horizonDrift));
   const rawPredictedPrice = currentPrice * (1 + predictedChangePct);
   const predictedPrice = Number(rawPredictedPrice.toFixed(2));
@@ -121,8 +118,7 @@ export function runConformalPrediction(
   for (let i = calibStartIndex; i < n; i++) {
     const prevBar = bars[i - 1];
     const prevPrice = prevBar.close;
-    const feats = extractFeatureVector(bars, i - 1);
-    const predRet = predictReturnFromFeatures(weights, feats);
+    const predRet = predictEnsembleReturn(ensembleModel, bars, i - 1, true);
     const predPrice = prevPrice * (1 + predRet);
     const residual = Math.abs(bars[i].close - predPrice);
     const dailyVol = Math.max(0.006, (prevBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
@@ -161,8 +157,7 @@ export function runConformalPrediction(
     const prevPrice = prevBar.close;
     if (prevPrice <= 0) continue;
 
-    const feats = extractFeatureVector(bars, i - 1);
-    const predRet = predictReturnFromFeatures(weights, feats);
+    const predRet = predictEnsembleReturn(ensembleModel, bars, i - 1, true);
     const predPrice = prevPrice * (1 + predRet);
     const actual = bars[i].close;
     if (actual <= 0) continue;
@@ -205,6 +200,9 @@ export function runConformalPrediction(
   const macdHist = latestBar.macdHist ?? 0;
   const emaSpread = (ema12 - ema26) / currentPrice;
 
+  const barRange = Math.max(0.001, latestBar.high - latestBar.low);
+  const clv = ((latestBar.close - latestBar.low) - (latestBar.high - latestBar.close)) / barRange;
+
   const topFeatures: FeatureContribution[] = [
     {
       feature: 'EMA Fast/Slow Trend Filter (12 vs 26)',
@@ -231,6 +229,12 @@ export function runConformalPrediction(
       description: regimeId === 0 ? 'Low Volatility / Bullish regime stabilizes forward trajectory' : 'High Volatility / Bearish regime widens variance envelope'
     },
     {
+      feature: 'Close Location Value (CLV & Intraday Pressure)',
+      impact: Number((clv * 16).toFixed(1)),
+      category: 'technical',
+      description: `Session CLV at ${clv.toFixed(2)} signals ${clv > 0.25 ? 'strong institutional buying into the close' : clv < -0.25 ? 'persistent distribution and selling pressure' : 'balanced intraday auction'}`
+    },
+    {
       feature: 'MACD Momentum & ATR Normalization',
       impact: Number((Math.tanh(macdHist / (atr || 1)) * 12).toFixed(1)),
       category: 'macro',
@@ -238,32 +242,35 @@ export function runConformalPrediction(
     }
   ];
 
-  // 4. Previous Day Price & Prediction Statistics Review (Requirement 8)
+  // 4. Previous Day / Today Price & Prediction Statistics Audit (Requirement 8)
   let previousDayStats: PreviousDayStats | undefined;
   if (n >= 4) {
-    const prevBar = bars[n - 2];
-    const prevPrevBar = bars[n - 3];
-    const prevFeats = extractFeatureVector(bars, n - 3);
-    const prevPredRet = predictReturnFromFeatures(weights, prevFeats);
-    const prevPredPrice = Number((prevPrevBar.close * (1 + prevPredRet)).toFixed(2));
-    const prevDailyVol = Math.max(0.006, (prevPrevBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
-    const prevBand = qNorm * prevPrevBar.close * prevDailyVol * volMultiplier;
+    const targetAuditedBar = bars[n - 1];
+    const priorBaseBar = bars[n - 2];
+
+    // Train walk-forward ensemble strictly without access to the audited target bar
+    const walkForwardModel = fitEnsembleModel(bars, trainStart, n - 2);
+    const prevPredRet = predictEnsembleReturn(walkForwardModel, bars, n - 2, true);
+    const prevPredPrice = Number((priorBaseBar.close * (1 + prevPredRet)).toFixed(2));
+
+    const prevDailyVol = Math.max(0.006, (priorBaseBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
+    const prevBand = qNorm * priorBaseBar.close * prevDailyVol * volMultiplier;
     const prevLower = Number((prevPredPrice - prevBand).toFixed(2));
     const prevUpper = Number((prevPredPrice + prevBand).toFixed(2));
-    const prevHit = prevBar.close >= prevLower && prevBar.close <= prevUpper;
-    const errAbs = Number(Math.abs(prevBar.close - prevPredPrice).toFixed(2));
-    const errPct = Number(((errAbs / prevBar.close) * 100).toFixed(2));
+    const prevHit = targetAuditedBar.close >= prevLower && targetAuditedBar.close <= prevUpper;
+    const errAbs = Number(Math.abs(targetAuditedBar.close - prevPredPrice).toFixed(2));
+    const errPct = Number(((errAbs / targetAuditedBar.close) * 100).toFixed(2));
 
     const trailing5DayHits: PreviousDayStats['trailing5DayHits'] = [];
-    const trailStart = Math.max(2, n - 7);
-    for (let k = trailStart; k < n - 1; k++) {
+    const trailStart = Math.max(1, n - 6);
+    for (let k = trailStart; k < n; k++) {
       const bTarget = bars[k];
       const bBase = bars[k - 1];
-      const fVec = extractFeatureVector(bars, k - 1);
-      const ret = predictReturnFromFeatures(weights, fVec);
+      const stepModel = fitEnsembleModel(bars, trainStart, Math.max(2, k - 1));
+      const ret = predictEnsembleReturn(stepModel, bars, k - 1, true);
       const pPrice = Number((bBase.close * (1 + ret)).toFixed(2));
       const dVol = Math.max(0.006, (bBase.volatility20 || 0.18) * Math.sqrt(1 / 252));
-      const bWidth = qNorm * bBase.close * dVol;
+      const bWidth = qNorm * bBase.close * dVol * volMultiplier;
       const lB = Number((pPrice - bWidth).toFixed(2));
       const uB = Number((pPrice + bWidth).toFixed(2));
       const isHit = bTarget.close >= lB && bTarget.close <= uB;
@@ -281,11 +288,11 @@ export function runConformalPrediction(
     }
 
     previousDayStats = {
-      previousDate: prevBar.date,
-      previousClose: prevBar.close,
-      previousHigh: prevBar.high,
-      previousLow: prevBar.low,
-      previousOpen: prevBar.open,
+      previousDate: targetAuditedBar.date,
+      previousClose: targetAuditedBar.close,
+      previousHigh: targetAuditedBar.high,
+      previousLow: targetAuditedBar.low,
+      previousOpen: targetAuditedBar.open,
       predictedClose: prevPredPrice,
       lowerBound: prevLower,
       upperBound: prevUpper,
@@ -293,7 +300,7 @@ export function runConformalPrediction(
       hit: prevHit,
       errorAbsolute: errAbs,
       errorPercent: errPct,
-      actualReturnPercent: Number((((prevBar.close - prevPrevBar.close) / prevPrevBar.close) * 100).toFixed(2)),
+      actualReturnPercent: Number((((targetAuditedBar.close - priorBaseBar.close) / priorBaseBar.close) * 100).toFixed(2)),
       predictedReturnPercent: Number((prevPredRet * 100).toFixed(2)),
       trailing5DayHits
     };
@@ -365,7 +372,7 @@ export function runConformalPrediction(
     intervalWidth,
     intervalWidthPercent,
     horizonDays: safeHorizon,
-    modelVersion: 'alphaquant-ridge-regression-v1.0',
+    modelVersion: 'alphaquant-ensemble-v2.0 (Recency-Weighted Ridge + Boosting Stumps + Adaptive Residual Feedback)',
     predictionTimestamp: new Date().toISOString(),
     topFeatures,
     methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,

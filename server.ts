@@ -627,7 +627,7 @@ app.get('/api/model/health', async (req: Request, res: Response) => {
       directionalAccuracy: evalMetrics.directionalAccuracy,
       lastAuditTimestamp: new Date().toISOString(),
       regimeModel: 'Rule-Based Regime Classifier (Trend & Volatility States)',
-      predictionEngine: 'AlphaQuant Ridge Regression (8 Technical Features) with Split-Conformal Intervals',
+      predictionEngine: 'AlphaQuant Ensemble v2.0 (Recency-Weighted Ridge + Boosting Stumps + Adaptive Residual Feedback)',
       driftDetector: 'Two-Sample Kolmogorov-Smirnov (p-threshold: 0.05)'
     });
   } catch (error: any) {

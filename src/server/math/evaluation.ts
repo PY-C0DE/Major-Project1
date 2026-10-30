@@ -7,7 +7,13 @@
 
 import { ComputedBar } from './indicators';
 import { ModelEvaluation, BacktestDataPoint, ModelComparisonItem, AssetBreakdownItem } from '../../types';
-import { extractFeatureVector, fitRidgeRegression, predictReturnFromFeatures } from './modelEngine';
+import {
+  extractFeatureVector,
+  fitRidgeRegression,
+  predictReturnFromFeatures,
+  fitEnsembleModel,
+  predictEnsembleReturn
+} from './modelEngine';
 
 export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEvaluation {
   const n = bars.length;
@@ -15,21 +21,9 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
   const testSize = Math.min(45, Math.floor(n * 0.3));
   const testStartIndex = n - testSize;
 
-  // 1. Train multi-factor model strictly on historical bars prior to test set
+  // 1. Train multi-factor ensemble model strictly on historical bars prior to test set
   const trainStart = Math.min(25, Math.floor(testStartIndex * 0.2));
-  const Xtrain: number[][] = [];
-  const ytrain: number[] = [];
-
-  for (let i = trainStart; i < testStartIndex; i++) {
-    const prevClose = bars[i - 1].close;
-    if (prevClose <= 0) continue;
-    const features = extractFeatureVector(bars, i - 1);
-    const actualReturn = (bars[i].close - prevClose) / prevClose;
-    Xtrain.push(features);
-    ytrain.push(actualReturn);
-  }
-
-  const modelWeights = fitRidgeRegression(Xtrain, ytrain, 0.05);
+  const ensembleModel = fitEnsembleModel(bars, trainStart, testStartIndex - 1);
 
   // Train plain linear model (univariate OLS on lag-1 return) on training set for honest baseline comparison
   let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0, nPairs = 0;
@@ -56,8 +50,7 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
 
   for (let i = calibStart; i < testStartIndex; i++) {
     const prevClose = bars[i - 1].close;
-    const features = extractFeatureVector(bars, i - 1);
-    const predRet = predictReturnFromFeatures(modelWeights, features);
+    const predRet = predictEnsembleReturn(ensembleModel, bars, i - 1, true);
     const predPrice = prevClose * (1 + predRet);
     const residual = Math.abs(bars[i].close - predPrice);
     const dailyVol = Math.max(0.006, (bars[i - 1].volatility20 || 0.18) * Math.sqrt(1 / 252));
@@ -103,9 +96,8 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
     const prevClose = prevBar.close;
     const actual = currBar.close;
 
-    // Time-series one-step-ahead prediction using features available AT i-1
-    const features = extractFeatureVector(bars, i - 1);
-    const predictedReturn = predictReturnFromFeatures(modelWeights, features);
+    // Time-series one-step-ahead prediction using ensemble features available AT i-1
+    const predictedReturn = predictEnsembleReturn(ensembleModel, bars, i - 1, true);
     const predicted = Number((prevClose * (1 + predictedReturn)).toFixed(2));
 
     const absErr = Math.abs(actual - predicted);
@@ -234,7 +226,7 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
 
   return {
     ticker,
-    modelName: 'AlphaQuant Ridge Regression (8 Technical Factors)',
+    modelName: 'AlphaQuant Ensemble v2.0 (Recency-Weighted Ridge + Boosting Stumps + Residual Feedback)',
     horizonDays: 1,
     mae,
     rmse,
