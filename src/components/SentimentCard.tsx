@@ -42,18 +42,35 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
   const avgNeg = Math.round((totalNeg / count) * 100);
   const avgVerif = Math.round((totalVerif / count) * 100);
 
+  const liveArticles = news.filter(item => item.isLive);
+  const baselineArticles = news.filter(item => !item.isLive);
+  const hasLive = liveArticles.length > 0;
+
+  const [showAll, setShowAll] = React.useState(false);
+  const displayedNews = showAll ? news.slice(0, 8) : news.slice(0, 4);
+
   return (
     <div className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 sm:p-5 lg:p-6 relative overflow-hidden shadow-xs hover:shadow-sm transition-all">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200/90 dark:border-indigo-500/20 text-indigo-600 dark:text-indigo-400">
             <Newspaper className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Sentiment & Credibility</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Sentiment & Credibility</h3>
+              {hasLive && (
+                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  REAL-TIME LIVE NEWS
+                </span>
+              )}
+            </div>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              Keyword Sentiment Lexicon · Domain Reputation Scoring
+              {hasLive
+                ? `${liveArticles.length} Live Articles · ${baselineArticles.length} Fundamental Baselines`
+                : 'Keyword Sentiment Lexicon · Domain Reputation Scoring'}
             </span>
           </div>
         </div>
@@ -67,8 +84,8 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
       {/* Aggregate Tone Breakdown */}
       <div className="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-lg mb-4">
         <div className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
-          <span>Aggregated News Sentiment Tone</span>
-          <span className="text-slate-400 text-[10px]">Keyword Lexicon</span>
+          <span>Aggregated Sentiment Tone (Live + Baseline Hybrid)</span>
+          <span className="text-slate-400 text-[10px]">FinBERT Lexicon</span>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
@@ -87,13 +104,21 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
         </div>
       </div>
 
-      {/* Recent Verified Headlines */}
+      {/* Recent Headlines (Live Breaking News + Foundational Templates) */}
       <div className="space-y-2.5">
-        <div className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 tracking-wider">
-          Recent Financial Disclosures & Verification
+        <div className="flex items-center justify-between text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+          <span>Financial Disclosures & Live Verifications</span>
+          {news.length > 4 && (
+            <button
+              onClick={() => setShowAll(!showAll)}
+              className="text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer lowercase"
+            >
+              {showAll ? 'show fewer' : `+${news.length - 4} more`}
+            </button>
+          )}
         </div>
 
-        {news.slice(0, 3).map(item => (
+        {displayedNews.map(item => (
           <div
             key={item.id}
             className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
@@ -111,7 +136,16 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
             </div>
 
             {/* Zero-pill metadata line with typographic separators */}
-            <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500 font-mono">
+            <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500 font-mono flex-wrap">
+              {item.isLive ? (
+                <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  LIVE
+                </span>
+              ) : (
+                <span className="px-1 py-0.2 rounded text-[9px] text-slate-500 bg-slate-200/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
+                  BASELINE
+                </span>
+              )}
               <span className="text-slate-600 dark:text-slate-400 font-medium">{item.source}</span>
               <span aria-hidden="true">·</span>
               <span

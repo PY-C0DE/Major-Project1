@@ -4,6 +4,7 @@
  */
 
 import { NewsItem, ClassifiedFinancialEvent } from '../../types';
+import { fetchLiveNewsForTicker } from '../services/liveNewsService';
 
 // Financial Sentiment Lexicon & Markers
 const POSITIVE_MARKERS = [
@@ -189,9 +190,93 @@ export function getNewsForTicker(ticker: string, companyName: string): NewsItem[
       confidence: tone.confidence,
       factCheckStatus: verification.factCheckStatus,
       verificationScore: verification.verificationScore,
-      sourceCredibility: verification.sourceCredibility
+      sourceCredibility: verification.sourceCredibility,
+      isLive: false
     };
   });
+}
+
+export interface HybridNewsResult {
+  news: NewsItem[];
+  liveCount: number;
+  baselineCount: number;
+  liveSentimentScore: number;
+  baselineSentimentScore: number;
+  blendedSentimentScore: number;
+  topLiveHeadline?: string;
+  topLiveSource?: string;
+}
+
+/**
+ * Fetches real-time live news and merges it with the baseline template engine
+ * to create a hybrid prediction feature and feed.
+ */
+export async function getHybridNewsForTicker(ticker: string, companyName: string): Promise<HybridNewsResult> {
+  const baselineNews = getNewsForTicker(ticker, companyName);
+  const baselineScore = baselineNews.reduce((acc, n) => acc + n.sentimentScore, 0) / (baselineNews.length || 1);
+
+  let rawLive: any[] = [];
+  try {
+    rawLive = await fetchLiveNewsForTicker(ticker, companyName);
+  } catch (err) {
+    console.error(`Live news fetch failed for ${ticker}, using baseline mechanism:`, err);
+  }
+
+  if (!rawLive || rawLive.length === 0) {
+    return {
+      news: baselineNews,
+      liveCount: 0,
+      baselineCount: baselineNews.length,
+      liveSentimentScore: baselineScore,
+      baselineSentimentScore: baselineScore,
+      blendedSentimentScore: baselineScore,
+      topLiveHeadline: undefined,
+      topLiveSource: undefined
+    };
+  }
+
+  const liveNewsItems: NewsItem[] = rawLive.map((item, idx) => {
+    const tone = analyzeFinBERTTone(item.title, item.summary);
+    const verification = verifyNewsItem(item.title, item.source);
+
+    return {
+      id: `live-news-${ticker}-${idx + 1}`,
+      ticker,
+      headline: item.title,
+      summary: item.summary,
+      source: item.source,
+      url: item.url,
+      publishedAt: item.publishedAt,
+      sentiment: tone.sentiment,
+      sentimentScore: tone.sentimentScore,
+      probabilities: tone.probabilities,
+      confidence: tone.confidence,
+      factCheckStatus: verification.factCheckStatus,
+      verificationScore: verification.verificationScore,
+      sourceCredibility: verification.sourceCredibility,
+      isLive: true
+    };
+  });
+
+  const liveScore = liveNewsItems.reduce((acc, n) => acc + n.sentimentScore, 0) / (liveNewsItems.length || 1);
+
+  // Blended hybrid score: 70% live real-time sentiment + 30% baseline template sentiment (or 50/50 if fewer than 3 live items)
+  const liveWeight = liveNewsItems.length >= 3 ? 0.70 : liveNewsItems.length > 0 ? 0.50 : 0.0;
+  const blendedScore = Number((liveWeight * liveScore + (1 - liveWeight) * baselineScore).toFixed(3));
+
+  // Merge live items with foundational baseline items (top 2 baseline items appended for fundamental context)
+  const combinedNews = [...liveNewsItems, ...baselineNews.slice(0, 2)];
+
+  return {
+    news: combinedNews,
+    liveCount: liveNewsItems.length,
+    baselineCount: baselineNews.length,
+    liveSentimentScore: Number(liveScore.toFixed(3)),
+    baselineSentimentScore: Number(baselineScore.toFixed(3)),
+    blendedSentimentScore: blendedScore,
+    topLiveHeadline: liveNewsItems[0]?.headline,
+    topLiveSource: liveNewsItems[0]?.source
+  };
 }
 
 /**
@@ -322,12 +407,40 @@ export function classifyFinancialEvent(title: string, summary: string): {
 }
 
 /**
- * Generates verified classified financial events for a given ticker
+ * Generates verified classified financial events for a given ticker,
+ * dynamically extracting events from live breaking news and blending with fundamental templates.
  */
-export function getClassifiedEventsForTicker(ticker: string, companyName: string): ClassifiedFinancialEvent[] {
+export function getClassifiedEventsForTicker(
+  ticker: string,
+  companyName: string,
+  liveArticles?: NewsItem[]
+): ClassifiedFinancialEvent[] {
   const clean = ticker.replace('.NS', '').replace('.BO', '');
-  const now = Date.now();
+  const events: ClassifiedFinancialEvent[] = [];
 
+  // 1. Extract classified events from real-time live news articles if available
+  if (liveArticles && liveArticles.length > 0) {
+    liveArticles.forEach((art, idx) => {
+      const classification = classifyFinancialEvent(art.headline, art.summary);
+      // Include non-generic events or any event with significant price effect
+      if (Math.abs(classification.predictedPriceEffectPct) >= 1.5 || art.isLive) {
+        events.push({
+          id: `live-event-${ticker}-${idx + 1}`,
+          title: art.headline,
+          summary: art.summary,
+          category: classification.category,
+          eventImpact: classification.eventImpact,
+          predictedPriceEffectPct: classification.predictedPriceEffectPct,
+          confidenceScore: classification.confidenceScore,
+          source: `${art.source} (Live)`,
+          timeAgo: 'Live Breaking',
+          incorporationInModel: `${classification.incorporationInModel} [Live real-time news feed]`
+        });
+      }
+    });
+  }
+
+  // 2. Foundational baseline events (the existing baseline mechanism)
   const rawEvents = [
     {
       title: `${companyName} Finalizes Strategic Acquisition of AI Cloud Infrastructure Assets in $1.4B Deal`,
@@ -355,7 +468,7 @@ export function getClassifiedEventsForTicker(ticker: string, companyName: string
     }
   ];
 
-  return rawEvents.map((ev, idx) => {
+  const baselineClassified = rawEvents.map((ev, idx) => {
     const classification = classifyFinancialEvent(ev.title, ev.summary);
     return {
       id: `event-${ticker}-${idx + 1}`,
@@ -370,10 +483,13 @@ export function getClassifiedEventsForTicker(ticker: string, companyName: string
       incorporationInModel: classification.incorporationInModel
     };
   });
+
+  // Blend live events at the top, followed by baseline events (up to 4 total)
+  return [...events.slice(0, 3), ...baselineClassified].slice(0, 5);
 }
 
 /**
- * Returns a live collection of market-wide real-time news headlines for the auto-scrolling ticker
+ * Returns a collection of market-wide real-time news headlines for the auto-scrolling ticker
  */
 export function getAllMarketHeadlines(): NewsItem[] {
   const sampleTickers = ['NVDA', 'RELIANCE.NS', 'AAPL', 'TCS.NS', 'MSFT', 'HDFCBANK.NS', 'GOOGL', 'TSLA'];
@@ -388,5 +504,26 @@ export function getAllMarketHeadlines(): NewsItem[] {
   });
 
   return all;
+}
+
+/**
+ * Asynchronously returns real-time market headlines for the top tickers
+ */
+export async function getAllMarketHeadlinesAsync(): Promise<NewsItem[]> {
+  const sampleTickers = ['NVDA', 'TATAMOTORS.NS', 'RELIANCE.NS', 'AAPL', 'TCS.NS', 'MSFT', 'GOOGL', 'TSLA'];
+  const all: NewsItem[] = [];
+
+  const results = await Promise.allSettled(
+    sampleTickers.map(t => getHybridNewsForTicker(t, t.replace('.NS', '')))
+  );
+
+  results.forEach(res => {
+    if (res.status === 'fulfilled' && res.value.news.length > 0) {
+      all.push(res.value.news[0]);
+      if (res.value.news[1]) all.push(res.value.news[1]);
+    }
+  });
+
+  return all.length > 0 ? all : getAllMarketHeadlines();
 }
 

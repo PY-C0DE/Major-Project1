@@ -70,6 +70,19 @@ export interface FeatureContribution {
   description: string;
 }
 
+export interface LiveNewsMeta {
+  isLive: boolean;
+  liveArticlesCount: number;
+  baselineArticlesCount: number;
+  liveSentimentScore: number;
+  baselineSentimentScore: number;
+  blendedSentimentScore: number;
+  topLiveHeadline?: string;
+  topLiveSource?: string;
+  newsDriftImpactPct: number;
+  lastLiveFetchTimestamp: string;
+}
+
 export interface ConformalPrediction {
   ticker: string;
   currentPrice: number;
@@ -93,6 +106,7 @@ export interface ConformalPrediction {
   previousDayStats?: PreviousDayStats;
   classifiedEvents?: ClassifiedFinancialEvent[];
   decisionSignal?: DecisionSignal;
+  liveNewsMeta?: LiveNewsMeta;
 }
 
 export interface EquityCurvePoint {
@@ -177,6 +191,7 @@ export interface NewsItem {
   factCheckStatus: 'Verified' | 'Partially Verified' | 'Unverified' | 'Contradicted' | 'No Fact Check Found';
   verificationScore: number; // 0 to 1
   sourceCredibility: number; // 0 to 1
+  isLive?: boolean;
 }
 
 export interface FeatureDriftItem {
@@ -348,11 +363,57 @@ export interface WatchlistItem {
   driftStatus: 'Healthy' | 'Drift Detected';
 }
 
+export interface WatchlistPulseItem {
+  id: string;
+  ticker: string;
+  companyName: string;
+  headline: string;
+  summary: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  sentimentScore: number;
+  confidence: number;
+  isLive: boolean;
+  price?: number;
+  changePercent?: number;
+}
+
+export interface WatchlistMarketMood {
+  overallScore: number;
+  marketMoodLabel: 'Strongly Bullish' | 'Bullish Bias' | 'Neutral Market' | 'Cautious / Bearish' | 'Strong Bearish Pressure';
+  bullishPct: number;
+  neutralPct: number;
+  bearishPct: number;
+  totalAssets: number;
+  liveArticlesCount: number;
+  lastUpdated: string;
+}
+
+export interface WatchlistPulseResponse {
+  mood: WatchlistMarketMood;
+  items: WatchlistPulseItem[];
+}
+
 export interface AlertRule {
   id: string;
   ticker: string;
-  type: 'price_above' | 'price_below' | 'regime_shift' | 'drift_detected' | 'interval_widening' | 'sentiment_shift';
+  type:
+    | 'price_above'
+    | 'price_below'
+    | 'percentage_change'
+    | 'regime_shift'
+    | 'drift_detected'
+    | 'interval_widening'
+    | 'sentiment_shift'
+    | 'var_exceeded'
+    | 'volatility_spike'
+    | 'rsi_cross';
   threshold?: number;
+  percentChangeThreshold?: number;
+  direction?: 'above' | 'below';
+  basePrice?: number;
   label: string;
   enabled: boolean;
   createdAt: string;
@@ -362,6 +423,23 @@ export interface AlertRule {
   pushEnabled?: boolean;
   emailEnabled?: boolean;
   driftThresholdPct?: number;
+  // Risk-based Alert Fields
+  varConfidenceLevel?: number; // 95 or 99 (%)
+  varHorizonDays?: number;     // 1, 5, or 10 days
+  varThresholdPct?: number;    // e.g. 3.5 (%)
+  varThresholdDollar?: number; // e.g. $1,500
+  varMetric?: 'parametric' | 'historical' | 'monte_carlo';
+  volatilityThresholdPct?: number; // e.g. 32.0 (%)
+  volatilityLookbackDays?: number; // 20, 30, or 60 days
+  volatilityMetric?: 'annualized' | 'parkinson' | 'atr_pct';
+  riskCategory?: 'Value-at-Risk (VaR)' | 'Volatility Surge' | 'Price & Technical' | 'Model & Drift' | 'RSI Momentum';
+  riskSeverity?: 'Warning' | 'High Risk' | 'Critical Tail Risk';
+  currentMetricValue?: number; // Live asset metric value for comparison
+  // RSI Technical Momentum Fields
+  rsiThreshold?: number;       // e.g. 30 or 70
+  rsiCondition?: 'oversold_30' | 'overbought_70' | 'cross_below' | 'cross_above' | 'custom';
+  rsiPeriod?: number;          // Default 14
+  currentRsiValue?: number;    // Live 14-period RSI
 }
 
 export interface UserProfile {
@@ -398,6 +476,47 @@ export interface ProjectWideAccuracyResult {
   conformalCoveragePct: number;
   benchmark: string;
   evaluatedAt: string;
+}
+
+export interface HistoricalEarningsQuarter {
+  quarter: string;          // e.g. "Q2 FY27", "Q1 FY27"
+  date: string;             // ISO date string e.g. "2026-08-28"
+  estimatedEPS: number;     // e.g. 0.64
+  actualEPS: number;        // e.g. 0.68
+  surprisePct: number;      // e.g. +6.25%
+  outcome: 'BEAT' | 'MISS' | 'INLINE';
+  revenueEstimated: string; // formatted e.g. "$28.7B" or "₹64,200 Cr"
+  revenueActual: string;    // formatted e.g. "$30.0B" or "₹64,988 Cr"
+  postEarningsMovePct: number; // e.g. +2.1%
+}
+
+export interface EarningsCalendarItem {
+  ticker: string;
+  companyName: string;
+  sector: string;
+  currency: 'INR' | 'USD';
+  currSym: string;
+  currentPrice: number;
+  reportDate: string;           // ISO date string e.g. "2026-11-20"
+  reportDateFormatted: string;  // e.g. "Nov 20, 2026"
+  daysUntilReport: number;      // e.g. 17
+  session: 'BMO' | 'AMC' | 'DURING'; // Before Market Open, After Market Close, During Market
+  fiscalPeriod: string;         // e.g. "Q3 FY27"
+  isConfirmed: boolean;
+  estimatedEPS: number;         // Consensus EPS estimate e.g. 0.75
+  estimatedEPSLow: number;      // Low estimate
+  estimatedEPSHigh: number;     // High estimate
+  yoyEPSGrowthPct: number;      // e.g. +87.5%
+  estimatedRevenue: string;     // e.g. "$33.15B"
+  yoyRevenueGrowthPct: number;  // e.g. +83.0%
+  analystCount: number;         // e.g. 38
+  impliedStraddleMovePct: number; // Options implied 1-day move e.g. 7.8%
+  historicalQuarters: HistoricalEarningsQuarter[];
+  beatRatePct: number;          // e.g. 100%
+  averageSurprisePct: number;   // e.g. +10.9%
+  consecutiveBeats: number;     // e.g. 4
+  keyFocusThemes: string[];     // e.g. ["Blackwell Architecture Ramp"]
+  inWatchlist?: boolean;
 }
 
 export interface OptionContract {
@@ -476,6 +595,42 @@ export interface BrokerOrder {
   createdAt: string;
   routingVenue: string;
   commission: number;
+}
+
+export interface TradePnLPoint {
+  timestamp: string;
+  pnl: number;
+  pnlPct: number;
+  price: number;
+}
+
+export interface BrokerTrade {
+  id: string;
+  orderId: string;
+  ticker: string;
+  companyName: string;
+  side: 'BUY' | 'SELL';
+  qty: number;
+  entryPrice: number;
+  exitPrice: number; // For closed trades: realized exit price; for open trades: current market price
+  entryDate: string;
+  exitDate?: string;
+  status: 'OPEN' | 'CLOSED' | 'PENDING';
+  realizedPnL?: number;
+  realizedPnLPercent?: number;
+  unrealizedPnL?: number;
+  unrealizedPnLPercent?: number;
+  currentPrice?: number;
+  orderType: 'MARKET' | 'LIMIT';
+  routingVenue: string;
+  commission: number;
+  stopLossPrice?: number;
+  takeProfitPrice?: number;
+  notes?: string;
+  pnlTrajectory?: TradePnLPoint[];
+  sector?: string;
+  assetClass?: string;
+  currency?: string;
 }
 
 export interface BrokerAccount {

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { PortfolioHolding } from '../types';
 import { api } from '../services/api';
+import { exportTradesToCSV } from '../utils/tradeExport';
 
 interface PortfolioImportExportModalProps {
   isOpen: boolean;
@@ -283,19 +284,35 @@ export const PortfolioImportExportModal: React.FC<PortfolioImportExportModalProp
                   Download or copy your complete portfolio with live market valuations, cost basis, and profit metrics.
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <button
                     onClick={handleExportCSV}
-                    className="flex flex-col items-center justify-center p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-sm transition-all group"
+                    className="flex flex-col items-center justify-center p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-sm transition-all group cursor-pointer"
                   >
                     <FileSpreadsheet className="w-8 h-8 text-emerald-600 dark:text-emerald-400 mb-2 group-hover:scale-110 transition-transform" />
-                    <span className="text-xs font-bold text-slate-900 dark:text-white">Download CSV</span>
-                    <span className="text-[10px] text-slate-400 mt-0.5">Spreadsheet compatible</span>
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">Holdings CSV</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">Active positions</span>
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      try {
+                        const trades = await api.getBrokerTrades().catch(() => []);
+                        exportTradesToCSV(trades);
+                      } catch (err) {
+                        console.error('Failed to export trades CSV:', err);
+                      }
+                    }}
+                    className="flex flex-col items-center justify-center p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 hover:shadow-sm transition-all group cursor-pointer"
+                  >
+                    <FileText className="w-8 h-8 text-cyan-600 dark:text-cyan-400 mb-2 group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">Trades CSV</span>
+                    <span className="text-[10px] text-slate-400 mt-0.5">Transaction blotter</span>
                   </button>
 
                   <button
                     onClick={handleExportJSON}
-                    className="flex flex-col items-center justify-center p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-sm transition-all group"
+                    className="flex flex-col items-center justify-center p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-sm transition-all group cursor-pointer"
                   >
                     <FileText className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mb-2 group-hover:scale-110 transition-transform" />
                     <span className="text-xs font-bold text-slate-900 dark:text-white">Download JSON</span>
@@ -304,7 +321,7 @@ export const PortfolioImportExportModal: React.FC<PortfolioImportExportModalProp
 
                   <button
                     onClick={handleCopyJSON}
-                    className="flex flex-col items-center justify-center p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-sm transition-all group"
+                    className="flex flex-col items-center justify-center p-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-500 hover:shadow-sm transition-all group cursor-pointer"
                   >
                     {copied ? (
                       <Check className="w-8 h-8 text-emerald-600 dark:text-emerald-400 mb-2" />

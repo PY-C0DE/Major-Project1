@@ -32,7 +32,13 @@ import {
   Maximize2,
   ExternalLink,
   PlusCircle,
-  HelpCircle
+  HelpCircle,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Move,
+  Target,
+  Grid
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { PortfolioHolding, CorrelationAsset, CorrelationMatrixData } from '../types';
@@ -53,6 +59,16 @@ type ColorScheme = 'risk' | 'cool' | 'bipolar';
 type SortMode = 'weight' | 'alphabetical' | 'cluster';
 type FilterMode = 'all' | 'high_risk' | 'diversifiers' | 'hedges';
 type LookbackWindow = '30D' | '60D' | '90D' | '180D' | '1Y';
+
+export interface DetectedCluster {
+  id: string;
+  name: string;
+  description: string;
+  tickers: string[];
+  indices: number[];
+  avgCorrelation: number;
+  type: 'high_risk' | 'moderate' | 'diversifier' | 'hedging';
+}
 
 interface HoveredCellData {
   rowTicker: string;
@@ -86,6 +102,13 @@ export const PortfolioCorrelation: React.FC<Props> = ({
   const [showValues, setShowValues] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(false);
   const [copiedCsv, setCopiedCsv] = useState<boolean>(false);
+
+  // Zoom and Pan State
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [zoomTransform, setZoomTransform] = useState<{ k: number; x: number; y: number }>({ k: 1, x: 0, y: 0 });
+  const [activeClusterId, setActiveClusterId] = useState<string | null>(null);
+  const [showMinimap, setShowMinimap] = useState<boolean>(true);
+  const zoomBehaviorRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   // Active matrix data
   const [matrixData, setMatrixData] = useState<{
@@ -333,6 +356,212 @@ export const PortfolioCorrelation: React.FC<Props> = ({
     };
   }, [orderedTickers, orderedMatrix]);
 
+  // Layout Dimensions Memo
+  const layoutDims = useMemo(() => {
+    const n = Math.max(1, orderedTickers.length);
+    const maxLabelLen = Math.max(...orderedTickers.map(t => t.length), 4);
+    const leftMargin = Math.min(130, Math.max(75, maxLabelLen * 8.5 + 20));
+    const topMargin = Math.min(120, Math.max(70, maxLabelLen * 7 + 25));
+    const rightMargin = 30;
+    const bottomMargin = 45;
+
+    const availableWidth = containerWidth - leftMargin - rightMargin;
+    const maxCellSize = 64;
+    const minCellSize = 34;
+    let cellSize = Math.floor(availableWidth / n);
+    cellSize = Math.max(minCellSize, Math.min(maxCellSize, cellSize));
+
+    const gridWidth = cellSize * n;
+    const gridHeight = cellSize * n;
+    const totalSvgWidth = gridWidth + leftMargin + rightMargin;
+    const totalSvgHeight = gridHeight + topMargin + bottomMargin + 25;
+
+    return {
+      leftMargin,
+      topMargin,
+      rightMargin,
+      bottomMargin,
+      cellSize,
+      gridWidth,
+      gridHeight,
+      totalSvgWidth,
+      totalSvgHeight
+    };
+  }, [orderedTickers, containerWidth]);
+
+  // Detected Correlation Clusters for focused zooming & analysis
+  const detectedClusters = useMemo<DetectedCluster[]>(() => {
+    if (!orderedTickers.length || !orderedMatrix.length || orderedTickers.length < 2) {
+      return [];
+    }
+    const n = orderedTickers.length;
+    const clusters: DetectedCluster[] = [];
+
+    // 1. High Co-movement Cluster (assets with mutual R >= 0.65)
+    const highRiskIndices: number[] = [];
+    for (let i = 0; i < n; i++) {
+      let hasHigh = false;
+      for (let j = 0; j < n; j++) {
+        if (i !== j && orderedMatrix[i][j] >= 0.65) {
+          hasHigh = true;
+          break;
+        }
+      }
+      if (hasHigh) highRiskIndices.push(i);
+    }
+
+    if (highRiskIndices.length >= 2) {
+      let sumR = 0;
+      let count = 0;
+      for (let a = 0; a < highRiskIndices.length; a++) {
+        for (let b = a + 1; b < highRiskIndices.length; b++) {
+          sumR += orderedMatrix[highRiskIndices[a]][highRiskIndices[b]];
+          count++;
+        }
+      }
+      const avgR = count > 0 ? Number((sumR / count).toFixed(2)) : 0.75;
+      clusters.push({
+        id: 'cluster-high-risk',
+        name: 'High Co-Movement Cluster',
+        description: `Group of ${highRiskIndices.length} assets with strong systemic co-movement (Avg R: ${avgR > 0 ? `+${avgR}` : avgR})`,
+        tickers: highRiskIndices.map(i => orderedTickers[i]),
+        indices: highRiskIndices,
+        avgCorrelation: avgR,
+        type: 'high_risk'
+      });
+    }
+
+    // 2. Diversification Cluster (assets with low average correlation < 0.35)
+    const divIndices: number[] = [];
+    for (let i = 0; i < n; i++) {
+      let sumForI = 0;
+      for (let j = 0; j < n; j++) {
+        if (i !== j) sumForI += orderedMatrix[i][j];
+      }
+      const avgForI = sumForI / Math.max(1, n - 1);
+      if (avgForI < 0.35) divIndices.push(i);
+    }
+
+    if (divIndices.length >= 2) {
+      let sumR = 0;
+      let count = 0;
+      for (let a = 0; a < divIndices.length; a++) {
+        for (let b = a + 1; b < divIndices.length; b++) {
+          sumR += orderedMatrix[divIndices[a]][divIndices[b]];
+          count++;
+        }
+      }
+      const avgR = count > 0 ? Number((sumR / count).toFixed(2)) : 0.15;
+      clusters.push({
+        id: 'cluster-diversifiers',
+        name: 'Optimal Diversifiers',
+        description: `${divIndices.length} low-correlation assets offering variance reduction (Avg R: ${avgR > 0 ? `+${avgR}` : avgR})`,
+        tickers: divIndices.map(i => orderedTickers[i]),
+        indices: divIndices,
+        avgCorrelation: avgR,
+        type: 'diversifier'
+      });
+    }
+
+    // 3. Contiguous Diagonal Blocks
+    let blockStart = 0;
+    while (blockStart < n - 1) {
+      let blockEnd = blockStart;
+      while (blockEnd + 1 < n && orderedMatrix[blockEnd][blockEnd + 1] >= 0.50) {
+        blockEnd++;
+      }
+      if (blockEnd - blockStart >= 1) {
+        const blockIndices: number[] = [];
+        for (let k = blockStart; k <= blockEnd; k++) blockIndices.push(k);
+        const tickersInBlock = blockIndices.map(k => orderedTickers[k]);
+
+        let sumR = 0;
+        let count = 0;
+        for (let a = blockStart; a <= blockEnd; a++) {
+          for (let b = a + 1; b <= blockEnd; b++) {
+            sumR += orderedMatrix[a][b];
+            count++;
+          }
+        }
+        const avgR = count > 0 ? Number((sumR / count).toFixed(2)) : orderedMatrix[blockStart][blockEnd];
+        const id = `diag-block-${blockStart}-${blockEnd}`;
+
+        if (!clusters.some(c => c.indices.length === blockIndices.length && c.indices.every((val, idx) => val === blockIndices[idx]))) {
+          clusters.push({
+            id,
+            name: `${tickersInBlock.slice(0, 3).join(', ')}${tickersInBlock.length > 3 ? '...' : ''}`,
+            description: `${blockIndices.length} adjacent assets with mutual R ≈ ${avgR > 0 ? `+${avgR}` : avgR}`,
+            tickers: tickersInBlock,
+            indices: blockIndices,
+            avgCorrelation: avgR,
+            type: avgR >= 0.65 ? 'high_risk' : 'moderate'
+          });
+        }
+        blockStart = blockEnd + 1;
+      } else {
+        blockStart++;
+      }
+    }
+
+    return clusters;
+  }, [orderedTickers, orderedMatrix]);
+
+  // Programmatic Zoom & Pan Actions
+  const handleZoomIn = () => {
+    if (!svgRef.current || !zoomBehaviorRef.current) return;
+    d3.select(svgRef.current)
+      .transition()
+      .duration(280)
+      .call(zoomBehaviorRef.current.scaleBy, 1.35);
+  };
+
+  const handleZoomOut = () => {
+    if (!svgRef.current || !zoomBehaviorRef.current) return;
+    d3.select(svgRef.current)
+      .transition()
+      .duration(280)
+      .call(zoomBehaviorRef.current.scaleBy, 0.74);
+  };
+
+  const handleResetZoom = () => {
+    if (!svgRef.current || !zoomBehaviorRef.current) return;
+    setActiveClusterId(null);
+    d3.select(svgRef.current)
+      .transition()
+      .duration(450)
+      .ease(d3.easeCubicOut)
+      .call(zoomBehaviorRef.current.transform, d3.zoomIdentity);
+  };
+
+  const handleFocusCluster = (cluster: DetectedCluster) => {
+    if (!svgRef.current || !zoomBehaviorRef.current || cluster.indices.length === 0) return;
+    setActiveClusterId(cluster.id);
+
+    const { leftMargin, topMargin, cellSize, totalSvgWidth, gridHeight } = layoutDims;
+    const minIdx = Math.min(...cluster.indices);
+    const maxIdx = Math.max(...cluster.indices);
+    const count = maxIdx - minIdx + 1;
+
+    const clusterCenterX = leftMargin + (minIdx + count / 2) * cellSize;
+    const clusterCenterY = topMargin + (minIdx + count / 2) * cellSize;
+    const clusterSpan = Math.max(count * cellSize, cellSize * 2);
+
+    const viewW = totalSvgWidth;
+    const viewH = topMargin + gridHeight;
+
+    const targetK = Math.min(3.6, Math.max(1.35, (viewW * 0.68) / clusterSpan));
+    const targetX = viewW / 2 - clusterCenterX * targetK;
+    const targetY = viewH / 2 - clusterCenterY * targetK;
+
+    const transform = d3.zoomIdentity.translate(targetX, targetY).scale(targetK);
+
+    d3.select(svgRef.current)
+      .transition()
+      .duration(700)
+      .ease(d3.easeCubicOut)
+      .call(zoomBehaviorRef.current.transform, transform);
+  };
+
   // Color Interpolator function based on selected scheme
   const getColor = (r: number, isDiag: boolean): string => {
     if (isDiag) {
@@ -424,7 +653,7 @@ export const PortfolioCorrelation: React.FC<Props> = ({
     return true;
   };
 
-  // Render D3 Heatmap SVG
+  // Render D3 Heatmap SVG with Zoom, Pan & Cluster Bounding
   useEffect(() => {
     if (!svgRef.current || !orderedTickers.length || !orderedMatrix.length) return;
 
@@ -432,26 +661,15 @@ export const PortfolioCorrelation: React.FC<Props> = ({
     svg.selectAll('*').remove();
 
     const n = orderedTickers.length;
-
-    // Dynamic layout margins based on ticker label lengths
-    const maxLabelLen = Math.max(...orderedTickers.map(t => t.length), 4);
-    const leftMargin = Math.min(130, Math.max(75, maxLabelLen * 8.5 + 20));
-    const topMargin = Math.min(120, Math.max(70, maxLabelLen * 7 + 25));
-    const rightMargin = 30;
-    const bottomMargin = 45;
-
-    // Available width and height for matrix grid
-    const availableWidth = containerWidth - leftMargin - rightMargin;
-    // Calculate cell dimension
-    const maxCellSize = 64;
-    const minCellSize = 34;
-    let cellSize = Math.floor(availableWidth / n);
-    cellSize = Math.max(minCellSize, Math.min(maxCellSize, cellSize));
-
-    const gridWidth = cellSize * n;
-    const gridHeight = cellSize * n;
-    const totalSvgWidth = gridWidth + leftMargin + rightMargin;
-    const totalSvgHeight = gridHeight + topMargin + bottomMargin;
+    const {
+      leftMargin,
+      topMargin,
+      cellSize,
+      gridWidth,
+      gridHeight,
+      totalSvgWidth,
+      totalSvgHeight
+    } = layoutDims;
 
     svg
       .attr('width', totalSvgWidth)
@@ -460,8 +678,41 @@ export const PortfolioCorrelation: React.FC<Props> = ({
       .style('max-width', '100%')
       .style('height', 'auto');
 
-    const g = svg
+    // Defs for Clip Path & Linear Gradients
+    const defs = svg.append('defs');
+    const clipId = 'heatmap-viewport-clip';
+    defs
+      .append('clipPath')
+      .attr('id', clipId)
+      .append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', totalSvgWidth)
+      .attr('height', topMargin + gridHeight + 12);
+
+    // Zoomable Viewport Group (clipped so content doesn't bleed into fixed legend)
+    const zoomViewport = svg
       .append('g')
+      .attr('class', 'zoom-viewport')
+      .attr('clip-path', `url(#${clipId})`);
+
+    // Zoom Content Layer (transformed by D3 zoom)
+    const zoomGroup = zoomViewport.append('g').attr('class', 'zoom-content-layer');
+
+    // Pan capture plane
+    zoomGroup
+      .append('rect')
+      .attr('class', 'pan-capture-plane')
+      .attr('x', -gridWidth * 2)
+      .attr('y', -gridHeight * 2)
+      .attr('width', gridWidth * 5 + totalSvgWidth)
+      .attr('height', gridHeight * 5 + totalSvgHeight)
+      .attr('fill', 'transparent');
+
+    // Matrix Group (shifted by margins)
+    const g = zoomGroup
+      .append('g')
+      .attr('class', 'matrix-grid-group')
       .attr('transform', `translate(${leftMargin}, ${topMargin})`);
 
     // Crosshair guide layer (behind cells)
@@ -485,6 +736,53 @@ export const PortfolioCorrelation: React.FC<Props> = ({
       .attr('fill', isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(6, 182, 212, 0.08)')
       .style('opacity', 0)
       .style('pointer-events', 'none');
+
+    // Active Cluster highlight boundary
+    if (activeClusterId) {
+      const cluster = detectedClusters.find(c => c.id === activeClusterId);
+      if (cluster && cluster.indices.length > 0) {
+        const minIdx = Math.min(...cluster.indices);
+        const maxIdx = Math.max(...cluster.indices);
+        const count = maxIdx - minIdx + 1;
+        const bx = minIdx * cellSize;
+        const by = minIdx * cellSize;
+        const bw = count * cellSize;
+        const bh = count * cellSize;
+
+        const clusterG = g.append('g').attr('class', 'active-cluster-boundary');
+        clusterG
+          .append('rect')
+          .attr('x', bx - 3)
+          .attr('y', by - 3)
+          .attr('width', bw + 6)
+          .attr('height', bh + 6)
+          .attr('rx', 6)
+          .attr('fill', 'rgba(6, 182, 212, 0.08)')
+          .attr('stroke', '#06b6d4')
+          .attr('stroke-width', 2.5)
+          .attr('stroke-dasharray', '5,3');
+
+        // Top tag badge
+        clusterG
+          .append('rect')
+          .attr('x', bx)
+          .attr('y', by - 22)
+          .attr('width', Math.min(bw, 190))
+          .attr('height', 18)
+          .attr('rx', 3)
+          .attr('fill', '#06b6d4');
+
+        clusterG
+          .append('text')
+          .attr('x', bx + 6)
+          .attr('y', by - 9)
+          .attr('fill', '#082f49')
+          .attr('font-size', '9.5px')
+          .attr('font-family', 'ui-monospace, monospace')
+          .attr('font-weight', '700')
+          .text(`★ ${cluster.name.slice(0, 24)}`);
+      }
+    }
 
     // Matrix Cells Group
     const cellsGroup = g.append('g').attr('class', 'cells-group');
@@ -621,6 +919,20 @@ export const PortfolioCorrelation: React.FC<Props> = ({
             if (onSelectTicker) {
               onSelectTicker(rowTicker);
             }
+          })
+          .on('dblclick', (event) => {
+            event.stopPropagation();
+            if (!svgRef.current || !zoomBehaviorRef.current) return;
+            // Center and zoom into this cell & its adjacent cluster
+            const targetK = 2.4;
+            const targetX = totalSvgWidth / 2 - (leftMargin + x + cellSize / 2) * targetK;
+            const targetY = (topMargin + gridHeight / 2) - (topMargin + y + cellSize / 2) * targetK;
+            const transform = d3.zoomIdentity.translate(targetX, targetY).scale(targetK);
+            d3.select(svgRef.current)
+              .transition()
+              .duration(600)
+              .ease(d3.easeCubicOut)
+              .call(zoomBehaviorRef.current.transform, transform);
           });
       }
     }
@@ -696,17 +1008,16 @@ export const PortfolioCorrelation: React.FC<Props> = ({
       }
     });
 
-    // Correlation Color Bar Legend at bottom
-    const legendGroup = g
+    // Fixed Bottom Legend Group (appended directly to svg, outside zoom viewport so it stays pinned)
+    const legendGroup = svg
       .append('g')
-      .attr('class', 'legend-group')
-      .attr('transform', `translate(0, ${gridHeight + 18})`);
+      .attr('class', 'fixed-legend-group')
+      .attr('transform', `translate(${leftMargin}, ${topMargin + gridHeight + 20})`);
 
     const legendWidth = Math.min(gridWidth, 320);
     const legendHeight = 10;
 
     // Define Linear Gradient
-    const defs = svg.append('defs');
     const gradId = `legend-gradient-${colorScheme}`;
     defs.selectAll(`#${gradId}`).remove();
 
@@ -800,15 +1111,68 @@ export const PortfolioCorrelation: React.FC<Props> = ({
       .attr('font-weight', '600')
       .text('Co-Moving');
 
+    // Attach D3 Zoom & Pan Behavior
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.65, 4.5])
+      .translateExtent([
+        [-gridWidth * 0.9, -gridHeight * 0.9],
+        [totalSvgWidth + gridWidth * 0.9, totalSvgHeight + gridHeight * 0.9]
+      ])
+      .on('start', () => {
+        svg.style('cursor', 'grabbing');
+      })
+      .on('zoom', (event) => {
+        zoomGroup.attr('transform', event.transform);
+        setZoomTransform({
+          k: event.transform.k,
+          x: event.transform.x,
+          y: event.transform.y
+        });
+        setZoomLevel(Math.round(event.transform.k * 100));
+      })
+      .on('end', () => {
+        svg.style('cursor', 'grab');
+      });
+
+    zoomBehaviorRef.current = zoom;
+    svg.call(zoom);
+    svg.style('cursor', 'grab');
+
+    // Restore existing transform
+    if (zoomTransform.k !== 1 || zoomTransform.x !== 0 || zoomTransform.y !== 0) {
+      const currentTransform = d3.zoomIdentity
+        .translate(zoomTransform.x, zoomTransform.y)
+        .scale(zoomTransform.k);
+      svg.call(zoom.transform, currentTransform);
+    }
+
+    // Double-click to reset or center zoom
+    svg.on('dblclick.zoom', (event) => {
+      event.preventDefault();
+      if (zoomTransform.k > 1.35) {
+        svg.transition().duration(400).ease(d3.easeCubicOut).call(zoom.transform, d3.zoomIdentity);
+        setActiveClusterId(null);
+      } else {
+        const [mx, my] = d3.pointer(event, svgRef.current);
+        const targetK = 2.2;
+        const targetX = totalSvgWidth / 2 - mx * targetK;
+        const targetY = (topMargin + gridHeight / 2) - my * targetK;
+        const transform = d3.zoomIdentity.translate(targetX, targetY).scale(targetK);
+        svg.transition().duration(500).ease(d3.easeCubicOut).call(zoom.transform, transform);
+      }
+    });
+
   }, [
     orderedTickers,
     orderedMatrix,
-    containerWidth,
+    layoutDims,
     colorScheme,
     showValues,
     filterMode,
     isDark,
-    portfolioWeights
+    portfolioWeights,
+    activeClusterId
   ]);
 
   // Export Matrix to CSV
@@ -1162,9 +1526,187 @@ export const PortfolioCorrelation: React.FC<Props> = ({
           </div>
         </div>
 
+        {/* Dedicated Zoom, Pan & Cluster Controls Bar */}
+        <div className="flex items-center justify-between flex-wrap gap-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs">
+          {/* Zoom controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+              <ZoomIn className="w-3.5 h-3.5 text-cyan-500" />
+              <span>Zoom & Pan:</span>
+            </div>
+
+            <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 p-0.5 rounded border border-slate-200 dark:border-slate-800 shadow-xs">
+              <button
+                onClick={handleZoomIn}
+                title="Zoom In (Scroll up or click)"
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleZoomOut}
+                title="Zoom Out (Scroll down or click)"
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+              >
+                <ZoomOut className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleResetZoom}
+                title="Reset Zoom to 100%"
+                className="px-2 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-700 dark:text-slate-300 transition-colors cursor-pointer font-mono text-[11px] flex items-center gap-1"
+              >
+                <RotateCcw className="w-3 h-3 text-cyan-500" />
+                <span className="font-bold">{zoomLevel}%</span>
+              </button>
+            </div>
+
+            {/* Cluster Focus Presets */}
+            {detectedClusters.length > 0 && (
+              <div className="flex items-center gap-1.5 ml-2 flex-wrap">
+                <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1 font-mono">
+                  <Target className="w-3.5 h-3.5 text-amber-500" />
+                  Focus Cluster:
+                </span>
+                {detectedClusters.map((cluster) => {
+                  const isActive = activeClusterId === cluster.id;
+                  const isHighRisk = cluster.type === 'high_risk';
+                  return (
+                    <button
+                      key={cluster.id}
+                      onClick={() => handleFocusCluster(cluster)}
+                      className={`px-2.5 py-1 rounded text-[11px] font-medium transition-all cursor-pointer flex items-center gap-1 border ${
+                        isActive
+                          ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-xs ring-1 ring-cyan-400/50'
+                          : isHighRisk
+                          ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/30'
+                          : 'bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                      }`}
+                      title={cluster.description}
+                    >
+                      <span>{cluster.name}</span>
+                      <span className="font-mono text-[10px] opacity-75">
+                        ({cluster.avgCorrelation > 0 ? `+${cluster.avgCorrelation}` : cluster.avgCorrelation})
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {activeClusterId && (
+                  <button
+                    onClick={handleResetZoom}
+                    className="text-[11px] font-mono text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer ml-1"
+                  >
+                    View All
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Interaction hints */}
+          <div className="flex items-center gap-3 text-[11px] text-slate-400 font-mono">
+            <span className="flex items-center gap-1">
+              <Move className="w-3 h-3 text-slate-400" />
+              Drag to pan
+            </span>
+            <span>•</span>
+            <span>Scroll to zoom</span>
+            <span>•</span>
+            <span>Double-click cell to focus</span>
+          </div>
+        </div>
+
         {/* Heatmap D3 Container */}
-        <div className="relative overflow-x-auto pt-2 pb-1 flex justify-center">
+        <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 pt-2 pb-2 flex justify-center min-h-[380px] shadow-inner">
           <svg ref={svgRef} className="select-none transition-all duration-200" />
+
+          {/* Floating Minimap / Cluster Navigator when zoomed in */}
+          {zoomLevel > 115 && showMinimap && (
+            <div className="absolute bottom-3 right-3 z-20 p-2.5 rounded-lg bg-slate-950/95 text-white border border-slate-700 shadow-2xl backdrop-blur-md text-[10px] space-y-1.5">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-1">
+                <span className="font-mono font-bold text-cyan-400 flex items-center gap-1">
+                  <Grid className="w-3 h-3 text-cyan-400" />
+                  Cluster Navigator
+                </span>
+                <button
+                  onClick={() => setShowMinimap(false)}
+                  className="text-slate-400 hover:text-white cursor-pointer px-1 leading-none"
+                  title="Close mini-map"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Miniature Matrix Grid */}
+              <svg
+                width={110}
+                height={110}
+                viewBox={`0 0 ${orderedTickers.length} ${orderedTickers.length}`}
+                className="rounded border border-slate-800 bg-slate-900 cursor-crosshair block"
+                onClick={(e) => {
+                  if (!svgRef.current || !zoomBehaviorRef.current) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const fracX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                  const fracY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+
+                  const targetCenterX = fracX * layoutDims.totalSvgWidth;
+                  const targetCenterY = fracY * (layoutDims.topMargin + layoutDims.gridHeight);
+
+                  const targetX = layoutDims.totalSvgWidth / 2 - targetCenterX * zoomTransform.k;
+                  const targetY = (layoutDims.topMargin + layoutDims.gridHeight / 2) - targetCenterY * zoomTransform.k;
+
+                  const transform = d3.zoomIdentity.translate(targetX, targetY).scale(zoomTransform.k);
+                  d3.select(svgRef.current)
+                    .transition()
+                    .duration(350)
+                    .ease(d3.easeCubicOut)
+                    .call(zoomBehaviorRef.current.transform, transform);
+                }}
+              >
+                {orderedMatrix.map((row, r) =>
+                  row.map((val, c) => (
+                    <rect
+                      key={`mini-${r}-${c}`}
+                      x={c}
+                      y={r}
+                      width={1}
+                      height={1}
+                      fill={getColor(val, r === c)}
+                      opacity={isCellHighlighted(val, r === c) ? 0.95 : 0.25}
+                    />
+                  ))
+                )}
+                {/* Active Viewport Rectangle */}
+                <rect
+                  x={Math.max(0, Math.min(orderedTickers.length - 1, (-zoomTransform.x / (layoutDims.totalSvgWidth * zoomTransform.k)) * orderedTickers.length))}
+                  y={Math.max(0, Math.min(orderedTickers.length - 1, (-zoomTransform.y / ((layoutDims.topMargin + layoutDims.gridHeight) * zoomTransform.k)) * orderedTickers.length))}
+                  width={Math.max(1, (1 / zoomTransform.k) * orderedTickers.length)}
+                  height={Math.max(1, (1 / zoomTransform.k) * orderedTickers.length)}
+                  fill="rgba(6, 182, 212, 0.25)"
+                  stroke="#06b6d4"
+                  strokeWidth={0.35}
+                  strokeDasharray="0.5,0.5"
+                  pointerEvents="none"
+                />
+              </svg>
+
+              <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
+                <span>Click to re-center</span>
+                <span className="text-cyan-400">{zoomLevel}%</span>
+              </div>
+            </div>
+          )}
+
+          {/* Re-open Minimap button if hidden */}
+          {zoomLevel > 115 && !showMinimap && (
+            <button
+              onClick={() => setShowMinimap(true)}
+              className="absolute bottom-3 right-3 z-20 px-2 py-1 rounded bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-700 shadow-md text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+            >
+              <Grid className="w-3 h-3 text-cyan-400" />
+              <span>Show Map</span>
+            </button>
+          )}
 
           {/* Floating Tooltip HUD */}
           {hoveredCell && (

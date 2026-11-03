@@ -25,7 +25,7 @@ import {
 import { detectMarketRegime } from './src/server/math/hmmRegime';
 import { runConformalPrediction } from './src/server/math/conformal';
 import { detectConceptDrift } from './src/server/math/driftDetector';
-import { getNewsForTicker, analyzeFinBERTTone, getAllMarketHeadlines } from './src/server/math/nlpEngine';
+import { getNewsForTicker, getHybridNewsForTicker, analyzeFinBERTTone, getAllMarketHeadlines, getAllMarketHeadlinesAsync } from './src/server/math/nlpEngine';
 import { runModelEvaluation, computeProjectWideAccuracy, runAggregateModelEvaluation } from './src/server/math/evaluation';
 import { runStrategyBacktest } from './src/server/math/strategySimulator';
 import { runAutomatedBacktest } from './src/server/math/automatedBacktest';
@@ -35,6 +35,7 @@ import { optimizePortfolioHoldings } from './src/server/math/portfolioOptimizer'
 import { brokerService } from './src/server/services/brokerService';
 import { getSocialFeed, getVerifiedTraders } from './src/server/services/socialService';
 import { generateQuantCopilotAnswer } from './src/server/services/copilotKnowledge';
+import { getEarningsCalendarData } from './src/server/services/earningsService';
 import { db, StoredPrediction } from './src/server/store/db';
 import { generateSupportFallback } from './src/utils/supportKnowledge';
 
@@ -395,9 +396,9 @@ app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
 // 3. NEWS & KEYWORD SENTIMENT ENDPOINTS (USP 3)
 // -------------------------------------------------------------
 
-app.get('/api/news', (_req: Request, res: Response) => {
+app.get('/api/news', async (_req: Request, res: Response) => {
   try {
-    const headlines = getAllMarketHeadlines();
+    const headlines = await getAllMarketHeadlinesAsync();
     return res.json(headlines);
   } catch (error: any) {
     console.error('Error fetching market headlines:', error);
@@ -409,8 +410,8 @@ app.get('/api/news/:ticker', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
     const quote = await getStockQuote(ticker);
-    const news = getNewsForTicker(ticker, quote.name);
-    return res.json(news);
+    const hybrid = await getHybridNewsForTicker(ticker, quote.name);
+    return res.json(hybrid.news);
   } catch (error: any) {
     console.error(`Error fetching news for ${req.params.ticker}:`, error);
     return res.status(500).json({ error: 'Failed to retrieve financial news.' });
@@ -421,7 +422,8 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
     const quote = await getStockQuote(ticker);
-    const news = getNewsForTicker(ticker, quote.name);
+    const hybrid = await getHybridNewsForTicker(ticker, quote.name);
+    const news = hybrid.news;
 
     let posSum = 0;
     let neuSum = 0;
@@ -436,7 +438,7 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
     });
 
     const count = news.length || 1;
-    const avgScore = Number((totalScore / count).toFixed(3));
+    const avgScore = hybrid.blendedSentimentScore;
     const posPct = Number(((posSum / count) * 100).toFixed(1));
     const neuPct = Number(((neuSum / count) * 100).toFixed(1));
     const negPct = Number(((negSum / count) * 100).toFixed(1));
@@ -451,7 +453,10 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
         negative: negPct
       },
       sampleCount: count,
-      modelUsed: 'Keyword sentiment lexicon & rule-based credibility scoring',
+      liveCount: hybrid.liveCount,
+      baselineCount: hybrid.baselineCount,
+      isLive: hybrid.liveCount > 0,
+      modelUsed: 'Hybrid Real-Time Live News & Baseline FinBERT Sentiment Engine',
       lastUpdated: new Date().toISOString()
     });
   } catch (error: any) {
@@ -495,16 +500,30 @@ app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
     const history = await getHistoricalData(ticker, 250);
     const regime = detectMarketRegime(history, ticker);
     const quote = await getStockQuote(ticker);
-    const news = getNewsForTicker(ticker, quote.name);
-    const avgSentiment = news.reduce((acc, n) => acc + n.sentimentScore, 0) / (news.length || 1);
+    const hybrid = await getHybridNewsForTicker(ticker, quote.name);
+
+    const liveNewsMeta = {
+      isLive: hybrid.liveCount > 0,
+      liveArticlesCount: hybrid.liveCount,
+      baselineArticlesCount: hybrid.baselineCount,
+      liveSentimentScore: hybrid.liveSentimentScore,
+      baselineSentimentScore: hybrid.baselineSentimentScore,
+      blendedSentimentScore: hybrid.blendedSentimentScore,
+      topLiveHeadline: hybrid.topLiveHeadline,
+      topLiveSource: hybrid.topLiveSource,
+      newsDriftImpactPct: Number((hybrid.blendedSentimentScore * 1.5).toFixed(2)),
+      lastLiveFetchTimestamp: new Date().toISOString()
+    };
 
     const prediction = runConformalPrediction(
       history,
       ticker,
-      avgSentiment,
+      hybrid.blendedSentimentScore,
       regime.regimeId,
       confidence,
-      horizon
+      horizon,
+      liveNewsMeta,
+      hybrid.news
     );
 
     return res.json(prediction);
@@ -522,11 +541,34 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
     const sym = await resolveTickerOrName(ticker);
     const history = await getHistoricalData(sym, 250);
     const regime = detectMarketRegime(history, sym);
-    const news = getNewsForTicker(sym, sym);
-    const avgSentiment = news.reduce((acc, n) => acc + n.sentimentScore, 0) / (news.length || 1);
+    const quote = await getStockQuote(sym);
+    const hybrid = await getHybridNewsForTicker(sym, quote.name);
     const fullUser = req.user?.id ? db.getUserById(req.user.id) : null;
     const userConf = (fullUser?.confidenceLevel ? fullUser.confidenceLevel / 100 : 0.90);
-    const pred = runConformalPrediction(history, sym, avgSentiment, regime.regimeId, userConf);
+
+    const liveNewsMeta = {
+      isLive: hybrid.liveCount > 0,
+      liveArticlesCount: hybrid.liveCount,
+      baselineArticlesCount: hybrid.baselineCount,
+      liveSentimentScore: hybrid.liveSentimentScore,
+      baselineSentimentScore: hybrid.baselineSentimentScore,
+      blendedSentimentScore: hybrid.blendedSentimentScore,
+      topLiveHeadline: hybrid.topLiveHeadline,
+      topLiveSource: hybrid.topLiveSource,
+      newsDriftImpactPct: Number((hybrid.blendedSentimentScore * 1.5).toFixed(2)),
+      lastLiveFetchTimestamp: new Date().toISOString()
+    };
+
+    const pred = runConformalPrediction(
+      history,
+      sym,
+      hybrid.blendedSentimentScore,
+      regime.regimeId,
+      userConf,
+      1,
+      liveNewsMeta,
+      hybrid.news
+    );
 
     const stored: StoredPrediction = {
       id: `pred-${Date.now()}`,
@@ -538,7 +580,7 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
       upperBound: pred.upperBound,
       confidenceLevel: pred.confidenceLevel,
       marketRegime: regime.currentRegime,
-      sentimentScore: avgSentiment,
+      sentimentScore: hybrid.blendedSentimentScore,
       timestamp: pred.predictionTimestamp
     };
 
@@ -738,6 +780,16 @@ app.get('/api/broker/account', authenticateToken, (_req: AuthenticatedRequest, r
 
 app.get('/api/broker/orders', authenticateToken, (_req: AuthenticatedRequest, res: Response) => {
   return res.json(brokerService.getOrders());
+});
+
+app.get('/api/broker/trades', authenticateToken, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const trades = await brokerService.getTradesWithLiveQuotes();
+    return res.json(trades);
+  } catch (err: any) {
+    console.error('Error fetching broker trades:', err);
+    return res.status(500).json({ error: 'Failed to fetch broker trades.' });
+  }
 });
 
 app.post('/api/broker/order', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
@@ -1198,6 +1250,95 @@ app.get('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, r
   }
 });
 
+// Real-Time News Pulse for Watchlist Assets
+app.get('/api/watchlist/pulse', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || 'user-alphaquant-demo-1';
+    let tickers = db.getWatchlist(userId);
+    if (!tickers || tickers.length === 0) {
+      tickers = ['TATAMOTORS.NS', 'NVDA', 'RELIANCE.NS', 'AAPL', 'TCS.NS'];
+    }
+
+    const activeTickers = tickers.slice(0, 8);
+    const pulseItems: any[] = [];
+    let totalScore = 0;
+    let bullishCount = 0;
+    let bearishCount = 0;
+    let neutralCount = 0;
+    let liveArticlesCount = 0;
+
+    await Promise.all(
+      activeTickers.map(async (ticker) => {
+        try {
+          const resolved = await resolveTickerOrName(ticker);
+          const quote = await getStockQuote(resolved);
+          const hybrid = await getHybridNewsForTicker(resolved, quote.name);
+
+          totalScore += hybrid.blendedSentimentScore;
+          if (hybrid.blendedSentimentScore > 0.15) bullishCount++;
+          else if (hybrid.blendedSentimentScore < -0.15) bearishCount++;
+          else neutralCount++;
+
+          liveArticlesCount += hybrid.liveCount;
+
+          const topHeadlines = hybrid.news.slice(0, 3);
+          topHeadlines.forEach((item) => {
+            pulseItems.push({
+              id: item.id,
+              ticker: resolved,
+              companyName: quote.name,
+              headline: item.headline,
+              summary: item.summary,
+              source: item.source,
+              url: item.url,
+              publishedAt: item.publishedAt,
+              sentiment: item.sentiment,
+              sentimentScore: item.sentimentScore,
+              confidence: item.confidence,
+              isLive: !!item.isLive,
+              price: quote.price,
+              changePercent: quote.changePercent
+            });
+          });
+        } catch (err) {
+          console.warn(`Watchlist pulse error for ${ticker}:`, err);
+        }
+      })
+    );
+
+    pulseItems.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+    const totalAssets = activeTickers.length || 1;
+    const avgScore = Number((totalScore / totalAssets).toFixed(3));
+    const bullishPct = Math.round((bullishCount / totalAssets) * 100);
+    const bearishPct = Math.round((bearishCount / totalAssets) * 100);
+    const neutralPct = Math.max(0, 100 - bullishPct - bearishPct);
+
+    let marketMoodLabel: 'Strongly Bullish' | 'Bullish Bias' | 'Neutral Market' | 'Cautious / Bearish' | 'Strong Bearish Pressure' = 'Neutral Market';
+    if (avgScore >= 0.35) marketMoodLabel = 'Strongly Bullish';
+    else if (avgScore >= 0.12) marketMoodLabel = 'Bullish Bias';
+    else if (avgScore <= -0.35) marketMoodLabel = 'Strong Bearish Pressure';
+    else if (avgScore <= -0.12) marketMoodLabel = 'Cautious / Bearish';
+
+    return res.json({
+      mood: {
+        overallScore: avgScore,
+        marketMoodLabel,
+        bullishPct,
+        neutralPct,
+        bearishPct,
+        totalAssets: activeTickers.length,
+        liveArticlesCount,
+        lastUpdated: new Date().toISOString()
+      },
+      items: pulseItems
+    });
+  } catch (error: any) {
+    console.error('Error fetching watchlist pulse:', error);
+    return res.status(500).json({ error: 'Failed to retrieve watchlist news pulse.' });
+  }
+});
+
 app.post('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
   const { ticker } = req.body;
@@ -1215,6 +1356,31 @@ app.delete('/api/watchlist/:ticker', authenticateToken, async (req: Authenticate
 });
 
 // -------------------------------------------------------------
+// 9.5 EARNINGS CALENDAR & HISTORICAL SURPRISE PATTERNS
+// -------------------------------------------------------------
+
+app.get('/api/earnings/calendar', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let userId = 'user-alphaquant-demo-1';
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded: any = jwt.verify(token, JWT_SECRET);
+        if (decoded?.id) userId = decoded.id;
+      } catch {}
+    }
+    const watchlistOnly = req.query.watchlistOnly === 'true';
+    const userWatchlist = db.getWatchlist(userId);
+    const data = await getEarningsCalendarData(userWatchlist, watchlistOnly);
+    return res.json(data);
+  } catch (error: any) {
+    console.error('Error retrieving earnings calendar:', error);
+    return res.status(500).json({ error: 'Failed to retrieve earnings calendar data.' });
+  }
+});
+
+// -------------------------------------------------------------
 // 10. ALERTS ENDPOINTS
 // -------------------------------------------------------------
 
@@ -1226,7 +1392,36 @@ app.get('/api/alerts', authenticateToken, (req: AuthenticatedRequest, res: Respo
 
 app.post('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
-  const { ticker, type, threshold, label, channels, email, pushEnabled, emailEnabled, driftThresholdPct } = req.body;
+  const {
+    ticker,
+    type,
+    threshold,
+    percentChangeThreshold,
+    direction,
+    basePrice,
+    label,
+    channels,
+    email,
+    pushEnabled,
+    emailEnabled,
+    driftThresholdPct,
+    varConfidenceLevel,
+    varHorizonDays,
+    varThresholdPct,
+    varThresholdDollar,
+    varMetric,
+    volatilityThresholdPct,
+    volatilityLookbackDays,
+    volatilityMetric,
+    riskCategory,
+    riskSeverity,
+    currentMetricValue,
+    rsiThreshold,
+    rsiCondition,
+    rsiPeriod,
+    currentRsiValue
+  } = req.body;
+
   if (!ticker || !type || !label) {
     return res.status(400).json({ error: 'Ticker, type, and label are required.' });
   }
@@ -1235,13 +1430,33 @@ app.post('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res
     id: `alert-${Date.now()}`,
     ticker: sym,
     type,
-    threshold: threshold ? parseFloat(threshold) : undefined,
+    threshold: threshold !== undefined && threshold !== '' ? parseFloat(threshold) : undefined,
+    percentChangeThreshold: percentChangeThreshold !== undefined && percentChangeThreshold !== '' ? parseFloat(percentChangeThreshold) : undefined,
+    direction: direction || (type === 'price_above' ? 'above' : type === 'price_below' ? 'below' : 'above'),
+    basePrice: basePrice ? parseFloat(basePrice) : undefined,
     label,
     channels: channels || ['email', 'push'],
     email: email || req.user?.email || 'user@alphaquant.ai',
     pushEnabled: pushEnabled !== false,
     emailEnabled: emailEnabled !== false,
     driftThresholdPct: driftThresholdPct ? parseFloat(driftThresholdPct) : undefined,
+    // Risk-based alert fields
+    varConfidenceLevel: varConfidenceLevel ? parseInt(varConfidenceLevel, 10) : undefined,
+    varHorizonDays: varHorizonDays ? parseInt(varHorizonDays, 10) : undefined,
+    varThresholdPct: varThresholdPct !== undefined && varThresholdPct !== '' ? parseFloat(varThresholdPct) : undefined,
+    varThresholdDollar: varThresholdDollar !== undefined && varThresholdDollar !== '' ? parseFloat(varThresholdDollar) : undefined,
+    varMetric: varMetric || undefined,
+    volatilityThresholdPct: volatilityThresholdPct !== undefined && volatilityThresholdPct !== '' ? parseFloat(volatilityThresholdPct) : undefined,
+    volatilityLookbackDays: volatilityLookbackDays ? parseInt(volatilityLookbackDays, 10) : undefined,
+    volatilityMetric: volatilityMetric || undefined,
+    riskCategory: riskCategory || (type === 'var_exceeded' ? 'Value-at-Risk (VaR)' : type === 'volatility_spike' ? 'Volatility Surge' : type === 'rsi_cross' ? 'RSI Momentum' : undefined),
+    riskSeverity: riskSeverity || (type === 'var_exceeded' || type === 'volatility_spike' ? 'High Risk' : undefined),
+    currentMetricValue: currentMetricValue !== undefined && currentMetricValue !== '' ? parseFloat(currentMetricValue) : undefined,
+    // RSI Technical Momentum Fields
+    rsiThreshold: rsiThreshold !== undefined && rsiThreshold !== '' ? parseFloat(rsiThreshold) : undefined,
+    rsiCondition: rsiCondition || (type === 'rsi_cross' ? (parseFloat(threshold || '50') <= 30 ? 'oversold_30' : 'overbought_70') : undefined),
+    rsiPeriod: rsiPeriod ? parseInt(rsiPeriod, 10) : 14,
+    currentRsiValue: currentRsiValue !== undefined && currentRsiValue !== '' ? parseFloat(currentRsiValue) : undefined,
     enabled: true,
     createdAt: new Date().toISOString()
   };

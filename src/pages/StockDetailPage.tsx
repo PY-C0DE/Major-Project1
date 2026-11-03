@@ -29,10 +29,11 @@ import { SentimentCard } from '../components/SentimentCard';
 import { ConceptDriftCard } from '../components/ConceptDriftCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
-import { PriceAlertModal } from '../components/PriceAlertModal';
+import { QuickAlertPopover } from '../components/QuickAlertPopover';
 import { StockDecisionAndHistoryCard } from '../components/StockDecisionAndHistoryCard';
 import { OptionsAnalyticsModal } from '../components/OptionsAnalyticsModal';
 import { OptionsVolatilitySurface } from '../components/OptionsVolatilitySurface';
+import { RegimeIndicator } from '../components/RegimeIndicator';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -50,7 +51,6 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
   const [news, setNews] = useState<NewsItem[]>([]);
   const [drift, setDrift] = useState<ConceptDriftResult | null>(null);
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
-  const [showPriceAlertModal, setShowPriceAlertModal] = useState(false);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -210,12 +210,13 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
       {/* 1. Stock Header & Quick Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white">{ticker}</h1>
             <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
               {quote?.exchange || 'NSE'} · {quote?.currency || 'INR'}
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">{quote?.name}</span>
+            <RegimeIndicator regime={regime} />
           </div>
 
           {/* Price Overview Metrics Bar */}
@@ -243,13 +244,12 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
 
             {/* Threshold Met Indicator Badge */}
             {metAlerts.length > 0 && (
-              <button
-                onClick={() => setShowPriceAlertModal(true)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-xs cursor-pointer hover:scale-105 transition-transform animate-pulse"
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-xs animate-pulse"
               >
                 <Bell className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-emerald-500/20" />
-                <span>Threshold Met: {metAlerts[0].type === 'price_above' ? '≥' : '≤'} {currSym}{metAlerts[0].threshold}</span>
-              </button>
+                <span>Threshold Met: {metAlerts[0].type === 'price_above' ? '≥' : metAlerts[0].type === 'price_below' ? '≤' : 'Δ'} {currSym}{metAlerts[0].threshold}</span>
+              </div>
             )}
           </div>
         </div>
@@ -267,26 +267,14 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Price Alert Action Button */}
-            <button
-              onClick={() => setShowPriceAlertModal(true)}
-              title="Set Target Price Alert"
-              className={`px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border ${
-                metAlerts.length > 0
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-400 dark:bg-emerald-950/80 dark:hover:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-700 font-bold shadow-xs'
-                  : activeAlerts.length > 0
-                  ? 'bg-cyan-50 hover:bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-950/60 dark:hover:bg-cyan-950 dark:text-cyan-300 dark:border-cyan-700'
-                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
-              }`}
-            >
-              <Bell className={`w-4 h-4 ${metAlerts.length > 0 ? 'text-emerald-600 dark:text-emerald-400 animate-bounce' : activeAlerts.length > 0 ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-500'}`} />
-              <span>{metAlerts.length > 0 ? 'Alert Met!' : 'Price Alert'}</span>
-              {activeAlerts.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-white dark:bg-slate-900 border border-current">
-                  {activeAlerts.length}
-                </span>
-              )}
-            </button>
+            {/* Quick Alert Toggle Popover */}
+            <QuickAlertPopover
+              ticker={ticker}
+              quote={quote}
+              prediction={prediction}
+              alerts={alerts}
+              onAlertsChanged={loadAlerts}
+            />
 
             <button
               onClick={handleAddToWatchlist}

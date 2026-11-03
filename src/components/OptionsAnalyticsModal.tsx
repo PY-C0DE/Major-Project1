@@ -21,22 +21,14 @@ import {
   Info,
   RefreshCw,
   Sparkles,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Zap
 } from 'lucide-react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ReferenceLine
-} from 'recharts';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { OptionsChainResponse } from '../types';
 import { OptionsVolatilitySurface } from './OptionsVolatilitySurface';
+import { OptionsIVSmileMispricing } from './OptionsIVSmileMispricing';
 
 interface Props {
   isOpen: boolean;
@@ -184,13 +176,14 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
             </button>
             <button
               onClick={() => setViewMode('smile')}
-              className={`px-3 py-1 rounded text-xs transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs transition-colors cursor-pointer ${
                 viewMode === 'smile'
                   ? 'bg-white dark:bg-slate-800 text-cyan-700 dark:text-cyan-400 font-bold shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              IV Smile Curve
+              <Zap className="w-3.5 h-3.5 text-amber-500" />
+              IV Smile & Mispricing
             </button>
           </div>
         </div>
@@ -284,66 +277,22 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
                 />
               )}
 
-              {/* View Mode 1: IV Smile Curve Chart */}
+              {/* View Mode 1: D3 IV Smile Curve & Mispricing Arbitrage Engine */}
               {viewMode === 'smile' && (
-                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-mono font-bold uppercase text-slate-800 dark:text-slate-200">
-                        Implied Volatility Smile & Skew Curve
-                      </h4>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                        Visualizing downside protective put skew and upside call surface
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs font-mono">
-                      <span className="flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400 font-semibold">
-                        <span className="w-2.5 h-0.5 bg-cyan-500 inline-block" /> Call IV
-                      </span>
-                      <span className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 font-semibold">
-                        <span className="w-2.5 h-0.5 bg-purple-500 inline-block" /> Put IV
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={data.ivSmile}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} />
-                        <XAxis
-                          dataKey="strike"
-                          stroke={isDark ? '#64748b' : '#94a3b8'}
-                          tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11, fontFamily: 'monospace' }}
-                          tickFormatter={(val) => `$${val}`}
-                        />
-                        <YAxis
-                          stroke={isDark ? '#64748b' : '#94a3b8'}
-                          tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11, fontFamily: 'monospace' }}
-                          tickFormatter={(val) => `${val}%`}
-                          domain={['dataMin - 2', 'dataMax + 2']}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: isDark ? '#0f172a' : '#ffffff',
-                            borderColor: isDark ? '#334155' : '#cbd5e1',
-                            color: isDark ? '#f8fafc' : '#0f172a',
-                            fontFamily: 'monospace',
-                            fontSize: '11px',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                          }}
-                        />
-                        <ReferenceLine x={data.spotPrice} stroke="#0284c7" strokeDasharray="3 3" label={{ value: 'Spot', fill: '#0284c7', fontSize: 10 }} />
-                        <Line type="monotone" dataKey="callIV" stroke="#0891b2" strokeWidth={2.5} dot={{ r: 3 }} name="Call IV %" />
-                        <Line type="monotone" dataKey="putIV" stroke="#9333ea" strokeWidth={2.5} dot={{ r: 3 }} name="Put IV %" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
+                <OptionsIVSmileMispricing
+                  ticker={ticker}
+                  spotPrice={data.spotPrice}
+                  atmIV={data.atmIV}
+                  daysToExpiry={data.daysToExpiry}
+                  expiryDate={data.expiryDate}
+                  strikesData={data.strikes}
+                  ivSmile={data.ivSmile}
+                  onTradeOption={onTradeOption}
+                />
               )}
 
               {/* View Mode 2: Interactive Call/Put Strike Matrix Table */}
-              {(viewMode === 'matrix' || viewMode === 'smile') && (
+              {viewMode === 'matrix' && (
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/80 overflow-hidden shadow-inner">
                 <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs font-mono">
                   <div className="flex items-center gap-2">

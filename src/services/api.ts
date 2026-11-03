@@ -13,6 +13,7 @@ import {
   ModelEvaluation,
   PortfolioHolding,
   WatchlistItem,
+  WatchlistPulseResponse,
   AlertRule,
   UserProfile,
   StrategyPerformanceMetrics,
@@ -24,10 +25,12 @@ import {
   VolatilitySurfaceData,
   AutomatedBacktestResult,
   BrokerOrder,
+  BrokerTrade,
   BrokerAccount,
   SocialDiscussion,
   VerifiedTrader,
-  StockSearchResult
+  StockSearchResult,
+  EarningsCalendarItem
 } from '../types';
 import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { generateSupportFallback } from '../utils/supportKnowledge';
@@ -349,6 +352,12 @@ export const api = {
     return res.json();
   },
 
+  async getWatchlistPulse(): Promise<WatchlistPulseResponse> {
+    const res = await fetch(`${API_BASE}/watchlist/pulse`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error('Failed to get watchlist pulse');
+    return res.json();
+  },
+
   async addToWatchlist(ticker: string) {
     const res = await fetch(`${API_BASE}/watchlist`, {
       method: 'POST',
@@ -368,6 +377,15 @@ export const api = {
     return res.json();
   },
 
+  // Earnings Calendar & Surprise Patterns
+  async getEarningsCalendar(watchlistOnly = false): Promise<EarningsCalendarItem[]> {
+    const res = await fetch(`${API_BASE}/earnings/calendar?watchlistOnly=${watchlistOnly}`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch earnings calendar data');
+    return res.json();
+  },
+
   // Alerts CRUD
   async getAlerts(): Promise<AlertRule[]> {
     const res = await fetch(`${API_BASE}/alerts`, { headers: getAuthHeaders() });
@@ -375,16 +393,10 @@ export const api = {
     return res.json();
   },
 
-  async createAlert(data: {
+  async createAlert(data: Partial<AlertRule> & {
     ticker: string;
     type: string;
-    threshold?: number;
     label: string;
-    channels?: ('email' | 'push')[];
-    email?: string;
-    pushEnabled?: boolean;
-    emailEnabled?: boolean;
-    driftThresholdPct?: number;
   }): Promise<AlertRule> {
     const res = await fetch(`${API_BASE}/alerts`, {
       method: 'POST',
@@ -512,6 +524,14 @@ export const api = {
       headers: getAuthHeaders()
     });
     if (!res.ok) throw new Error('Failed to fetch broker orders.');
+    return res.json();
+  },
+
+  async getBrokerTrades(): Promise<BrokerTrade[]> {
+    const res = await fetch(`${API_BASE}/broker/trades`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) throw new Error('Failed to fetch broker trades.');
     return res.json();
   },
 

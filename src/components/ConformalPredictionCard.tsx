@@ -90,8 +90,14 @@ export const ConformalPredictionCard: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Accuracy and Coverage Badges */}
+        {/* Accuracy, Coverage, and Live News Badges */}
         <div className="flex items-center gap-2 flex-wrap">
+          {prediction.liveNewsMeta?.isLive && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800/80 text-[11px] font-mono text-emerald-700 dark:text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Live News: {prediction.liveNewsMeta.liveArticlesCount} Live + {prediction.liveNewsMeta.baselineArticlesCount} Base</span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-[11px] font-mono text-emerald-700 dark:text-emerald-400">
             <Award className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
             <span>Acc: {prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : prediction.directionalAccuracy != null ? `${prediction.directionalAccuracy}%` : 'n/a'}</span>

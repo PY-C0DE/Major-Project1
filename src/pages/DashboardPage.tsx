@@ -25,8 +25,11 @@ import { MarketRegimeCard } from '../components/MarketRegimeCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { NewsTicker } from '../components/NewsTicker';
+import { RealTimeNewsPulse } from '../components/RealTimeNewsPulse';
 import { MarketHeatmap } from '../components/MarketHeatmap';
 import { DailyMarketDigest } from '../components/DailyMarketDigest';
+import { EarningsCalendar } from '../components/EarningsCalendar';
+import { RegimeIndicator } from '../components/RegimeIndicator';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -44,6 +47,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
   const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
   const [accuracy, setAccuracy] = useState<ProjectWideAccuracyResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [streamView, setStreamView] = useState<'pulse' | 'wire'>('pulse');
 
   // Market indices summary ribbon with regional badges
   const indices = [
@@ -98,14 +102,56 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fadeIn">
-      {/* 0. Real-time Market News Ticker Marquee */}
-      <NewsTicker
-        onSelectTicker={(ticker) => {
-          setSelectedTicker(ticker);
-          onSelectTicker(ticker);
-        }}
-        onNavigate={onNavigate}
-      />
+      {/* 0. Live Stream Tape: Watchlist News Pulse vs Market Wire */}
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center justify-between px-1 gap-2 text-xs">
+          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-mono text-[11px]">
+            <button
+              onClick={() => setStreamView('pulse')}
+              className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                streamView === 'pulse'
+                  ? 'bg-white dark:bg-slate-800 text-cyan-700 dark:text-cyan-300 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              Watchlist News Pulse (Market Mood)
+            </button>
+            <button
+              onClick={() => setStreamView('wire')}
+              className={`px-3 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                streamView === 'wire'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+              }`}
+            >
+              Global Market Wire
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 hidden sm:inline">
+              Market Regime:
+            </span>
+            <RegimeIndicator regime={regime} />
+          </div>
+        </div>
+
+        {streamView === 'pulse' ? (
+          <RealTimeNewsPulse
+            onSelectTicker={(ticker) => {
+              setSelectedTicker(ticker);
+              onSelectTicker(ticker);
+            }}
+          />
+        ) : (
+          <NewsTicker
+            onSelectTicker={(ticker) => {
+              setSelectedTicker(ticker);
+              onSelectTicker(ticker);
+            }}
+            onNavigate={onNavigate}
+          />
+        )}
+      </div>
 
       {/* 1. Global Market Indices Ticker Ribbon */}
       <div id="tour-macro-tape" className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 md:p-5 lg:p-6 shadow-xs hover:shadow-sm transition-all">
@@ -119,9 +165,12 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
               Live Stream
             </span>
           </div>
-          <span className="text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400">
-            Real-Time Inter-Market Feed (NSE · BSE · US)
-          </span>
+          <div className="flex items-center gap-3">
+            <RegimeIndicator regime={regime} compact />
+            <span className="text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400 hidden md:inline">
+              Real-Time Inter-Market Feed (NSE · BSE · US)
+            </span>
+          </div>
         </div>
 
         {/* Screen-Adaptive Grid: Dynamic sizes preventing name truncation */}
@@ -399,6 +448,14 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
 
       {/* 4.5 Sector Volatility & Heatmap Treemap (D3.js) */}
       <MarketHeatmap
+        onSelectTicker={(ticker: string) => {
+          setSelectedTicker(ticker);
+          onSelectTicker(ticker);
+        }}
+      />
+
+      {/* 4.8 Watchlist Earnings Calendar (Upcoming Dates, Consensus EPS & Surprise Patterns) */}
+      <EarningsCalendar
         onSelectTicker={(ticker: string) => {
           setSelectedTicker(ticker);
           onSelectTicker(ticker);

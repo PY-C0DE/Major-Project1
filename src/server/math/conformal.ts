@@ -7,7 +7,7 @@
  */
 
 import { ComputedBar } from './indicators';
-import { ConformalPrediction, FeatureContribution, PreviousDayStats, DecisionSignal } from '../../types';
+import { ConformalPrediction, FeatureContribution, PreviousDayStats, DecisionSignal, LiveNewsMeta, NewsItem } from '../../types';
 import {
   extractFeatureVector,
   fitRidgeRegression,
@@ -59,7 +59,9 @@ export function runConformalPrediction(
   sentimentScore = 0.45,
   regimeId = 0,
   confidenceLevel = 0.90,
-  horizonDays = 1
+  horizonDays = 1,
+  liveNewsMeta?: LiveNewsMeta,
+  liveArticles?: NewsItem[]
 ): ConformalPrediction {
   const n = bars.length;
   const safeConfidence = Math.min(0.99, Math.max(0.70, confidenceLevel));
@@ -87,12 +89,14 @@ export function runConformalPrediction(
       targetDateFormatted,
       empiricalCoverage: undefined,
       directionalAccuracy: undefined,
-      priceAccuracy: undefined
+      priceAccuracy: undefined,
+      liveNewsMeta
     };
   }
 
   const latestBar = bars[n - 1];
   const currentPrice = latestBar.close;
+  const effectiveSentiment = liveNewsMeta ? liveNewsMeta.blendedSentimentScore : sentimentScore;
 
   // 1. Train multi-factor ensemble model on historical bars
   const trainStart = Math.min(25, Math.floor(n * 0.15));
@@ -101,8 +105,17 @@ export function runConformalPrediction(
   // Extract latest feature vector and ensemble predicted return at bar n - 1
   const base1dReturn = predictEnsembleReturn(ensembleModel, bars, n - 1, true);
 
+  const currentDailyVol = Math.max(0.006, (latestBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
+
+  // Real-time live news + baseline sentiment drift impulse:
+  // Blends real-time news shocks with the machine-learning ensemble return
+  const newsAlphaWeight = liveNewsMeta?.isLive && liveNewsMeta.liveArticlesCount > 0 ? 0.22 : 0.12;
+  const newsDrift = effectiveSentiment * currentDailyVol * newsAlphaWeight;
+
+  const combined1dReturn = base1dReturn + newsDrift;
+
   // Multi-day horizon scaling: sub-linear variance scaling with Bayesian empirical shrinkage
-  const horizonDrift = base1dReturn * Math.sqrt(safeHorizon);
+  const horizonDrift = combined1dReturn * Math.sqrt(safeHorizon);
   const maxMove = Math.min(0.25, 0.045 * Math.sqrt(safeHorizon));
   const predictedChangePct = Math.max(-maxMove, Math.min(maxMove, horizonDrift));
   const rawPredictedPrice = currentPrice * (1 + predictedChangePct);
@@ -136,8 +149,12 @@ export function runConformalPrediction(
 
   const qNorm = calibScores[quantileIdx] || 1.645;
 
-  const currentDailyVol = Math.max(0.006, (latestBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
-  const volMultiplier = regimeId === 1 ? 1.20 : 0.95;
+  // If live breaking news exhibits high dispersion or divergence from baseline, dynamically widen uncertainty bounds
+  const newsDivergence = liveNewsMeta?.isLive
+    ? Math.abs(liveNewsMeta.liveSentimentScore - liveNewsMeta.baselineSentimentScore)
+    : 0;
+  const newsUncertaintyMultiplier = 1 + Math.min(0.18, newsDivergence * 0.20);
+  const volMultiplier = (regimeId === 1 ? 1.20 : 0.95) * newsUncertaintyMultiplier;
   const horizonScale = Math.sqrt(safeHorizon);
   const qHat = qNorm * currentPrice * currentDailyVol * volMultiplier * horizonScale;
 
@@ -205,22 +222,32 @@ export function runConformalPrediction(
 
   const topFeatures: FeatureContribution[] = [
     {
+      feature: liveNewsMeta?.isLive
+        ? `Real-Time Live News Sentiment (${liveNewsMeta.liveArticlesCount} live sources)`
+        : 'Keyword Sentiment Polarity',
+      impact: Number((effectiveSentiment * 22).toFixed(1)),
+      category: 'sentiment',
+      description: liveNewsMeta?.topLiveHeadline
+        ? `Live Breaking: "${liveNewsMeta.topLiveHeadline.slice(0, 52)}..." confirms ${effectiveSentiment >= 0 ? 'bullish momentum tailwind' : 'bearish downside pressure'}`
+        : `News polarity score at ${effectiveSentiment.toFixed(2)} provides ${effectiveSentiment > 0.15 ? 'positive fundamental tailwind' : effectiveSentiment < -0.15 ? 'negative fundamental pressure' : 'neutral news distribution'}`
+    },
+    {
+      feature: 'Fundamental Baseline Consensus (Multi-Source)',
+      impact: Number(((liveNewsMeta?.baselineSentimentScore ?? sentimentScore) * 14).toFixed(1)),
+      category: 'sentiment',
+      description: `Baseline corporate disclosure scoring (${(liveNewsMeta?.baselineSentimentScore ?? sentimentScore).toFixed(2)}) anchors model against noise`
+    },
+    {
       feature: 'EMA Fast/Slow Trend Filter (12 vs 26)',
-      impact: Number((Math.tanh(emaSpread * 40) * 32).toFixed(1)),
+      impact: Number((Math.tanh(emaSpread * 40) * 28).toFixed(1)),
       category: 'technical',
       description: `EMA spread (${(emaSpread * 100).toFixed(2)}%) confirms ${emaSpread >= 0 ? 'bullish momentum continuation' : 'bearish downward trajectory'}`
     },
     {
       feature: 'Non-linear Bollinger Reversion (%B)',
-      impact: Number((((50 - rsi) / 50) * 24).toFixed(1)),
+      impact: Number((((50 - rsi) / 50) * 22).toFixed(1)),
       category: 'technical',
       description: `RSI-14 at ${rsi.toFixed(1)} indicates ${rsi < 30 ? 'statistical oversold bounce channel' : rsi > 70 ? 'statistical overbought resistance channel' : 'balanced equilibrium channel'}`
-    },
-    {
-      feature: 'Keyword Sentiment Polarity',
-      impact: Number((sentimentScore * 18).toFixed(1)),
-      category: 'sentiment',
-      description: `News polarity score at ${sentimentScore.toFixed(2)} provides ${sentimentScore > 0.15 ? 'positive fundamental tailwind' : sentimentScore < -0.15 ? 'negative fundamental pressure' : 'neutral news distribution'}`
     },
     {
       feature: 'Market Regime (Trend & Volatility State)',
@@ -356,7 +383,7 @@ export function runConformalPrediction(
   };
 
   // 6. Classified Financial Events & Corporate Catalysts (Requirement 9)
-  const classifiedEvents = getClassifiedEventsForTicker(ticker, ticker.replace('.NS', ''));
+  const classifiedEvents = getClassifiedEventsForTicker(ticker, ticker.replace('.NS', ''), liveArticles);
 
   // Calculate explicit target date for the conformal prediction
   const { targetDate, targetDateFormatted } = calculateTargetDate(latestBar.date, safeHorizon);
@@ -383,7 +410,8 @@ export function runConformalPrediction(
     priceAccuracy,
     previousDayStats,
     classifiedEvents,
-    decisionSignal
+    decisionSignal,
+    liveNewsMeta
   };
 }
 

@@ -20,6 +20,7 @@ import { api } from '../services/api';
 import { WatchlistItem } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
+import { RealTimeNewsPulse } from '../components/RealTimeNewsPulse';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -30,6 +31,8 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
   const [loading, setLoading] = useState(true);
   const [searchFilter, setSearchFilter] = useState('');
   const [newTickerInput, setNewTickerInput] = useState('');
+
+  const [refreshPulseCount, setRefreshPulseCount] = useState<number>(0);
 
   const loadWatchlist = async () => {
     setLoading(true);
@@ -53,6 +56,7 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
     try {
       await api.addToWatchlist(newTickerInput.toUpperCase());
       setNewTickerInput('');
+      setRefreshPulseCount(prev => prev + 1);
       loadWatchlist();
     } catch (e) {
       console.error(e);
@@ -62,6 +66,7 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
   const handleRemoveTicker = async (ticker: string) => {
     try {
       await api.removeFromWatchlist(ticker);
+      setRefreshPulseCount(prev => prev + 1);
       loadWatchlist();
     } catch (e) {
       console.error(e);
@@ -75,7 +80,7 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
         <div>
@@ -96,6 +101,7 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
             onSelect={async (item) => {
               try {
                 await api.addToWatchlist(item.ticker);
+                setRefreshPulseCount(prev => prev + 1);
                 loadWatchlist();
               } catch (e) {
                 console.error(e);
@@ -104,6 +110,12 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
           />
         </div>
       </div>
+
+      {/* Real-Time News Pulse: Scrolling Marquee & Watchlist Market Mood */}
+      <RealTimeNewsPulse
+        onSelectTicker={onSelectTicker}
+        refreshTrigger={refreshPulseCount}
+      />
 
       {/* Filter & Search Bar */}
       <div className="flex items-center justify-between gap-4 bg-white dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
