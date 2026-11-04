@@ -311,7 +311,7 @@ export const AlertsPage: React.FC = () => {
       </div>
 
       {/* 2. Telemetry Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div id="tour-risk-alerts" className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {/* RSI Monitors Card */}
         <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
           <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">

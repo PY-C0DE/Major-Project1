@@ -845,5 +845,68 @@ export interface VolatilitySurfaceData {
   generatedAt: string;
 }
 
+export interface MonthlySeasonalityData {
+  monthIndex: number;
+  monthName: string;
+  averageReturnPct: number;
+  medianReturnPct: number;
+  winRatePct: number;
+  positiveYears: number;
+  totalYears: number;
+  maxReturnPct: number;
+  minReturnPct: number;
+  stdDevPct: number;
+  isCurrentMonth: boolean;
+}
+
+export interface YearMonthReturn {
+  year: number;
+  returns: { [month: number]: number | null };
+  annualReturnPct: number;
+}
+
+export interface SeasonalOutperformer {
+  ticker: string;
+  name: string;
+  sector: string;
+  exchange: string;
+  currency: string;
+  seasonAverageReturnPct: number;
+  seasonWinRatePct: number;
+  seasonAlphaPct: number;
+  historicalConsistencyScore: number;
+  isCurrentStock?: boolean;
+}
+
+export interface SeasonalityReport {
+  ticker: string;
+  name?: string;
+  sector?: string;
+  currency?: string;
+  yearsAnalyzed: number;
+  availableYears: number[];
+  monthlyStats: MonthlySeasonalityData[];
+  quarterlyStats: {
+    quarter: string;
+    label: string;
+    averageReturnPct: number;
+    winRatePct: number;
+    isCurrentQuarter: boolean;
+  }[];
+  yearlyHeatmap: YearMonthReturn[];
+  currentMonthAnalysis: {
+    monthIndex: number;
+    monthName: string;
+    averageReturnPct: number;
+    winRatePct: number;
+    rankInYear: number;
+    tendency: 'Strong Bullish' | 'Bullish' | 'Neutral' | 'Bearish' | 'Strong Bearish';
+    notablePattern: string;
+  };
+  seasonalOutperformers: SeasonalOutperformer[];
+  bestMonth: { monthName: string; avgReturn: number; winRate: number };
+  worstMonth: { monthName: string; avgReturn: number; winRate: number };
+}
+
 
 

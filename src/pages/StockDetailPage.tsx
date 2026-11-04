@@ -34,6 +34,7 @@ import { StockDecisionAndHistoryCard } from '../components/StockDecisionAndHisto
 import { OptionsAnalyticsModal } from '../components/OptionsAnalyticsModal';
 import { OptionsVolatilitySurface } from '../components/OptionsVolatilitySurface';
 import { RegimeIndicator } from '../components/RegimeIndicator';
+import { SeasonalityAnalysis } from '../components/SeasonalityAnalysis';
 import { useAuth } from '../context/AuthContext';
 
 interface Props {
@@ -355,13 +356,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
         ticker={ticker}
       />
 
-      {/* 3.5 D3 Implied Volatility Surface & Smile Engine */}
-      <OptionsVolatilitySurface
-        ticker={ticker}
-        spotPrice={quote?.price}
-      />
-
-      {/* 4. Core Innovation Cards (USPs 1 & 2) */}
+      {/* 4. Core Prediction & Model Innovation Modules (Directly Below Candle Chart) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ConformalPredictionCard
           prediction={prediction}
@@ -371,10 +366,24 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
         <MarketRegimeCard regime={regime} />
       </div>
 
-      {/* 5. Core Innovation Cards (USPs 3 & 4) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SentimentCard news={news} ticker={ticker} />
         <ConceptDriftCard drift={drift} />
+      </div>
+
+      {/* 5. D3 Implied Volatility Surface & Smile Engine */}
+      <OptionsVolatilitySurface
+        ticker={ticker}
+        spotPrice={quote?.price}
+      />
+
+      {/* 6. Seasonality & Calendar Alpha Analysis (Monthly Return Heatmap & Outperformers) */}
+      <div id="tour-seasonality">
+        <SeasonalityAnalysis
+          ticker={ticker}
+          bars={history}
+          onSelectTicker={onSelectTicker}
+        />
       </div>
 
       {/* Regulatory & Methodology Disclaimer */}

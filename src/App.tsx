@@ -160,6 +160,7 @@ function AppContent() {
             }}
             onOpenAuth={handleOpenAuth}
             onSelectFeature={handleTabChange}
+            onOpenTour={() => setTourModalOpen(true)}
           />
         </div>
       ) : (

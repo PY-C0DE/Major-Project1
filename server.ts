@@ -36,6 +36,7 @@ import { brokerService } from './src/server/services/brokerService';
 import { getSocialFeed, getVerifiedTraders } from './src/server/services/socialService';
 import { generateQuantCopilotAnswer } from './src/server/services/copilotKnowledge';
 import { getEarningsCalendarData } from './src/server/services/earningsService';
+import { computeSeasonality } from './src/server/math/seasonality';
 import { db, StoredPrediction } from './src/server/store/db';
 import { generateSupportFallback } from './src/utils/supportKnowledge';
 
@@ -389,6 +390,20 @@ app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error(`Error fetching history for ${req.params.ticker}:`, error);
     return res.status(500).json({ error: 'Failed to retrieve historical data.' });
+  }
+});
+
+app.get('/api/stocks/:ticker/seasonality', async (req: Request, res: Response) => {
+  try {
+    const ticker = await resolveTickerOrName(req.params.ticker);
+    const days = parseInt((req.query.days as string) || '1250', 10);
+    const month = req.query.month !== undefined ? parseInt(req.query.month as string, 10) : new Date().getMonth();
+    const history = await getHistoricalData(ticker, days);
+    const report = computeSeasonality(history, ticker, month);
+    return res.json(report);
+  } catch (error: any) {
+    console.error(`Error computing seasonality for ${req.params.ticker}:`, error);
+    return res.status(500).json({ error: 'Failed to compute seasonality analysis.' });
   }
 });
 

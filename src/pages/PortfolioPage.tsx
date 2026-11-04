@@ -553,6 +553,7 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
         </div>
 
         <div
+          id="tour-dividend-kpi"
           onClick={() => setActiveTab('dividends')}
           className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-amber-400/80 transition-all group col-span-1 sm:col-span-2 lg:col-span-1"
           title="Click to view full Dividend Yield & Calendar module"
@@ -806,9 +807,11 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
         </div>
       </div>
       ) : activeTab === 'trades' ? (
-        <TradeLedger
-          onSelectTicker={onSelectTicker}
-        />
+        <div id="tour-trade-ledger">
+          <TradeLedger
+            onSelectTicker={onSelectTicker}
+          />
+        </div>
       ) : activeTab === 'performance' ? (
         <PortfolioPerformanceD3Chart
           holdings={holdings}
@@ -826,10 +829,12 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
           portfolioTotalValue={totalValue}
         />
       ) : activeTab === 'dividends' ? (
-        <DividendCalendar
-          holdings={holdings}
-          onSelectTicker={onSelectTicker}
-        />
+        <div id="tour-dividend-calendar">
+          <DividendCalendar
+            holdings={holdings}
+            onSelectTicker={onSelectTicker}
+          />
+        </div>
       ) : activeTab === 'optimizer' ? (
         /* TAB 4: MEAN-VARIANCE OPTIMIZATION & REBALANCING */
         <div className="space-y-6">

@@ -19,9 +19,12 @@ import {
   BarChart2
 } from 'lucide-react';
 import { api } from '../services/api';
-import { StockQuote, ConformalPrediction, MarketRegime, ConceptDriftResult, PortfolioHolding, ProjectWideAccuracyResult } from '../types';
+import { StockQuote, HistoricalBar, NewsItem, ConformalPrediction, MarketRegime, ConceptDriftResult, PortfolioHolding, ProjectWideAccuracyResult } from '../types';
+import { InteractiveStockChart } from '../components/InteractiveStockChart';
 import { ConformalPredictionCard } from '../components/ConformalPredictionCard';
 import { MarketRegimeCard } from '../components/MarketRegimeCard';
+import { SentimentCard } from '../components/SentimentCard';
+import { ConceptDriftCard } from '../components/ConceptDriftCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { NewsTicker } from '../components/NewsTicker';
@@ -41,8 +44,10 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
   const { user } = useAuth();
   const [selectedTicker, setSelectedTicker] = useState('RELIANCE.NS');
   const [quote, setQuote] = useState<StockQuote | null>(null);
+  const [history, setHistory] = useState<HistoricalBar[]>([]);
   const [prediction, setPrediction] = useState<ConformalPrediction | null>(null);
   const [regime, setRegime] = useState<MarketRegime | null>(null);
+  const [news, setNews] = useState<NewsItem[]>([]);
   const [drift, setDrift] = useState<ConceptDriftResult | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
   const [accuracy, setAccuracy] = useState<ProjectWideAccuracyResult | null>(null);
@@ -71,17 +76,21 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
       setLoading(true);
       try {
         const userConf = user?.confidenceLevel ? user.confidenceLevel / 100 : 0.90;
-        const [q, p, r, d, port, acc] = await Promise.all([
+        const [q, h, p, r, n, d, port, acc] = await Promise.all([
           api.getQuote(selectedTicker),
+          api.getHistory(selectedTicker, 250),
           api.getConformalPrediction(selectedTicker, 1, userConf),
           api.getMarketRegime(selectedTicker),
+          api.getNews(selectedTicker),
           api.getConceptDrift(selectedTicker),
           api.getPortfolio(),
           api.getProjectWideAccuracy()
         ]);
         setQuote(q);
+        setHistory(h);
         setPrediction(p);
         setRegime(r);
+        setNews(n);
         setDrift(d);
         setPortfolio(port);
         setAccuracy(acc);
@@ -427,23 +436,48 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
         </div>
       </div>
 
-      {/* 4. Active Selected Asset Spotlight Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
-        <div id="tour-conformal-card" className="w-full">
-          <ConformalPredictionCard
-            prediction={prediction}
-            currency={quote?.currency || 'INR'}
-            onConfigChange={async (h, c) => {
-              try {
-                const updated = await api.getConformalPrediction(selectedTicker, h, c);
-                setPrediction(updated);
-              } catch (err) {
-                console.error('Failed to update prediction on config change:', err);
-              }
-            }}
-          />
+      {/* 4. Primary Stock Price Prediction Candle Chart */}
+      <div id="tour-candle-chart" className="space-y-4 sm:space-y-6">
+        <InteractiveStockChart
+          bars={history}
+          prediction={prediction}
+          currency={quote?.currency || 'INR'}
+          ticker={selectedTicker}
+        />
+
+        {/* 4.1 Prediction & Core ML Innovation Modules (Directly Below Candle Chart) */}
+        <div className="space-y-4 sm:space-y-6">
+          {/* Row 1: Conformal Prediction & Market Regime Detection */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
+            <div id="tour-conformal-card" className="w-full">
+              <ConformalPredictionCard
+                prediction={prediction}
+                currency={quote?.currency || 'INR'}
+                onConfigChange={async (h, c) => {
+                  try {
+                    const updated = await api.getConformalPrediction(selectedTicker, h, c);
+                    setPrediction(updated);
+                  } catch (err) {
+                    console.error('Failed to update prediction on config change:', err);
+                  }
+                }}
+              />
+            </div>
+            <div id="tour-regime-card" className="w-full">
+              <MarketRegimeCard regime={regime} />
+            </div>
+          </div>
+
+          {/* Row 2: Sentiment & Credibility + Concept Drift Monitor */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-w-0">
+            <div id="tour-sentiment-card" className="w-full">
+              <SentimentCard news={news} ticker={selectedTicker} />
+            </div>
+            <div id="tour-drift-card" className="w-full">
+              <ConceptDriftCard drift={drift} />
+            </div>
+          </div>
         </div>
-        <MarketRegimeCard regime={regime} />
       </div>
 
       {/* 4.5 Sector Volatility & Heatmap Treemap (D3.js) */}
@@ -455,12 +489,14 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
       />
 
       {/* 4.8 Watchlist Earnings Calendar (Upcoming Dates, Consensus EPS & Surprise Patterns) */}
-      <EarningsCalendar
-        onSelectTicker={(ticker: string) => {
-          setSelectedTicker(ticker);
-          onSelectTicker(ticker);
-        }}
-      />
+      <div id="tour-earnings-calendar">
+        <EarningsCalendar
+          onSelectTicker={(ticker: string) => {
+            setSelectedTicker(ticker);
+            onSelectTicker(ticker);
+          }}
+        />
+      </div>
 
       {/* 5. Deep-dive Action Bar with Fluid Sizing and High-Contrast Light Mode */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 sm:p-4.5 md:p-5 lg:p-6 rounded-2xl bg-gradient-to-r from-cyan-50/90 via-sky-50 to-emerald-50/90 dark:from-slate-900/80 dark:via-slate-900/60 dark:to-slate-900/80 border border-cyan-200/90 dark:border-slate-800 shadow-xs">

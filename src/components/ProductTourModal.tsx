@@ -1,5 +1,5 @@
 /**
- * Guided Product Spotlight Tour (12-Step Interactive Walkthrough)
+ * Guided Product Spotlight Tour (16-Step Interactive Walkthrough)
  * Provides genuine spotlight focus: smoothly scrolls the page to the target element,
  * renders an animated glowing halo spotlight ring around the selected component,
  * and dynamically anchors an explanatory floating quantitative card with step controls.
@@ -25,7 +25,13 @@ import {
   ArrowRight,
   Search,
   Eye,
-  Sliders
+  Sliders,
+  LineChart,
+  Calendar,
+  Coins,
+  Briefcase,
+  Bell,
+  Newspaper
 } from 'lucide-react';
 
 export interface TourStep {
@@ -47,12 +53,12 @@ const TOUR_STEPS: TourStep[] = [
   {
     step: 1,
     title: 'AlphaQuant Terminal Core',
-    badge: 'Step 1 of 12',
+    badge: 'Step 1 of 16',
     category: 'Architecture Overview',
     icon: Sparkles,
     targetSelector: '#tour-brand-header',
     description:
-      'AlphaQuant AI is an institutional quantitative intelligence terminal. Engineered for professional traders and portfolio managers, it bridges machine learning, split-conformal inference, and direct broker execution.',
+      'AlphaQuant AI is an institutional quantitative intelligence terminal. Engineered for professional traders and portfolio managers, it bridges machine learning price prediction, split-conformal inference, and direct broker execution.',
     highlights: [
       'Split-conformal prediction intervals with distribution-free mathematical guarantees',
       'Real-time streaming inter-market telemetry across 60+ global assets (NSE, BSE, US)',
@@ -65,7 +71,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     step: 2,
     title: 'Global Macro Market Tape',
-    badge: 'Step 2 of 12',
+    badge: 'Step 2 of 16',
     category: 'Market Telemetry',
     icon: TrendingUp,
     targetSelector: '#tour-macro-tape',
@@ -84,7 +90,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     step: 3,
     title: 'Project-Wide Price Accuracy Metric',
-    badge: 'Step 3 of 12',
+    badge: 'Step 3 of 16',
     category: 'Performance Benchmarking',
     icon: ShieldCheck,
     targetSelector: '#tour-price-accuracy',
@@ -103,7 +109,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     step: 4,
     title: 'Active Portfolio & Realized Valuation',
-    badge: 'Step 4 of 12',
+    badge: 'Step 4 of 16',
     category: 'Portfolio Telemetry',
     icon: ShieldCheck,
     targetSelector: '#tour-active-portfolio',
@@ -116,51 +122,13 @@ const TOUR_STEPS: TourStep[] = [
       'Direct shortcut to Portfolio Management and Markowitz rebalancing'
     ],
     formulaOrMetric: 'P&L = Current Valuation - Invested Capital',
-    actionLabel: 'Next: Macro Regime',
-    actionId: 'next'
-  },
-  {
-    step: 5,
-    title: 'Hidden Markov Model Market Regimes',
-    badge: 'Step 5 of 12',
-    category: 'Regime Classification',
-    icon: Layers,
-    targetSelector: '#tour-macro-regime',
-    tab: 'dashboard',
-    description:
-      'Classifies underlying structural market dynamics using Hidden Markov Models (HMM) and technical indicator envelopes to prevent trading against prevailing macroeconomic momentum.',
-    highlights: [
-      'Classifies into Bullish Steady Drift, High Volatility Expansion, or Mean-Reverting Range',
-      'Dynamic transition probabilities calculating expected regime persistence durations',
-      'Adaptive risk-budgeting weights based on prevailing volatility states'
-    ],
-    formulaOrMetric: 'States: Low Volatility Trend (S1), High Volatility Bear (S2), Sideways Mean-Revert (S3)',
-    actionLabel: 'Next: Drift Monitor',
-    actionId: 'next'
-  },
-  {
-    step: 6,
-    title: 'Kolmogorov-Smirnov (KS) Drift Governance',
-    badge: 'Step 6 of 12',
-    category: 'Model Governance',
-    icon: ActivitySquare,
-    targetSelector: '#tour-drift-monitor',
-    tab: 'dashboard',
-    description:
-      'Continuous production ML governance running two-sample Kolmogorov-Smirnov tests comparing baseline training returns with live empirical returns.',
-    highlights: [
-      'Calculates KS distance statistic D = sup |F_live(x) - F_ref(x)| and p-value',
-      'Autonomous alert triggers when statistical drift is detected (p < 0.05)',
-      'Protects against catastrophic model degradation during sudden volatility regime shifts'
-    ],
-    formulaOrMetric: 'KS Statistic: D_{n,m} = \\sup_x |F_{1,n}(x) - F_{2,m}(x)| (Threshold α=0.05)',
     actionLabel: 'Next: Asset Search',
     actionId: 'next'
   },
   {
-    step: 7,
+    step: 5,
     title: 'Universal Asset & Company Search',
-    badge: 'Step 7 of 12',
+    badge: 'Step 5 of 16',
     category: 'Asset Discovery',
     icon: Search,
     targetSelector: '#tour-company-search',
@@ -173,13 +141,32 @@ const TOUR_STEPS: TourStep[] = [
       'Quick-access watchlist pills for top bellwether assets'
     ],
     formulaOrMetric: 'Coverage: NSE (NIFTY 50) + BSE + US Big Tech Equities',
+    actionLabel: 'Next: Primary Price Prediction Chart',
+    actionId: 'next'
+  },
+  {
+    step: 6,
+    title: 'Primary Stock Price Prediction Candlestick Chart',
+    badge: 'Step 6 of 16',
+    category: 'Core Predictive Motive',
+    icon: LineChart,
+    targetSelector: '#tour-candle-chart',
+    tab: 'dashboard',
+    description:
+      'Stock price prediction is the central motive of AlphaQuant. The interactive candlestick chart plots real-time OHLCV data alongside machine learning forecast trajectories and uncertainty bounds.',
+    highlights: [
+      'Multi-indicator technical suite: SMA 20/50, Bollinger Bands, RSI & MACD momentum',
+      'Overlaid forward price forecast horizon calibrated to user-selected intervals',
+      'Dynamic crosshair inspection with historical volume bars and volatility channels'
+    ],
+    formulaOrMetric: 'ŷ_{t+h} = f_θ(X_t) + ε_t (Multi-Horizon Forward Inference)',
     actionLabel: 'Next: Conformal Envelopes',
     actionId: 'next'
   },
   {
-    step: 8,
+    step: 7,
     title: 'Split-Conformal Prediction Envelopes',
-    badge: 'Step 8 of 12',
+    badge: 'Step 7 of 16',
     category: 'Statistical AI Core',
     icon: Activity,
     targetSelector: '#tour-conformal-card',
@@ -189,70 +176,168 @@ const TOUR_STEPS: TourStep[] = [
     highlights: [
       'Guarantees true market close falls within [Lower Bound, Upper Bound] with probability ≥ 1 - α',
       'Distribution-free: Requires zero Gaussian or normality assumptions on market returns',
-      'Interactive confidence level slider (80%, 90%, 95%) dynamically adjusting interval width'
+      'Interactive confidence level slider (80%, 90%, 95%, 99%) dynamically adjusting interval width'
     ],
     formulaOrMetric: 'P(Y_{n+1} ∈ C(X_{n+1})) ≥ 1 - α (Distribution-Free Guarantee)',
-    actionLabel: 'Next: Quant Tools',
+    actionLabel: 'Next: Market Regimes',
+    actionId: 'next'
+  },
+  {
+    step: 8,
+    title: 'Hidden Markov Model Market Regimes',
+    badge: 'Step 8 of 16',
+    category: 'Regime Classification',
+    icon: Layers,
+    targetSelector: '#tour-regime-card',
+    tab: 'dashboard',
+    description:
+      'Classifies underlying structural market dynamics using Hidden Markov Models (HMM) and technical indicator envelopes to prevent trading against prevailing macroeconomic momentum.',
+    highlights: [
+      'Classifies into Bullish Steady Drift, High Volatility Expansion, or Mean-Reverting Range',
+      'Dynamic transition probabilities calculating expected regime persistence durations',
+      'Adaptive risk-budgeting weights based on prevailing volatility states'
+    ],
+    formulaOrMetric: 'States: Low Volatility Trend (S1), High Volatility Bear (S2), Sideways Mean-Revert (S3)',
+    actionLabel: 'Next: News Sentiment',
     actionId: 'next'
   },
   {
     step: 9,
-    title: 'Options Chains & Greeks Analytics',
-    badge: 'Step 9 of 12',
-    category: 'Derivatives Analytics',
-    icon: ActivitySquare,
-    targetSelector: '#tour-quant-tools',
+    title: 'News Sentiment & Publisher Credibility',
+    badge: 'Step 9 of 16',
+    category: 'Financial NLP Intelligence',
+    icon: Newspaper,
+    targetSelector: '#tour-sentiment-card',
+    tab: 'dashboard',
     description:
-      'Complete derivatives workstation computing real-time Black-Scholes Greeks (Delta, Gamma, Theta, Vega, Rho) and Implied Volatility (IV) smile curves across all available strikes.',
+      'Domain-specific financial lexicon analyzes news sentiment and extracts positive/negative polarities, strictly weighted by verified publisher reputation scores.',
     highlights: [
-      'Real-time Black-Scholes Greeks: Δ (Delta), Γ (Gamma), Θ (Theta), ν (Vega), ρ (Rho)',
-      'Implied Volatility (IV) smile curve visualization highlighting volatility skews',
-      'ATM expected move projections (1-Day, 7-Day, 30-Day) and Put/Call Ratios (Volume & OI)'
+      'Domain credibility weighting: Tier-1 agencies (Reuters, Bloomberg, WSJ, FT) weighted higher',
+      'Detects sentiment momentum shifts and headline velocity before price reactions',
+      'Synthesizes multi-source news feed directly into the predictive inference vector'
     ],
-    formulaOrMetric: 'd1 = [ln(S/K) + (r + σ²/2)T] / (σ√T), Δ = N(d1), Γ = N\'(d1)/(Sσ√T), ν = S√T N\'(d1)',
-    actionLabel: 'Launch Options Modal',
-    actionId: 'open:options'
+    formulaOrMetric: 'Score = ∑ (Sentiment_i × PublisherWeight_i) / ∑ PublisherWeight_i',
+    actionLabel: 'Next: Concept Drift Guard',
+    actionId: 'next'
   },
   {
     step: 10,
-    title: 'Automated Quantitative Backtesting',
-    badge: 'Step 10 of 12',
-    category: 'Strategy Simulation',
-    icon: BarChart3,
-    targetSelector: '#tour-quant-tools',
+    title: 'Kolmogorov-Smirnov (KS) Drift Governance',
+    badge: 'Step 10 of 16',
+    category: 'Model Governance',
+    icon: ActivitySquare,
+    targetSelector: '#tour-drift-card',
+    tab: 'dashboard',
     description:
-      'Simulates model-driven trading strategies against standard Buy-and-Hold benchmarks over trailing historical sessions with realistic transaction slippage.',
+      'Continuous production ML governance running two-sample Kolmogorov-Smirnov tests comparing baseline training returns with live empirical returns.',
     highlights: [
-      'XGBoost + Conformal Quantile Strategy: Buys near calibrated lower bound; exits near upper bound',
-      'Comparative equity curve visualization with Sharpe ratio and max drawdown stats',
-      'Auditable trade blotter logging win rates, profit factors, and alpha outperformance'
+      'Calculates KS distance statistic D = sup |F_live(x) - F_ref(x)| and p-value',
+      'Autonomous alert triggers when statistical drift is detected (p < 0.05)',
+      'Protects against catastrophic model degradation during sudden volatility regime shifts'
     ],
-    formulaOrMetric: 'Sharpe = (R_p - R_f) / σ_p, Alpha = Return_Strategy - Return_Benchmark',
-    actionLabel: 'Launch Backtest Modal',
-    actionId: 'open:backtest'
+    formulaOrMetric: 'KS Statistic: D_{n,m} = \\sup_x |F_{1,n}(x) - F_{2,m}(x)| (Threshold α=0.05)',
+    actionLabel: 'Next: Earnings Calendar',
+    actionId: 'next'
   },
   {
     step: 11,
-    title: 'Broker Router & Portfolio Optimizer',
-    badge: 'Step 11 of 12',
-    category: 'Execution & Optimization',
-    icon: Sliders,
-    targetSelector: '#tour-quant-tools',
+    title: 'Watchlist Earnings Calendar & Consensus EPS',
+    badge: 'Step 11 of 16',
+    category: 'Fundamental Catalyst Tracking',
+    icon: Calendar,
+    targetSelector: '#tour-earnings-calendar',
+    tab: 'dashboard',
     description:
-      'Simulates direct connectivity to institutional paper trading gateways (Alpaca) and performs Markowitz Modern Portfolio Theory mean-variance optimization.',
+      'Tracks upcoming quarterly earnings release dates, consensus Wall Street / Dalal Street EPS estimates, and historical post-earnings surprise patterns.',
     highlights: [
-      'Market & Limit order ticket with algorithmic stop-loss and take-profit bounds',
-      'Visualizes Markowitz Efficient Frontier with 1-click portfolio weight rebalancing',
-      'Verified Quantitative Social Leaderboard with 1-click portfolio mirror sync'
+      'Countdown to scheduled earnings reporting dates across all watchlist stocks',
+      'Historical earnings beat/miss surprise percentage patterns',
+      'Pre-earnings volatility expansion warning flags to manage binary event risk'
     ],
-    formulaOrMetric: 'max w^T μ - (λ/2) w^T Σ w subject to ∑ w_i = 1, w_i ≥ 0',
-    actionLabel: 'Launch Broker Router',
-    actionId: 'open:broker'
+    formulaOrMetric: 'EPS Surprise % = (Reported EPS - Consensus EPS) / |Consensus EPS| × 100',
+    actionLabel: 'Next: Seasonality Analysis',
+    actionId: 'next'
   },
   {
     step: 12,
+    title: 'Seasonality & Calendar Alpha Analysis',
+    badge: 'Step 12 of 16',
+    category: 'Temporal Alpha Engine',
+    icon: Calendar,
+    targetSelector: '#tour-seasonality',
+    tab: 'analysis',
+    description:
+      'Uncovers recurrent monthly return patterns and cyclical tendencies across 5-year multi-annual matrices, identifying historical seasonal outperformers.',
+    highlights: [
+      'Multi-year monthly return heatmaps with win-rate %, median return, and volatility',
+      'Target-month tendency bias rating (Strong Bullish, Bullish, Neutral, Bearish)',
+      'Identifies universe outperformers for specific seasons (Diwali Q4, Santa Rally, Jan effect)'
+    ],
+    formulaOrMetric: 'Seasonality Bias = (Win Rate % - 50%) × Avg Return / Historical Volatility',
+    actionLabel: 'Next: Dividend Calendar',
+    actionId: 'next'
+  },
+  {
+    step: 13,
+    title: 'Dividend Yield & Ex-Date Cashflow Calendar',
+    badge: 'Step 13 of 16',
+    category: 'Cashflow Optimization',
+    icon: Coins,
+    targetSelector: '#tour-dividend-calendar',
+    tab: 'portfolio',
+    description:
+      'Monitors upcoming ex-dividend dates, calculates total projected annual dividend income, Yield on Cost (YoC %), and runs DRIP compounding projections.',
+    highlights: [
+      'Total projected annual dividend cashflow in INR and USD run-rates',
+      'Live countdown to imminent ex-dividend dates (< 14 days payout alert ribbons)',
+      'Monthly cashflow distribution schedule and DRIP reinvestment growth simulator'
+    ],
+    formulaOrMetric: 'Yield on Cost = (Annual Dividend per Share / Purchase Price) × 100',
+    actionLabel: 'Next: Trade Analytics',
+    actionId: 'next'
+  },
+  {
+    step: 14,
+    title: 'Executive Trade Summary & Risk Attribution',
+    badge: 'Step 14 of 16',
+    category: 'Trade Governance',
+    icon: Briefcase,
+    targetSelector: '#tour-trade-ledger',
+    tab: 'portfolio',
+    description:
+      'Rigorous quantitative audit of closed trading performance displaying Sharpe Ratio, Win/Loss ratio, average holding duration, and sector/asset class risk attribution.',
+    highlights: [
+      'Executive metrics: Realized Sharpe ratio, profit factor, win rate %, and holding period',
+      'Risk attribution breakdown calculating capital allocation across sectors and asset classes',
+      'Direct audit trail ensuring disciplined risk-budgeting adherence'
+    ],
+    formulaOrMetric: 'Sharpe = (R_p - R_f) / σ_p, Sector Risk % = Allocated Capital_s / Total Capital',
+    actionLabel: 'Next: Risk-Based Alerts',
+    actionId: 'next'
+  },
+  {
+    step: 15,
+    title: 'Risk-Based & Momentum RSI Alerts Engine',
+    badge: 'Step 15 of 16',
+    category: 'Proactive Alerting',
+    icon: Bell,
+    targetSelector: '#tour-risk-alerts',
+    tab: 'alerts',
+    description:
+      'Proactive monitoring engine dispatching automated push alerts when an asset exceeds user-defined Value-at-Risk (VaR), volatility caps, or RSI oversold (≤30) and overbought (≥70) thresholds.',
+    highlights: [
+      'Automated push alerts on RSI crosses: Oversold dip buys (≤30) & overbought profit taking (≥70)',
+      'Value-at-Risk (VaR 95% & 99%) threshold breaches with custom forward horizons',
+      'Autonomous volatility expansion triggers preventing unhedged drawdown exposure'
+    ],
+    formulaOrMetric: 'VaR_α = -μΔt + z_α σ √Δt, RSI = 100 - (100 / (1 + RS))',
+    actionLabel: 'Next: AlphaBot Copilot',
+    actionId: 'next'
+  },
+  {
+    step: 16,
     title: 'AlphaBot Quantitative Copilot',
-    badge: 'Step 12 of 12',
+    badge: 'Step 16 of 16',
     category: 'AI Assistant',
     icon: Bot,
     targetSelector: '#tour-alphabot-copilot',
@@ -308,6 +393,21 @@ export const ProductTourModal: React.FC<Props> = ({
     if (!el && selector === '#tour-quant-tools') {
       el = document.querySelector('#tour-nav-links') as HTMLElement | null;
     }
+    if (!el && selector === '#tour-regime-card') {
+      el = document.querySelector('#tour-macro-regime') as HTMLElement | null;
+    }
+    if (!el && selector === '#tour-drift-card') {
+      el = document.querySelector('#tour-drift-monitor') as HTMLElement | null;
+    }
+    if (!el && selector === '#tour-dividend-calendar') {
+      el = document.querySelector('#tour-dividend-kpi') as HTMLElement | null;
+    }
+    if (!el && selector === '#tour-trade-ledger') {
+      el = document.querySelector('#tour-active-portfolio') as HTMLElement | null;
+    }
+    if (!el && (selector === '#tour-seasonality' || selector === '#tour-earnings-calendar')) {
+      el = document.querySelector('#tour-candle-chart') as HTMLElement | null;
+    }
 
     if (el) {
       setTargetFound(true);
@@ -335,6 +435,21 @@ export const ProductTourModal: React.FC<Props> = ({
       }
       if (!el && selector === '#tour-quant-tools') {
         el = document.querySelector('#tour-nav-links') as HTMLElement | null;
+      }
+      if (!el && selector === '#tour-regime-card') {
+        el = document.querySelector('#tour-macro-regime') as HTMLElement | null;
+      }
+      if (!el && selector === '#tour-drift-card') {
+        el = document.querySelector('#tour-drift-monitor') as HTMLElement | null;
+      }
+      if (!el && selector === '#tour-dividend-calendar') {
+        el = document.querySelector('#tour-dividend-kpi') as HTMLElement | null;
+      }
+      if (!el && selector === '#tour-trade-ledger') {
+        el = document.querySelector('#tour-active-portfolio') as HTMLElement | null;
+      }
+      if (!el && (selector === '#tour-seasonality' || selector === '#tour-earnings-calendar')) {
+        el = document.querySelector('#tour-candle-chart') as HTMLElement | null;
       }
 
       if (el) {
@@ -789,7 +904,7 @@ export const ProductTourModal: React.FC<Props> = ({
               Exit Tour
             </button>
             <span className="hidden sm:inline text-[10px] font-mono text-slate-400">
-              {currentStepIdx + 1}/12 · Enter/→ keys
+              {currentStepIdx + 1}/{TOUR_STEPS.length} · Enter/→ keys
             </span>
           </div>
 

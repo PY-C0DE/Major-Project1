@@ -30,7 +30,8 @@ import {
   SocialDiscussion,
   VerifiedTrader,
   StockSearchResult,
-  EarningsCalendarItem
+  EarningsCalendarItem,
+  SeasonalityReport
 } from '../types';
 import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { generateSupportFallback } from '../utils/supportKnowledge';
@@ -184,6 +185,14 @@ export const api = {
   async getHistory(ticker: string, days = 250): Promise<HistoricalBar[]> {
     const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(ticker)}/history?days=${days}`);
     if (!res.ok) throw new Error(`Failed to fetch history for ${ticker}`);
+    return res.json();
+  },
+
+  async getSeasonality(ticker: string, days = 1250, month?: number): Promise<SeasonalityReport> {
+    const query = new URLSearchParams({ days: days.toString() });
+    if (month !== undefined) query.set('month', month.toString());
+    const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(ticker)}/seasonality?${query.toString()}`);
+    if (!res.ok) throw new Error(`Failed to fetch seasonality report for ${ticker}`);
     return res.json();
   },
 
