@@ -16,6 +16,7 @@ export interface PriceBar {
 export interface ComputedBar extends PriceBar {
   sma20?: number;
   sma50?: number;
+  sma200?: number;
   ema12?: number;
   ema26?: number;
   rsi14?: number;
@@ -258,6 +259,7 @@ export function computeAllIndicators(bars: PriceBar[]): ComputedBar[] {
   const closes = bars.map(b => b.close);
   const sma20 = calculateSMA(closes, 20);
   const sma50 = calculateSMA(closes, 50);
+  const sma200 = calculateSMA(closes, 200);
   const ema12 = calculateEMA(closes, 12);
   const ema26 = calculateEMA(closes, 26);
   const rsi14 = calculateRSI(closes, 14);
@@ -289,6 +291,7 @@ export function computeAllIndicators(bars: PriceBar[]): ComputedBar[] {
       ...bar,
       sma20: sma20[i] !== undefined ? Number(sma20[i]?.toFixed(2)) : undefined,
       sma50: sma50[i] !== undefined ? Number(sma50[i]?.toFixed(2)) : undefined,
+      sma200: sma200[i] !== undefined ? Number(sma200[i]?.toFixed(2)) : undefined,
       ema12: ema12[i] !== undefined ? Number(ema12[i]?.toFixed(2)) : undefined,
       ema26: ema26[i] !== undefined ? Number(ema26[i]?.toFixed(2)) : undefined,
       rsi14: rsi14[i] !== undefined ? Number(rsi14[i]?.toFixed(2)) : undefined,

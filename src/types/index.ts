@@ -38,6 +38,7 @@ export interface HistoricalBar {
   volume: number;
   sma20?: number;
   sma50?: number;
+  sma200?: number;
   rsi?: number;
   macd?: number;
   bbUpper?: number;
@@ -50,6 +51,7 @@ export interface HistoricalBar {
 export interface TechnicalIndicators {
   sma20: number;
   sma50: number;
+  sma200?: number;
   ema12: number;
   ema26: number;
   rsi14: number;
