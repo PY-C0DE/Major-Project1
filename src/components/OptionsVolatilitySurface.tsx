@@ -40,6 +40,9 @@ interface Props {
   onSelectStrike?: (strike: number, days?: number, type?: 'CALL' | 'PUT') => void;
   className?: string;
   height?: number;
+  compact?: boolean;
+  hideHeader?: boolean;
+  onExpandModal?: () => void;
 }
 
 type SurfaceViewMode = '3d' | '2d_smile' | 'heatmap';
@@ -51,7 +54,10 @@ export const OptionsVolatilitySurface: React.FC<Props> = ({
   spotPrice: initialSpot,
   onSelectStrike,
   className = '',
-  height = 520
+  height = 520,
+  compact = false,
+  hideHeader = false,
+  onExpandModal
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -1036,70 +1042,122 @@ export const OptionsVolatilitySurface: React.FC<Props> = ({
   };
 
   return (
-    <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden font-sans transition-colors ${className}`}>
-      {/* Header & Controls Bar */}
-      <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
-            <Layers className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-bold font-display tracking-tight text-slate-900 dark:text-white">
-                Implied Volatility Surface & Smile
-              </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 font-semibold">
-                D3 v7 Engine
-              </span>
+    <div className={`${compact ? 'bg-transparent border-0 shadow-none' : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl'} overflow-hidden font-sans transition-colors ${className}`}>
+      {/* Header & Controls Bar (omitted in compact/modal mode) */}
+      {!hideHeader && (
+        <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-500/10 border border-cyan-200 dark:border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400">
+              <Layers className="w-5 h-5" />
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-              Continuous strike cross-sections and multi-tenor term structure (7D – 180D) for {ticker}
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-bold font-display tracking-tight text-slate-900 dark:text-white">
+                  Implied Volatility Surface & Smile
+                </h3>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 font-semibold">
+                  D3 v7 Engine
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                Continuous strike cross-sections and multi-tenor term structure (7D – 180D) for {ticker}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* View mode toggle pills */}
+            <div className="flex items-center gap-1.5 bg-slate-200/80 dark:bg-slate-950 p-1 rounded-xl border border-slate-300 dark:border-slate-800 text-xs font-mono">
+              <button
+                onClick={() => setViewMode('3d')}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === '3d'
+                    ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5" />
+                3D Surface
+              </button>
+              <button
+                onClick={() => setViewMode('2d_smile')}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === '2d_smile'
+                    ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                2D Smile
+              </button>
+              <button
+                onClick={() => setViewMode('heatmap')}
+                className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'heatmap'
+                    ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                Heatmap Matrix
+              </button>
+            </div>
+
+            {onExpandModal && (
+              <button
+                onClick={onExpandModal}
+                title="Expand into full Derivatives Terminal Modal"
+                className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-300 hover:text-cyan-600 dark:hover:text-cyan-400 text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              >
+                <Maximize2 className="w-3.5 h-3.5 text-cyan-500" />
+                <span className="hidden sm:inline">Options Terminal</span>
+              </button>
+            )}
           </div>
         </div>
-
-        {/* View mode toggle pills */}
-        <div className="flex items-center gap-1.5 bg-slate-200/80 dark:bg-slate-950 p-1 rounded-xl border border-slate-300 dark:border-slate-800 text-xs font-mono">
-          <button
-            onClick={() => setViewMode('3d')}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
-              viewMode === '3d'
-                ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Compass className="w-3.5 h-3.5" />
-            3D Surface
-          </button>
-          <button
-            onClick={() => setViewMode('2d_smile')}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
-              viewMode === '2d_smile'
-                ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <TrendingUp className="w-3.5 h-3.5" />
-            2D Smile
-          </button>
-          <button
-            onClick={() => setViewMode('heatmap')}
-            className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 ${
-              viewMode === 'heatmap'
-                ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            Heatmap Matrix
-          </button>
-        </div>
-      </div>
+      )}
 
       {/* Subheader: Skew Telemetry & Parameters */}
       {surfaceData && (
-        <div className="px-5 py-3 bg-slate-100/60 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-          <div className="flex flex-wrap items-center gap-4">
+        <div className={`${compact ? 'px-3 py-2 text-[11px]' : 'px-5 py-3 text-xs'} bg-slate-100/60 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-2.5 font-mono`}>
+          <div className="flex flex-wrap items-center gap-3">
+            {hideHeader && (
+              <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-300 dark:border-slate-800 text-[11px]">
+                <button
+                  onClick={() => setViewMode('3d')}
+                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center gap-1 ${
+                    viewMode === '3d'
+                      ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Compass className="w-3 h-3" />
+                  <span>3D</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('2d_smile')}
+                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center gap-1 ${
+                    viewMode === '2d_smile'
+                      ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <TrendingUp className="w-3 h-3" />
+                  <span>Smile</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('heatmap')}
+                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer flex items-center gap-1 ${
+                    viewMode === 'heatmap'
+                      ? 'bg-cyan-600 dark:bg-cyan-500 text-white dark:text-slate-950 font-bold shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  <Sliders className="w-3 h-3" />
+                  <span>Matrix</span>
+                </button>
+              </div>
+            )}
             <div>
               <span className="text-slate-500 dark:text-slate-400">Spot: </span>
               <span className="font-bold text-slate-900 dark:text-white">${surfaceData.spotPrice.toLocaleString()}</span>
@@ -1115,13 +1173,13 @@ export const OptionsVolatilitySurface: React.FC<Props> = ({
                   surfaceData.skew25Delta > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
                 }`}
               >
-                {surfaceData.skew25Delta > 0 ? `+${surfaceData.skew25Delta}% (Put Premium)` : `${surfaceData.skew25Delta}%`}
+                {surfaceData.skew25Delta > 0 ? `+${surfaceData.skew25Delta}%` : `${surfaceData.skew25Delta}%`}
               </span>
             </div>
             <div>
-              <span className="text-slate-500 dark:text-slate-400">Term Slope: </span>
+              <span className="text-slate-500 dark:text-slate-400">Term: </span>
               <span
-                className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                className={`font-bold px-1.5 py-0.2 rounded text-[10px] ${
                   surfaceData.termStructureSlope === 'Contango'
                     ? 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300'
                     : surfaceData.termStructureSlope === 'Backwardation'
@@ -1465,22 +1523,24 @@ export const OptionsVolatilitySurface: React.FC<Props> = ({
         })()}
       </div>
 
-      {/* Footer: Quantitative Educational Insights */}
-      <div className="p-3.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 font-mono flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Info className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
-          <span>
-            <strong>Volatility Smile & MA Trend:</strong> The Moving Average Trend Line (Amber) provides a smoothed parametric baseline across strikes. When implied volatility sits above the MA trend line, it highlights elevated tail risk hedging and bullish/bearish sentiment shifts.
-          </span>
-        </div>
-
-        {selectedStrike && (
+      {/* Footer: Quantitative Educational Insights (hidden in compact/modal mode) */}
+      {!compact && (
+        <div className="p-3.5 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 font-mono flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-slate-400">Active Strike:</span>
-            <span className="font-bold text-cyan-600 dark:text-cyan-400">${selectedStrike}</span>
+            <Info className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+            <span>
+              <strong>Volatility Smile & MA Trend:</strong> The Moving Average Trend Line (Amber) provides a smoothed parametric baseline across strikes. When implied volatility sits above the MA trend line, it highlights elevated tail risk hedging and bullish/bearish sentiment shifts.
+            </span>
           </div>
-        )}
-      </div>
+
+          {selectedStrike && (
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400">Active Strike:</span>
+              <span className="font-bold text-cyan-600 dark:text-cyan-400">${selectedStrike}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

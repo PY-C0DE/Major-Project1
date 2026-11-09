@@ -20,7 +20,9 @@ import {
   getHistoricalData,
   searchStocks,
   TICKER_CATALOG,
-  resolveTickerOrName
+  resolveTickerOrName,
+  getMarketIndices,
+  getQuickWatchQuotes
 } from './src/server/services/stockService';
 import { detectMarketRegime } from './src/server/math/hmmRegime';
 import { runConformalPrediction } from './src/server/math/conformal';
@@ -367,6 +369,26 @@ app.get('/api/stocks/search', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error searching stocks:', error);
     return res.status(500).json({ error: 'Failed to search stocks.' });
+  }
+});
+
+app.get('/api/markets/indices', async (_req: Request, res: Response) => {
+  try {
+    const indices = await getMarketIndices();
+    return res.json(indices);
+  } catch (error: any) {
+    console.error('Error fetching market indices:', error);
+    return res.status(500).json({ error: 'Failed to retrieve market indices.' });
+  }
+});
+
+app.get('/api/stocks/quick-watch', async (_req: Request, res: Response) => {
+  try {
+    const items = await getQuickWatchQuotes();
+    return res.json(items);
+  } catch (error: any) {
+    console.error('Error fetching quick watch quotes:', error);
+    return res.status(500).json({ error: 'Failed to retrieve quick watch quotes.' });
   }
 });
 

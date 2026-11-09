@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Activity,
@@ -73,12 +74,31 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
       setLoading(false);
     }
   }
+  // Lock background body scroll while modal is active
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 animate-fadeIn overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-sans transition-colors">
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-2 sm:p-4 overscroll-contain overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-sans transition-colors"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Terminal Header */}
         <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-950/90 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
@@ -209,66 +229,107 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
             </div>
           ) : (
             <>
-              {/* Top KPI Telemetry Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Spot Price</span>
-                  <div className="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white tabular-nums">
-                    ${data.spotPrice.toLocaleString()}
+              {/* If viewing Strike Matrix or Smile, show full KPI cards; if viewing 3D Surface, show compact telemetry strip so surface fits without scrolling */}
+              {viewMode !== 'surface' ? (
+                /* Top KPI Telemetry Cards */
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Spot Price</span>
+                    <div className="text-lg sm:text-xl font-bold font-mono text-slate-900 dark:text-white tabular-nums">
+                      ${data.spotPrice.toLocaleString()}
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">Underlying Asset</span>
                   </div>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">Underlying Asset</span>
-                </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">ATM Implied Vol</span>
-                  <div className="text-lg sm:text-xl font-bold font-mono text-cyan-600 dark:text-cyan-400 tabular-nums">
-                    {data.atmIV}%
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">ATM Implied Vol</span>
+                    <div className="text-lg sm:text-xl font-bold font-mono text-cyan-600 dark:text-cyan-400 tabular-nums">
+                      {data.atmIV}%
+                    </div>
+                    <span className="text-[9px] text-cyan-600/80 dark:text-cyan-500/80 font-mono">Annualized Vol</span>
                   </div>
-                  <span className="text-[9px] text-cyan-600/80 dark:text-cyan-500/80 font-mono">Annualized Vol</span>
-                </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">1-Day Exp. Move</span>
-                  <div className="text-lg sm:text-xl font-bold font-mono text-amber-600 dark:text-amber-400 tabular-nums">
-                    ±${data.expectedMove1Day}
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">1-Day Exp. Move</span>
+                    <div className="text-lg sm:text-xl font-bold font-mono text-amber-600 dark:text-amber-400 tabular-nums">
+                      ±${data.expectedMove1Day}
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">1σ Statistical Move</span>
                   </div>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">1σ Statistical Move</span>
-                </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">7-Day Exp. Move</span>
-                  <div className="text-lg sm:text-xl font-bold font-mono text-amber-600 dark:text-amber-400 tabular-nums">
-                    ±${data.expectedMove7Day}
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">7-Day Exp. Move</span>
+                    <div className="text-lg sm:text-xl font-bold font-mono text-amber-600 dark:text-amber-400 tabular-nums">
+                      ±${data.expectedMove7Day}
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">Expiry Expected Range</span>
                   </div>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">Expiry Expected Range</span>
-                </div>
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Put/Call Ratio (Vol)</span>
-                  <div className={`text-lg sm:text-xl font-bold font-mono tabular-nums ${
-                    data.putCallRatioVolume > 1.0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
-                  }`}>
-                    {data.putCallRatioVolume}
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">Put/Call Ratio (Vol)</span>
+                    <div className={`text-lg sm:text-xl font-bold font-mono tabular-nums ${
+                      data.putCallRatioVolume > 1.0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {data.putCallRatioVolume}
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">
+                      {data.putCallRatioVolume > 1.0 ? 'Bearish Sentiment' : 'Bullish Sentiment'}
+                    </span>
                   </div>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">
-                    {data.putCallRatioVolume > 1.0 ? 'Bearish Sentiment' : 'Bullish Sentiment'}
+
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
+                    <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">PCR Open Interest</span>
+                    <div className="text-lg sm:text-xl font-bold font-mono text-purple-600 dark:text-purple-400 tabular-nums">
+                      {data.putCallRatioOI}
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">Total Open Contracts</span>
+                  </div>
+                </div>
+              ) : (
+                /* Compact 1-Row Telemetry Ribbon for 3D Surface: Keeps chart above the fold with zero scroll */
+                <div className="px-3.5 py-2 rounded-xl bg-slate-100/80 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">Spot:</span>
+                      <span className="font-bold text-slate-900 dark:text-white tabular-nums">${data.spotPrice.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">ATM IV:</span>
+                      <span className="font-bold text-cyan-600 dark:text-cyan-400 tabular-nums">{data.atmIV}%</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">1D Move:</span>
+                      <span className="font-bold text-amber-600 dark:text-amber-400 tabular-nums">±${data.expectedMove1Day}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">7D Move:</span>
+                      <span className="font-bold text-amber-600 dark:text-amber-400 tabular-nums">±${data.expectedMove7Day}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">PCR (Vol):</span>
+                      <span className={`font-bold tabular-nums ${data.putCallRatioVolume > 1.0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                        {data.putCallRatioVolume}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">PCR (OI):</span>
+                      <span className="font-bold text-purple-600 dark:text-purple-400 tabular-nums">{data.putCallRatioOI}</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-cyan-600 dark:text-cyan-400 font-mono hidden md:inline">
+                    Interactive 3D Orbit & Tilt
                   </span>
                 </div>
+              )}
 
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-slate-500 dark:text-slate-400 block">PCR Open Interest</span>
-                  <div className="text-lg sm:text-xl font-bold font-mono text-purple-600 dark:text-purple-400 tabular-nums">
-                    {data.putCallRatioOI}
-                  </div>
-                  <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">Total Open Contracts</span>
-                </div>
-              </div>
-
-              {/* View Mode 0: D3 Implied Volatility Surface & Smile Engine */}
+              {/* View Mode 0: D3 Implied Volatility Surface & Smile Engine (Full Viewport Fit) */}
               {viewMode === 'surface' && (
                 <OptionsVolatilitySurface
                   ticker={ticker}
                   spotPrice={data.spotPrice}
+                  compact={true}
+                  hideHeader={true}
+                  height={380}
                   onSelectStrike={(strike, days, type) => {
                     if (onTradeOption) {
                       onTradeOption(ticker, strike, type || 'CALL');
@@ -402,17 +463,20 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
               </div>
               )}
 
-              {/* Explanatory Footnote */}
-              <div className="p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-start gap-2">
-                <Info className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
-                <p>
-                  Greeks are continuously refreshed via closed-form Black-Scholes partial derivatives. Implied Volatilities reflect local volatility smile calibrated against market-maker order books. Not investment advice.
-                </p>
-              </div>
+              {/* Explanatory Footnote (only shown in strike matrix or smile view) */}
+              {viewMode !== 'surface' && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-start gap-2">
+                  <Info className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0 mt-0.5" />
+                  <p>
+                    Greeks are continuously refreshed via closed-form Black-Scholes partial derivatives. Implied Volatilities reflect local volatility smile calibrated against market-maker order books. Not investment advice.
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

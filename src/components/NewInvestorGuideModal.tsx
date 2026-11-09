@@ -1,148 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   BookOpen, 
   Lightbulb, 
-  TrendingUp, 
-  TrendingDown, 
   ShieldCheck, 
   CheckCircle, 
-  HelpCircle, 
   DollarSign, 
   PieChart, 
   ArrowRight, 
   Sparkles,
   Target,
-  AlertTriangle
+  Calculator,
+  Award,
+  Layers,
+  TrendingUp,
+  Percent,
+  Check,
+  Maximize2
 } from 'lucide-react';
-import { NewInvestorShareIdea, InvestorGuideTopic } from '../types';
+import { 
+  GUIDE_TOPICS, 
+  CURATED_SHARE_SUGGESTIONS, 
+  INVESTOR_GOLDEN_RULES, 
+  formatStockCurrency 
+} from '../data/investorGuideData';
 
 interface NewInvestorGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectTicker?: (ticker: string) => void;
+  onOpenFullPage?: () => void;
 }
-
-const GUIDE_TOPICS: InvestorGuideTopic[] = [
-  {
-    id: 'shares_basics',
-    title: '1. What Are Shares & Equity?',
-    icon: 'PieChart',
-    shortSummary: 'When you buy a share, you own an actual fractional slice of a real company.',
-    fullExplanation: 'A share represents legal ownership in a public enterprise. If a company has 1,000,000 shares and you own 1,000, you own 0.1% of all revenue, cash flows, assets, and future profits. You do not need thousands of dollars to begin; modern exchanges support buying single shares or fractional units.',
-    keyTakeaway: 'You are an owner of a business, not a gambler betting on price tickers.',
-    exampleScenario: 'Buying 1 share of Apple (AAPL) means Apple works for you every time someone purchases an iPhone or iCloud subscription.',
-  },
-  {
-    id: 'price_movement',
-    title: '2. Why Do Stock Prices Move?',
-    icon: 'TrendingUp',
-    shortSummary: 'Stock prices are determined second-by-second by supply, demand, and expected earnings.',
-    fullExplanation: 'Every second, buyers and sellers place orders on the exchange. If more investors want to buy than sell, the price rises until an equilibrium is found. Price changes are driven by company earnings reports, interest rate policy from central banks, industry competition, and macroeconomic news.',
-    keyTakeaway: 'In the short run the market is a voting machine; in the long run it is a weighing machine of earnings.',
-    exampleScenario: 'If Microsoft reports 25% cloud revenue growth, institutional fund managers bid up the price to accumulate shares.',
-  },
-  {
-    id: 'dividends_vs_growth',
-    title: '3. Dividends vs. Capital Gains',
-    icon: 'DollarSign',
-    shortSummary: 'Two ways to make money: recurring cash payouts (dividends) or share price increases (capital gains).',
-    fullExplanation: 'Mature, profitable businesses like Coca-Cola or ITC distribute excess cash directly to shareholders as bank dividends every quarter. Fast-growing technology companies like Nvidia reinvest 100% of their cash back into research and infrastructure, giving investors returns through surging share prices instead.',
-    keyTakeaway: 'A balanced portfolio combines stable dividend payers with long-term compound growth companies.',
-    exampleScenario: 'Holding $10,000 in a 4% dividend stock deposits $400 in cash into your bank account every year regardless of market swings.',
-  },
-  {
-    id: 'buy_hold_sell_rules',
-    title: '4. When Should You Buy, Hold, or Sell?',
-    icon: 'Target',
-    shortSummary: 'TradeVision removes emotional impulse by giving algorithmic Buy, Hold, and Sell signals.',
-    fullExplanation: 'Never buy just because a stock surged yesterday, and never panic-sell just because the market has a bad day. Use math: BUY when high-quality businesses trade near the lower statistical conformal bound. HOLD when the price is safely progressing inside the expected channel. SELL when the stock hits full valuation, pierces the upper bound, or company fundamentals deteriorate.',
-    keyTakeaway: 'Protect your downside first with stop-losses; the upside takes care of itself.',
-    exampleScenario: 'If your stock gained 45% and tests the upper conformal boundary, taking partial profits locks in tangible gains.',
-  },
-];
-
-const CURATED_SHARE_SUGGESTIONS: NewInvestorShareIdea[] = [
-  {
-    ticker: 'AAPL',
-    name: 'Apple Inc.',
-    category: 'Conservative Wealth Builder',
-    recommendedAction: 'BUY',
-    currentPrice: 228.50,
-    targetPrice: 260.00,
-    stopLoss: 210.00,
-    expectedAnnualReturn: '14 - 18%',
-    riskRating: 'Low Risk',
-    simpleExplanation: 'Unmatched consumer ecosystem, over 2.2 billion active devices, and massive annual share buybacks provide downside defense.',
-    whyInvestNow: 'Upcoming Apple Intelligence cycle is triggering a multi-year iPhone upgrade supercycle.',
-    minimumInvestmentAmount: 228.50,
-  },
-  {
-    ticker: 'NVDA',
-    name: 'NVIDIA Corporation',
-    category: 'High Alpha Momentum',
-    recommendedAction: 'BUY',
-    currentPrice: 138.25,
-    targetPrice: 175.00,
-    stopLoss: 122.00,
-    expectedAnnualReturn: '25 - 35%',
-    riskRating: 'Higher Volatility',
-    simpleExplanation: 'Monopolistic lead in AI GPUs, CUDA software ecosystem, and cloud hyperscaler infrastructure spending worldwide.',
-    whyInvestNow: 'Blackwell architecture orders are sold out for 12 months, locking in guaranteed record quarterly free cash flow.',
-    minimumInvestmentAmount: 138.25,
-  },
-  {
-    ticker: 'HDFCBANK',
-    name: 'HDFC Bank Ltd.',
-    category: 'Conservative Wealth Builder',
-    recommendedAction: 'BUY',
-    currentPrice: 1720.00,
-    targetPrice: 2050.00,
-    stopLoss: 1580.00,
-    expectedAnnualReturn: '16 - 20%',
-    riskRating: 'Low Risk',
-    simpleExplanation: 'India\'s largest private lender. Post-merger credit-deposit ratio is normalizing with superior asset quality and branch reach.',
-    whyInvestNow: 'Valuation is at a 5-year historical discount compared to underlying ROE and credit growth expansion.',
-    minimumInvestmentAmount: 1720.00,
-  },
-  {
-    ticker: 'RELIANCE',
-    name: 'Reliance Industries',
-    category: 'Balanced Growth',
-    recommendedAction: 'HOLD',
-    currentPrice: 2780.00,
-    targetPrice: 3100.00,
-    stopLoss: 2620.00,
-    expectedAnnualReturn: '12 - 15%',
-    riskRating: 'Medium Risk',
-    simpleExplanation: 'Powerhouse conglomerate spanning Retail, Jio 5G Telecom, and Renewable Green Energy transition.',
-    whyInvestNow: 'Strong core, but currently in a consolidation channel. Existing holders should HOLD; wait for dip to add fresh shares.',
-    minimumInvestmentAmount: 2780.00,
-  },
-  {
-    ticker: 'SPECULATIVE_OVERBOUGHT',
-    name: 'High-P/E Speculative Meme Stocks',
-    category: 'High Alpha Momentum',
-    recommendedAction: 'SELL',
-    currentPrice: 94.50,
-    targetPrice: 65.00,
-    stopLoss: 102.00,
-    expectedAnnualReturn: 'Negative / Downside Risk',
-    riskRating: 'Higher Volatility',
-    simpleExplanation: 'Unprofitable companies trading above 100x earnings with weakening insider ownership and negative free cash flow.',
-    whyInvestNow: 'SELL signal triggered: Conformal bands confirm upper exhaust with extreme RSI overbought reading (>82).',
-    minimumInvestmentAmount: 94.50,
-  },
-];
 
 export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
   isOpen,
   onClose,
   onSelectTicker,
+  onOpenFullPage,
 }) => {
-  const [activeTab, setActiveTab] = useState<'guide' | 'suggestions'>('suggestions');
+  const [activeTab, setActiveTab] = useState<'suggestions' | 'guide' | 'calculator' | 'rules'>('suggestions');
   const [selectedTopicId, setSelectedTopicId] = useState<string>('shares_basics');
   const [filterAction, setFilterAction] = useState<'ALL' | 'BUY' | 'HOLD' | 'SELL'>('ALL');
+
+  // Calculator State
+  const [calcInitial, setCalcInitial] = useState<number>(25000);
+  const [calcMonthly, setCalcMonthly] = useState<number>(5000);
+  const [calcYears, setCalcYears] = useState<number>(5);
+  const [calcReturnRate, setCalcReturnRate] = useState<number>(14);
+  const [calcDividendYield, setCalcDividendYield] = useState<number>(2.5);
+  const [calcCurrency, setCalcCurrency] = useState<'INR' | 'USD'>('INR');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -153,72 +69,133 @@ export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
     return item.recommendedAction === filterAction;
   });
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 dark:bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-sans">
-        
+  // Calculate compound return
+  const totalMonths = calcYears * 12;
+  const monthlyRate = (calcReturnRate + calcDividendYield) / 100 / 12;
+  let futureValue = calcInitial;
+  let totalDeposited = calcInitial;
+
+  for (let m = 0; m < totalMonths; m++) {
+    futureValue = futureValue * (1 + monthlyRate) + calcMonthly;
+    totalDeposited += calcMonthly;
+  }
+  const totalGains = Math.max(0, futureValue - totalDeposited);
+  const currencySymbol = calcCurrency === 'INR' ? '₹' : '$';
+
+  return typeof document !== 'undefined' ? createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-slate-950/60 backdrop-blur-xs overscroll-contain overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-sans"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
               <Sparkles className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white font-display">
-                  New Investor Academy & Stock Suggestions
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white font-display truncate">
+                  Beginner's Investor Academy
                 </h3>
-                <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
-                  Beginner Friendly
+                <span className="px-2 py-0.5 text-[11px] font-bold rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 shrink-0">
+                  Zero to Confident Investor
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Understand how share markets work, evaluate risk, and discover clear BUY, HOLD, or SELL ideas
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                Learn market fundamentals, review algorithmic BUY/HOLD/SELL setups, and model compound returns.
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0 ml-2">
+            {onOpenFullPage && (
+              <button
+                onClick={onOpenFullPage}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Expand to Full Page View"
+                aria-label="Expand to Full Page View"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 px-6 pt-2">
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 px-4 sm:px-6 pt-2 overflow-x-auto scrollbar-none gap-1 shrink-0">
           <button
             onClick={() => setActiveTab('suggestions')}
-            className={`flex items-center gap-2 py-3 px-4 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+            className={`flex items-center gap-2 py-2.5 px-3.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'suggestions'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 dark:border-emerald-400 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
             }`}
           >
-            <Target className="w-4 h-4" />
-            Curated Shares to Buy, Hold & Sell ({CURATED_SHARE_SUGGESTIONS.length})
+            <Target className="w-3.5 h-3.5" />
+            <span>Curated Stock Ideas ({CURATED_SHARE_SUGGESTIONS.length})</span>
           </button>
+
           <button
             onClick={() => setActiveTab('guide')}
-            className={`flex items-center gap-2 py-3 px-4 text-xs font-semibold border-b-2 transition-all cursor-pointer ${
+            className={`flex items-center gap-2 py-2.5 px-3.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
               activeTab === 'guide'
                 ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 dark:border-emerald-400 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
             }`}
           >
-            <BookOpen className="w-4 h-4" />
-            How Shares Work: Fast 4-Step Primer
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>6-Step Foundation Guide</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('calculator')}
+            className={`flex items-center gap-2 py-2.5 px-3.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'calculator'
+                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 dark:border-emerald-400 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            <span>Compound Return Calculator</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('rules')}
+            className={`flex items-center gap-2 py-2.5 px-3.5 text-xs font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+              activeTab === 'rules'
+                ? 'border-emerald-600 text-emerald-600 dark:text-emerald-400 dark:border-emerald-400 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5" />
+            <span>Golden Rules Checklist</span>
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-950/50 overflow-y-auto flex-1 space-y-6">
-          {activeTab === 'suggestions' ? (
+        {/* Modal Scrollable Body */}
+        <div className="p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-950/50 overflow-y-auto flex-1">
+          {/* TAB 1: CURATED SHARE IDEAS */}
+          {activeTab === 'suggestions' && (
             <div className="space-y-4">
-              {/* Filter pills */}
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-1.5">
+              {/* Filter Row */}
+              <div className="flex items-center justify-between flex-wrap gap-2.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mr-1">Filter by Signal:</span>
                   {(['ALL', 'BUY', 'HOLD', 'SELL'] as const).map(action => (
                     <button
@@ -243,7 +220,7 @@ export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
 
                 <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 font-mono text-[11px]">
                   <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  Calibrated with Conformal 90% Statistical Coverage
+                  <span>Calibrated with Conformal 90% Statistical Coverage</span>
                 </div>
               </div>
 
@@ -252,12 +229,11 @@ export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
                 {filteredSuggestions.map((item) => {
                   const isBuy = item.recommendedAction === 'BUY';
                   const isHold = item.recommendedAction === 'HOLD';
-                  const isSell = item.recommendedAction === 'SELL';
 
                   return (
                     <div
                       key={item.ticker}
-                      className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between overflow-hidden text-left"
+                      className="p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between text-left"
                     >
                       <div>
                         {/* Top Row: Ticker, Name, Action Badge */}
@@ -265,9 +241,9 @@ export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white font-mono">
-                                {item.ticker === 'SPECULATIVE_OVERBOUGHT' ? 'SPECULATIVE' : item.ticker}
+                                {item.ticker}
                               </span>
-                              <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[180px] sm:max-w-[240px]" title={item.name}>
+                              <span className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate max-w-[180px] sm:max-w-[220px]" title={item.name}>
                                 {item.name}
                               </span>
                             </div>
@@ -302,35 +278,35 @@ export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
                           </div>
                         </div>
 
-                        {/* Target & Stop Loss Pills */}
+                        {/* Price, Target & Stop Loss Pills */}
                         <div className="grid grid-cols-3 gap-2 text-center text-xs mb-3 font-mono">
                           <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
                             <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-semibold uppercase">Current</span>
                             <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
-                              ${item.currentPrice.toFixed(2)}
+                              {formatStockCurrency(item.currentPrice, item.ticker, item.currency)}
                             </span>
                           </div>
                           <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-emerald-800 dark:text-emerald-300">
                             <span className="block text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold uppercase">Target</span>
                             <span className="font-bold text-xs sm:text-sm">
-                              ${item.targetPrice.toFixed(2)}
+                              {formatStockCurrency(item.targetPrice, item.ticker, item.currency)}
                             </span>
                           </div>
                           <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/80 text-rose-800 dark:text-rose-300">
                             <span className="block text-[10px] text-rose-700 dark:text-rose-400 font-semibold uppercase">Stop Loss</span>
                             <span className="font-bold text-xs sm:text-sm">
-                              ${item.stopLoss.toFixed(2)}
+                              {formatStockCurrency(item.stopLoss, item.ticker, item.currency)}
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Action button */}
+                      {/* Footer Actions */}
                       <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                         <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                           Risk: <span className="text-slate-800 dark:text-slate-200 font-semibold">{item.riskRating}</span>
                         </span>
-                        {onSelectTicker && item.ticker !== 'SPECULATIVE_OVERBOUGHT' && (
+                        {onSelectTicker && (
                           <button
                             onClick={() => {
                               onSelectTicker(item.ticker);
@@ -348,13 +324,15 @@ export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
                 })}
               </div>
             </div>
-          ) : (
-            /* GUIDE VIEW */
+          )}
+
+          {/* TAB 2: FOUNDATION GUIDE */}
+          {activeTab === 'guide' && (
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
               {/* Topic Selector Sidebar */}
               <div className="md:col-span-4 space-y-2">
                 <span className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                  Learning Modules
+                  Learning Modules ({GUIDE_TOPICS.length})
                 </span>
                 {GUIDE_TOPICS.map((topic) => {
                   const isSelected = topic.id === selectedTopicId;
@@ -420,23 +398,199 @@ export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* TAB 3: COMPOUND RETURN CALCULATOR */}
+          {activeTab === 'calculator' && (
+            <div className="space-y-6 text-left">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Inputs Column */}
+                <div className="lg:col-span-6 p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span>Investment Parameters</span>
+                    </h4>
+                    <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs">
+                      <button
+                        onClick={() => setCalcCurrency('INR')}
+                        className={`px-2 py-0.5 rounded font-bold ${calcCurrency === 'INR' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-500'}`}
+                      >
+                        ₹ INR
+                      </button>
+                      <button
+                        onClick={() => setCalcCurrency('USD')}
+                        className={`px-2 py-0.5 rounded font-bold ${calcCurrency === 'USD' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-2xs' : 'text-slate-500'}`}
+                      >
+                        $ USD
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                      Initial Starting Investment ({currencySymbol})
+                    </label>
+                    <input
+                      type="number"
+                      value={calcInitial}
+                      onChange={(e) => setCalcInitial(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-mono font-bold text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 dark:text-slate-400 block mb-1">
+                      Monthly Contribution ({currencySymbol}/month)
+                    </label>
+                    <input
+                      type="number"
+                      value={calcMonthly}
+                      onChange={(e) => setCalcMonthly(Number(e.target.value) || 0)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm font-mono font-bold text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      <span>Time Horizon:</span>
+                      <span className="font-bold text-slate-900 dark:text-white font-mono">{calcYears} Years</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="1"
+                      max="20"
+                      value={calcYears}
+                      onChange={(e) => setCalcYears(Number(e.target.value))}
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      <span>Expected Annual Growth (CAGR):</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">{calcReturnRate}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="5"
+                      max="30"
+                      value={calcReturnRate}
+                      onChange={(e) => setCalcReturnRate(Number(e.target.value))}
+                      className="w-full accent-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                      <span>Reinvested Dividend Yield:</span>
+                      <span className="font-bold text-amber-600 dark:text-amber-400 font-mono">{calcDividendYield}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="8"
+                      step="0.5"
+                      value={calcDividendYield}
+                      onChange={(e) => setCalcDividendYield(Number(e.target.value))}
+                      className="w-full accent-amber-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Results Column */}
+                <div className="lg:col-span-6 p-5 sm:p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-4">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1 font-mono">
+                      Projected Portfolio Value After {calcYears} Years
+                    </span>
+                    <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                      {currencySymbol}{Math.round(futureValue).toLocaleString()}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Calculated using monthly compounding with {(calcReturnRate + calcDividendYield).toFixed(1)}% total effective return.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] uppercase font-mono text-slate-400 block">Total Capital Deposited</span>
+                      <span className="text-base font-bold font-mono text-slate-900 dark:text-white">
+                        {currencySymbol}{Math.round(totalDeposited).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300">
+                      <span className="text-[10px] uppercase font-mono text-emerald-600 dark:text-emerald-400 block">Pure Compound Growth</span>
+                      <span className="text-base font-bold font-mono">
+                        +{currencySymbol}{Math.round(totalGains).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-300 space-y-1">
+                    <span className="font-bold flex items-center gap-1">
+                      <Lightbulb className="w-3.5 h-3.5" />
+                      The Power of Time
+                    </span>
+                    <p className="leading-relaxed">
+                      Your money earns interest, and then that interest earns interest. Over {calcYears} years, {Math.round((totalGains / (futureValue || 1)) * 100)}% of your final wealth was generated purely through mathematical compounding.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: GOLDEN RULES CHECKLIST */}
+          {activeTab === 'rules' && (
+            <div className="space-y-4 text-left">
+              <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 flex items-center gap-3">
+                <ShieldCheck className="w-6 h-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <p className="text-xs text-emerald-900 dark:text-emerald-300 leading-relaxed">
+                  These 5 golden rules represent the consensus wisdom of world-class value investors and quantitative risk managers. Review them before placing any trade.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                {INVESTOR_GOLDEN_RULES.map((rule, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs flex items-start gap-3.5"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                      <Check className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mb-1 font-display">
+                        {rule.title}
+                      </h5>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
+                        {rule.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            Educational decision support only. Always manage your position sizing responsibly.
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+          <div className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+            Educational decision support only. Always manage position sizing responsibly.
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer shadow-xs"
+            className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer shadow-xs ml-auto"
           >
             Done
           </button>
         </div>
-
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 };
+
 export default NewInvestorGuideModal;

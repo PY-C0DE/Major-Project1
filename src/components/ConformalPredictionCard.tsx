@@ -85,7 +85,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
               </button>
             </h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-Day Horizon`} · Split-Conformal Inference
+              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-Day Horizon`} · Ensemble v3.0 (Depth-2 GBDT + Adaptive Ridge)
             </span>
           </div>
         </div>

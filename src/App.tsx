@@ -118,6 +118,11 @@ function AppContent() {
     }
   };
 
+  // Ensure window never retains horizontal scroll displacement across tabs
+  useEffect(() => {
+    window.scrollTo({ left: 0, top: 0, behavior: 'instant' as ScrollBehavior });
+  }, [activeTab]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-600 dark:text-slate-400 font-mono text-xs transition-colors duration-200">
@@ -132,7 +137,7 @@ function AppContent() {
   // Universal Layout: Top Navbar (with theme toggle, brand, links & auth actions) is ALWAYS visible.
   // Home page is displayed first; other features (Dashboard, Watchlist, Portfolio, etc.) require Login or Sign Up.
   return (
-    <div className={`${!isAuthenticated || activeTab === 'home' ? 'min-h-screen' : 'h-screen max-h-screen overflow-hidden'} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200`}>
+    <div className={`${!isAuthenticated || activeTab === 'home' ? 'min-h-screen' : 'h-screen max-h-screen overflow-hidden'} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300`}>
       {/* Top Bar Navigation (Includes Dark Mode / Light Mode toggle and Auth triggers) */}
       <Navbar
         activeTab={activeTab}
@@ -164,7 +169,7 @@ function AppContent() {
           />
         </div>
       ) : (
-        <div className="flex-1 flex overflow-hidden h-[calc(100vh-57px)]">
+        <div className="flex-1 flex overflow-hidden h-[calc(100vh-57px)] w-full max-w-full">
           {/* Left Sidebar for Authenticated Workspace */}
           <Sidebar
             activeTab={activeTab}
@@ -180,8 +185,8 @@ function AppContent() {
           />
 
           {/* Viewport Content Area */}
-          <main className="flex-1 h-full overflow-y-auto p-3 sm:p-5 lg:p-8 max-w-7xl mx-auto w-full pb-24 lg:pb-8 min-w-0">
-            <div key={activeTab} className="animate-fadeIn w-full min-w-0">
+          <main className="flex-1 h-full overflow-y-auto overflow-x-hidden p-3 sm:p-5 lg:p-8 max-w-7xl mx-auto w-full pb-24 lg:pb-8 min-w-0 overscroll-contain">
+            <div key={activeTab} className="w-full min-w-0 max-w-full">
               {activeTab === 'dashboard' && (
                 <DashboardPage
                   onSelectTicker={handleSelectTicker}
@@ -372,6 +377,10 @@ function AppContent() {
         isOpen={guideModalOpen}
         onClose={() => setGuideModalOpen(false)}
         onSelectTicker={handleSelectTicker}
+        onOpenFullPage={() => {
+          setGuideModalOpen(false);
+          handleTabChange('guide');
+        }}
       />
 
       {/* Global Auth Modal */}

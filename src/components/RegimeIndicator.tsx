@@ -24,13 +24,17 @@ interface RegimeIndicatorProps {
   className?: string;
   compact?: boolean;
   showDetails?: boolean;
+  onToggleOption?: () => void;
+  isOptionActive?: boolean;
 }
 
 export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
   regime,
   className = '',
   compact = false,
-  showDetails = true
+  showDetails = true,
+  onToggleOption,
+  isOptionActive = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -45,7 +49,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
     );
   }
 
-  const regimeName = regime.currentRegime || (regime.regimeId === 0 ? 'Low Volatility / Bullish' : 'High Volatility / Bearish');
+  const regimeName = regime.currentRegime || (regime.regimeId === 0 ? 'Bullish / Low Volatility' : 'Bearish / High Volatility');
   const lowerName = regimeName.toLowerCase();
 
   // Classify regime type for colors and icons
@@ -56,7 +60,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
     dot: 'bg-emerald-500 shadow-emerald-500/50',
     badgeBg: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200',
     icon: TrendingUp,
-    label: 'Bullish Low-Vol',
+    label: 'Bullish / Low Volatility',
     description: 'Persistent upward drift with compressed volatility and reliable conformal intervals.'
   };
 
@@ -68,7 +72,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
       dot: 'bg-amber-500 shadow-amber-500/50',
       badgeBg: 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200',
       icon: Flame,
-      label: 'Bullish Volatile',
+      label: 'Bullish / Volatile',
       description: 'Upward trend accompanied by elevated intraday variance and widened prediction bounds.'
     };
   } else if (lowerName.includes('bearish') && (lowerName.includes('stable') || lowerName.includes('low vol'))) {
@@ -79,7 +83,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
       dot: 'bg-rose-500 shadow-rose-500/50',
       badgeBg: 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200',
       icon: TrendingDown,
-      label: 'Stable Bearish',
+      label: 'Bearish / Stable',
       description: 'Orderly persistent downward drift with controlled variance and negative drift conditioning.'
     };
   } else if (lowerName.includes('bearish') || lowerName.includes('high vol') || regime.regimeId === 1) {
@@ -90,7 +94,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
       dot: 'bg-rose-500 shadow-rose-500/50',
       badgeBg: 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200',
       icon: AlertOctagon,
-      label: 'High Vol Bearish',
+      label: 'Bearish / High Volatility',
       description: 'Elevated downside tail risk, violent swings, and widening conformal uncertainty bounds.'
     };
   } else if (lowerName.includes('neutral') || lowerName.includes('sideways')) {
@@ -120,10 +124,13 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
       {/* Badge Button / Capsule */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold transition-all border shadow-xs cursor-pointer ${theme.bg} ${theme.border} ${theme.text} hover:opacity-95 focus:outline-none`}
+        onClick={() => {
+          setIsOpen(!isOpen);
+          onToggleOption?.();
+        }}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold transition-all border shadow-xs cursor-pointer ${theme.bg} ${theme.border} ${theme.text} ${isOptionActive ? 'ring-2 ring-cyan-500 shadow-sm' : ''} hover:opacity-95 focus:outline-none`}
         aria-label={`Market Regime: ${regimeName}`}
-        title="HMM Market Regime Detection"
+        title={onToggleOption ? 'Click to toggle HMM Market Regime module in analysis' : 'HMM Market Regime Detection'}
       >
         {/* Animated Pulse Indicator */}
         <span className="relative flex h-2 w-2">

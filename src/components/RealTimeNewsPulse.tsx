@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Activity,
   TrendingUp,
@@ -78,6 +79,16 @@ export const RealTimeNewsPulse: React.FC<Props> = ({
     }, 60000);
     return () => clearInterval(interval);
   }, [refreshTrigger]);
+
+  useEffect(() => {
+    if (selectedItem || showDrawer) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [selectedItem, showDrawer]);
 
   // Filter headlines based on sentiment or live status
   const filteredItems = useMemo(() => {
@@ -397,13 +408,15 @@ export const RealTimeNewsPulse: React.FC<Props> = ({
       </div>
 
       {/* 3. Detailed Modal upon clicking any headline */}
-      {selectedItem && (
+      {selectedItem && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overscroll-contain overflow-y-auto"
           onClick={() => setSelectedItem(null)}
         >
           <div
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 relative overflow-hidden space-y-4"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl max-h-[90vh] shadow-2xl p-6 relative overflow-y-auto space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -476,13 +489,16 @@ export const RealTimeNewsPulse: React.FC<Props> = ({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 4. Full Feed Drawer Modal */}
-      {showDrawer && (
+      {showDrawer && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overscroll-contain overflow-y-auto"
           onClick={() => setShowDrawer(false)}
         >
           <div
@@ -557,7 +573,8 @@ export const RealTimeNewsPulse: React.FC<Props> = ({
               ))}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

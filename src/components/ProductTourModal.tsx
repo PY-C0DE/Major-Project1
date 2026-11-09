@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   ChevronRight,
@@ -706,9 +707,11 @@ export const ProductTourModal: React.FC<Props> = ({
     return spaceBelow >= 270 || spaceBelow >= spaceAbove ? '↑ Feature Above' : '↓ Feature Below';
   };
 
-  return (
+  return typeof document !== 'undefined' ? createPortal(
     <div
-      className="fixed inset-0 z-50 overflow-hidden font-sans"
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] overflow-hidden font-sans overscroll-contain"
       onWheel={(e) => {
         // Allow wheel scrolling anywhere on screen to smoothly scroll the page content
         const target = e.target as HTMLElement;
@@ -939,6 +942,7 @@ export const ProductTourModal: React.FC<Props> = ({
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 };

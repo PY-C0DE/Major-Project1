@@ -31,7 +31,10 @@ import {
   VerifiedTrader,
   StockSearchResult,
   EarningsCalendarItem,
-  SeasonalityReport
+  SeasonalityReport,
+  MarketIndexItem,
+  QuickWatchItem,
+  SentimentScoreResult
 } from '../types';
 import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { generateSupportFallback } from '../utils/supportKnowledge';
@@ -250,13 +253,25 @@ export const api = {
     return res.json();
   },
 
+  async getMarketIndices(): Promise<MarketIndexItem[]> {
+    const res = await fetch(`${API_BASE}/markets/indices`);
+    if (!res.ok) throw new Error('Failed to fetch market indices');
+    return res.json();
+  },
+
+  async getQuickWatch(): Promise<QuickWatchItem[]> {
+    const res = await fetch(`${API_BASE}/stocks/quick-watch`);
+    if (!res.ok) throw new Error('Failed to fetch quick watch stocks');
+    return res.json();
+  },
+
   async getNews(ticker: string): Promise<NewsItem[]> {
     const res = await fetch(`${API_BASE}/news/${encodeURIComponent(ticker)}`);
     if (!res.ok) throw new Error('Failed to fetch news');
     return res.json();
   },
 
-  async getSentiment(ticker: string) {
+  async getSentiment(ticker: string): Promise<SentimentScoreResult> {
     const res = await fetch(`${API_BASE}/sentiment/${encodeURIComponent(ticker)}`);
     if (!res.ok) throw new Error('Failed to compute sentiment');
     return res.json();

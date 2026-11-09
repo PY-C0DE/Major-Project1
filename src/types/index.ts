@@ -16,6 +16,7 @@ export interface StockQuote {
   currency: string;
   exchange: string;
   lastUpdated: string;
+  isLive?: boolean;
 }
 
 export interface StockSearchResult {
@@ -194,6 +195,49 @@ export interface NewsItem {
   isLive?: boolean;
 }
 
+export interface MarketIndexItem {
+  name: string;
+  symbol: string;
+  region: string;
+  val: string;
+  change: string;
+  pct: string;
+  up: boolean;
+  price: number;
+  changeValue: number;
+}
+
+export interface QuickWatchItem {
+  ticker: string;
+  name: string;
+  price: string;
+  priceNum: number;
+  chg: string;
+  chgPct: number;
+  up: boolean;
+  sector: string;
+  currency: string;
+}
+
+export interface SentimentScoreResult {
+  ticker: string;
+  sentimentScore: number;
+  label: 'Positive' | 'Negative' | 'Neutral';
+  distribution: {
+    positive: number;
+    neutral: number;
+    negative: number;
+  };
+  sampleCount: number;
+  liveCount: number;
+  baselineCount: number;
+  isLive: boolean;
+  topLiveHeadline?: string;
+  topLiveSource?: string;
+  modelUsed: string;
+  lastUpdated: string;
+}
+
 export interface FeatureDriftItem {
   feature: string;
   ksStatistic: number;
@@ -247,6 +291,15 @@ export interface AssetBreakdownItem {
   mae: number;
 }
 
+export interface ModelFeatureImportance {
+  feature: string;
+  importance: number; // 0 to 100 percentage
+  rawWeight: number;
+  category: 'sentiment' | 'technical' | 'price_history' | 'macro' | 'regime';
+  description: string;
+  direction?: 'positive' | 'negative' | 'neutral';
+}
+
 export interface ModelEvaluation {
   ticker: string;
   modelName: string;
@@ -265,6 +318,7 @@ export interface ModelEvaluation {
   assetBreakdown?: AssetBreakdownItem[];
   totalAssetsCount?: number;
   isAllAssets?: boolean;
+  featureImportance?: ModelFeatureImportance[];
 }
 
 export interface PortfolioHolding {
@@ -794,6 +848,7 @@ export interface NewInvestorShareIdea {
   simpleExplanation: string;
   whyInvestNow: string;
   minimumInvestmentAmount: number;
+  currency?: 'INR' | 'USD';
 }
 
 export interface InvestorGuideTopic {

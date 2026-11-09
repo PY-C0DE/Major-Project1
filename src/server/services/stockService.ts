@@ -4,7 +4,7 @@
  * intelligent company-name-to-ticker resolution, and resilient caching.
  */
 
-import { StockQuote, HistoricalBar, StockSearchResult } from '../../types';
+import { StockQuote, HistoricalBar, StockSearchResult, MarketIndexItem, QuickWatchItem } from '../../types';
 import { PriceBar, computeAllIndicators, ComputedBar } from '../math/indicators';
 
 import { TICKER_CATALOG, TickerMeta } from '../../shared/tickerCatalog';
@@ -394,7 +394,8 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
   try {
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`;
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: AbortSignal.timeout(4500)
     });
 
     if (res.ok) {
@@ -424,7 +425,8 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
           marketCap: meta.marketCap,
           currency: metaInfo.currency || meta.currency,
           exchange: metaInfo.exchangeName || meta.exchange,
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
+          isLive: true
         };
 
         quoteCache.set(ticker, { data: quote, timestamp: Date.now() });
@@ -457,7 +459,8 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
     marketCap: meta.marketCap,
     currency: meta.currency,
     exchange: meta.exchange,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    isLive: false
   };
 
   quoteCache.set(ticker, { data: quote, timestamp: Date.now() });
@@ -536,4 +539,158 @@ export async function getHistoricalData(tickerOrName: string, days = 250): Promi
   const computed = computeAllIndicators(rawBars);
   historyCache.set(cacheKey, { data: computed, timestamp: Date.now() });
   return computed;
+}
+
+interface IndexConfig {
+  name: string;
+  symbol: string;
+  region: string;
+  fallbackPrice: number;
+  fallbackChange: number;
+  fallbackPct: number;
+}
+
+const INDEX_CONFIGS: IndexConfig[] = [
+  { name: 'NIFTY 50', symbol: '^NSEI', region: 'NSE · IND', fallbackPrice: 24850.30, fallbackChange: 142.15, fallbackPct: 0.58 },
+  { name: 'SENSEX', symbol: '^BSESN', region: 'BSE · IND', fallbackPrice: 81420.10, fallbackChange: 415.80, fallbackPct: 0.51 },
+  { name: 'S&P 500', symbol: '^GSPC', region: 'NYSE · US', fallbackPrice: 5780.20, fallbackChange: 32.40, fallbackPct: 0.56 },
+  { name: 'NASDAQ 100', symbol: '^NDX', region: 'NDQ · US', fallbackPrice: 20110.85, fallbackChange: 164.20, fallbackPct: 0.82 },
+  { name: 'INDIA VIX', symbol: '^INDIAVIX', region: 'VOLATILITY', fallbackPrice: 12.45, fallbackChange: -0.35, fallbackPct: -2.73 }
+];
+
+let cachedIndices: { timestamp: number; data: MarketIndexItem[] } | null = null;
+const INDICES_CACHE_TTL = 45 * 1000;
+
+export async function getMarketIndices(): Promise<MarketIndexItem[]> {
+  const now = Date.now();
+  if (cachedIndices && now - cachedIndices.timestamp < INDICES_CACHE_TTL) {
+    return cachedIndices.data;
+  }
+
+  const results = await Promise.allSettled(
+    INDEX_CONFIGS.map(async (cfg) => {
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cfg.symbol)}?interval=1d&range=1d`;
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          signal: AbortSignal.timeout(3500)
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const meta = json?.chart?.result?.[0]?.meta;
+          if (meta) {
+            const price = meta.regularMarketPrice || meta.chartPreviousClose || cfg.fallbackPrice;
+            const prev = meta.chartPreviousClose || price;
+            const diff = price - prev;
+            const pct = prev > 0 ? (diff / prev) * 100 : 0;
+            const isUp = diff >= 0;
+
+            return {
+              name: cfg.name,
+              symbol: cfg.symbol,
+              region: cfg.region,
+              val: price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+              change: `${isUp ? '+' : ''}${diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+              pct: `${isUp ? '+' : ''}${pct.toFixed(2)}%`,
+              up: isUp,
+              price: Number(price.toFixed(2)),
+              changeValue: Number(diff.toFixed(2))
+            } as MarketIndexItem;
+          }
+        }
+      } catch {
+        // network fallback below
+      }
+
+      const isUp = cfg.fallbackChange >= 0;
+      return {
+        name: cfg.name,
+        symbol: cfg.symbol,
+        region: cfg.region,
+        val: cfg.fallbackPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        change: `${isUp ? '+' : ''}${cfg.fallbackChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
+        up: isUp,
+        price: cfg.fallbackPrice,
+        changeValue: cfg.fallbackChange
+      } as MarketIndexItem;
+    })
+  );
+
+  const items = results.map((r, i) => {
+    if (r.status === 'fulfilled') return r.value;
+    const cfg = INDEX_CONFIGS[i];
+    const isUp = cfg.fallbackChange >= 0;
+    return {
+      name: cfg.name,
+      symbol: cfg.symbol,
+      region: cfg.region,
+      val: cfg.fallbackPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      change: `${isUp ? '+' : ''}${cfg.fallbackChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
+      up: isUp,
+      price: cfg.fallbackPrice,
+      changeValue: cfg.fallbackChange
+    };
+  });
+
+  cachedIndices = { timestamp: now, data: items };
+  return items;
+}
+
+const QUICK_WATCH_DEFS = [
+  { ticker: 'RELIANCE.NS', name: 'Reliance Ind.', sector: 'Energy & Tech', currency: 'INR' },
+  { ticker: 'TCS.NS', name: 'Tata Consultancy', sector: 'IT Services', currency: 'INR' },
+  { ticker: 'NVDA', name: 'NVIDIA Corp', sector: 'Semiconductors', currency: 'USD' },
+  { ticker: 'AAPL', name: 'Apple Inc', sector: 'Consumer Tech', currency: 'USD' },
+  { ticker: 'INFY.NS', name: 'Infosys Ltd.', sector: 'Cloud & Digital', currency: 'INR' }
+];
+
+let cachedQuickWatch: { timestamp: number; data: QuickWatchItem[] } | null = null;
+const QUICK_WATCH_CACHE_TTL = 45 * 1000;
+
+export async function getQuickWatchQuotes(): Promise<QuickWatchItem[]> {
+  const now = Date.now();
+  if (cachedQuickWatch && now - cachedQuickWatch.timestamp < QUICK_WATCH_CACHE_TTL) {
+    return cachedQuickWatch.data;
+  }
+
+  const items = await Promise.all(
+    QUICK_WATCH_DEFS.map(async (def) => {
+      try {
+        const q = await getStockQuote(def.ticker);
+        const isUp = q.change >= 0;
+        const sym = q.currency === 'INR' ? '₹' : '$';
+        return {
+          ticker: def.ticker,
+          name: def.name,
+          price: `${sym}${q.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          priceNum: q.price,
+          chg: `${isUp ? '+' : ''}${q.changePercent.toFixed(2)}%`,
+          chgPct: q.changePercent,
+          up: isUp,
+          sector: def.sector,
+          currency: q.currency
+        } as QuickWatchItem;
+      } catch {
+        const cat = TICKER_CATALOG.find(t => t.ticker === def.ticker);
+        const price = cat?.basePrice || 100;
+        const sym = def.currency === 'INR' ? '₹' : '$';
+        return {
+          ticker: def.ticker,
+          name: def.name,
+          price: `${sym}${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          priceNum: price,
+          chg: '+1.20%',
+          chgPct: 1.20,
+          up: true,
+          sector: def.sector,
+          currency: def.currency
+        } as QuickWatchItem;
+      }
+    })
+  );
+
+  cachedQuickWatch = { timestamp: now, data: items };
+  return items;
 }

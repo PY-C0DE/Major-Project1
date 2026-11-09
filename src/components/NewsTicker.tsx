@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Newspaper,
   TrendingUp,
@@ -255,6 +256,16 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
     }, 60000); // Poll every 60 seconds
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (selectedHeadline || showWireDrawer) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [selectedHeadline, showWireDrawer]);
 
   // Filter headlines by selected market scope
   const filteredHeadlines = useMemo(() => {
@@ -547,13 +558,15 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
       </div>
 
       {/* 2. Headline Detail Modal (Triggered on click of any headline) */}
-      {selectedHeadline && (
+      {selectedHeadline && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overscroll-contain overflow-y-auto"
           onClick={() => setSelectedHeadline(null)}
         >
           <div
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl shadow-2xl p-6 relative overflow-hidden space-y-4"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-xl max-h-[90vh] shadow-2xl p-6 relative overflow-y-auto space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -698,13 +711,16 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 3. Expandable Full Market Wire Drawer / Popover */}
-      {showWireDrawer && (
+      {showWireDrawer && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overscroll-contain overflow-y-auto"
           onClick={() => setShowWireDrawer(false)}
         >
           <div
@@ -860,7 +876,8 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

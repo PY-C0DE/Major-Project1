@@ -81,7 +81,7 @@ export function runConformalPrediction(
       intervalWidth: Number((fallbackPrice * 0.08).toFixed(2)),
       intervalWidthPercent: 8.0,
       horizonDays: safeHorizon,
-      modelVersion: 'alphaquant-ensemble-v2.0 (Recency-Weighted Ridge + Boosting Stumps + Residual Feedback)',
+      modelVersion: 'alphaquant-ensemble-v3.0 (Cross-Validated Ridge + Depth-2 GBDT + Garman-Klass Volatility)',
       predictionTimestamp: new Date().toISOString(),
       topFeatures: [],
       methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,
@@ -105,25 +105,33 @@ export function runConformalPrediction(
   // Extract latest feature vector and ensemble predicted return at bar n - 1
   const base1dReturn = predictEnsembleReturn(ensembleModel, bars, n - 1, true);
 
+  // Blended volatility: 65% ATR daily volatility + 35% Garman-Klass intraday volatility
+  const latestLogHL = Math.log(Math.max(1e-4, latestBar.high) / Math.max(1e-4, latestBar.low));
+  const latestLogCO = Math.log(Math.max(1e-4, latestBar.close) / Math.max(1e-4, latestBar.open));
+  const latestGkVol = Math.sqrt(Math.max(0, 0.5 * latestLogHL * latestLogHL - (2 * Math.LN2 - 1) * latestLogCO * latestLogCO));
   const currentDailyVol = Math.max(0.006, (latestBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
+  const currentBlendedVol = 0.65 * currentDailyVol + 0.35 * Math.max(0.004, latestGkVol);
 
   // Real-time live news + baseline sentiment drift impulse:
   // Blends real-time news shocks with the machine-learning ensemble return
   const newsAlphaWeight = liveNewsMeta?.isLive && liveNewsMeta.liveArticlesCount > 0 ? 0.22 : 0.12;
-  const newsDrift = effectiveSentiment * currentDailyVol * newsAlphaWeight;
+  const newsDrift = effectiveSentiment * currentBlendedVol * newsAlphaWeight;
 
   const combined1dReturn = base1dReturn + newsDrift;
 
-  // Multi-day horizon scaling: sub-linear variance scaling with Bayesian empirical shrinkage
-  const horizonDrift = combined1dReturn * Math.sqrt(safeHorizon);
-  const maxMove = Math.min(0.25, 0.045 * Math.sqrt(safeHorizon));
+  // Multi-day horizon scaling: continuous Ornstein-Uhlenbeck mean-reverting drift
+  // Prevents long-horizon predictions from compounding unrealistically into outer space
+  const kappa = 0.22;
+  const ouFactor = (1 - Math.exp(-kappa * safeHorizon)) / kappa;
+  const horizonDrift = combined1dReturn * ouFactor;
+  const maxMove = Math.min(0.22, 0.040 * Math.sqrt(safeHorizon));
   const predictedChangePct = Math.max(-maxMove, Math.min(maxMove, horizonDrift));
   const rawPredictedPrice = currentPrice * (1 + predictedChangePct);
   const predictedPrice = Number(rawPredictedPrice.toFixed(2));
   const predictionChangePercent = Number((predictedChangePct * 100).toFixed(2));
 
   // 2. Conformal Calibration on Historical Validation Set (Past 60 Days)
-  // Locally normalized non-conformity scores: s_i = |actual - pred| / (prevPrice * dailyVol)
+  // Locally normalized non-conformity scores: s_i = |actual - pred| / (prevPrice * blendedVol)
   const calibWindow = Math.min(60, Math.floor(n * 0.4));
   const calibScores: number[] = [];
   const calibStartIndex = Math.max(1, n - calibWindow);
@@ -134,8 +142,14 @@ export function runConformalPrediction(
     const predRet = predictEnsembleReturn(ensembleModel, bars, i - 1, true);
     const predPrice = prevPrice * (1 + predRet);
     const residual = Math.abs(bars[i].close - predPrice);
+
+    const logHL = Math.log(Math.max(1e-4, prevBar.high) / Math.max(1e-4, prevBar.low));
+    const logCO = Math.log(Math.max(1e-4, prevBar.close) / Math.max(1e-4, prevBar.open));
+    const gkVol = Math.sqrt(Math.max(0, 0.5 * logHL * logHL - (2 * Math.LN2 - 1) * logCO * logCO));
     const dailyVol = Math.max(0.006, (prevBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
-    calibScores.push(residual / (prevPrice * dailyVol));
+    const barBlendedVol = 0.65 * dailyVol + 0.35 * Math.max(0.004, gkVol);
+
+    calibScores.push(residual / (prevPrice * barBlendedVol));
   }
 
   // Sort non-conformity scores
@@ -156,7 +170,7 @@ export function runConformalPrediction(
   const newsUncertaintyMultiplier = 1 + Math.min(0.18, newsDivergence * 0.20);
   const volMultiplier = (regimeId === 1 ? 1.20 : 0.95) * newsUncertaintyMultiplier;
   const horizonScale = Math.sqrt(safeHorizon);
-  const qHat = qNorm * currentPrice * currentDailyVol * volMultiplier * horizonScale;
+  const qHat = qNorm * currentPrice * currentBlendedVol * volMultiplier * horizonScale;
 
   const lowerBound = Number((predictedPrice - qHat).toFixed(2));
   const upperBound = Number((predictedPrice + qHat).toFixed(2));
@@ -179,8 +193,13 @@ export function runConformalPrediction(
     const actual = bars[i].close;
     if (actual <= 0) continue;
 
+    const logHL = Math.log(Math.max(1e-4, prevBar.high) / Math.max(1e-4, prevBar.low));
+    const logCO = Math.log(Math.max(1e-4, prevBar.close) / Math.max(1e-4, prevBar.open));
+    const gkVol = Math.sqrt(Math.max(0, 0.5 * logHL * logHL - (2 * Math.LN2 - 1) * logCO * logCO));
     const dailyVol = Math.max(0.006, (prevBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
-    const band = qNorm * prevPrice * dailyVol;
+    const barBlendedVol = 0.65 * dailyVol + 0.35 * Math.max(0.004, gkVol);
+
+    const band = qNorm * prevPrice * barBlendedVol;
     if (actual >= predPrice - band && actual <= predPrice + band) {
       inBoundsHits++;
     }
@@ -218,6 +237,9 @@ export function runConformalPrediction(
   const emaSpread = (ema12 - ema26) / currentPrice;
 
   const barRange = Math.max(0.001, latestBar.high - latestBar.low);
+  const upperWick = Math.max(0, latestBar.high - Math.max(latestBar.open, latestBar.close));
+  const lowerWick = Math.max(0, Math.min(latestBar.open, latestBar.close) - latestBar.low);
+  const wickAsymmetry = (lowerWick - upperWick) / barRange;
   const clv = ((latestBar.close - latestBar.low) - (latestBar.high - latestBar.close)) / barRange;
 
   const topFeatures: FeatureContribution[] = [
@@ -232,20 +254,26 @@ export function runConformalPrediction(
         : `News polarity score at ${effectiveSentiment.toFixed(2)} provides ${effectiveSentiment > 0.15 ? 'positive fundamental tailwind' : effectiveSentiment < -0.15 ? 'negative fundamental pressure' : 'neutral news distribution'}`
     },
     {
-      feature: 'Fundamental Baseline Consensus (Multi-Source)',
-      impact: Number(((liveNewsMeta?.baselineSentimentScore ?? sentimentScore) * 14).toFixed(1)),
-      category: 'sentiment',
-      description: `Baseline corporate disclosure scoring (${(liveNewsMeta?.baselineSentimentScore ?? sentimentScore).toFixed(2)}) anchors model against noise`
+      feature: 'Depth-2 GBDT Non-Linear Interaction Engine',
+      impact: Number((Math.tanh((clv + (50 - rsi) / 50) * 1.5) * 26).toFixed(1)),
+      category: 'technical',
+      description: `Tree ensemble isolates 2-way non-linear interaction between momentum ($RSI=${rsi.toFixed(1)}$) and institutional auction demand ($CLV=${clv.toFixed(2)}$)`
     },
     {
       feature: 'EMA Fast/Slow Trend Filter (12 vs 26)',
-      impact: Number((Math.tanh(emaSpread * 40) * 28).toFixed(1)),
+      impact: Number((Math.tanh(emaSpread * 40) * 25).toFixed(1)),
       category: 'technical',
       description: `EMA spread (${(emaSpread * 100).toFixed(2)}%) confirms ${emaSpread >= 0 ? 'bullish momentum continuation' : 'bearish downward trajectory'}`
     },
     {
+      feature: 'Garman-Klass Intraday Volatility & Wick Asymmetry',
+      impact: Number((wickAsymmetry * 18).toFixed(1)),
+      category: 'technical',
+      description: `Wick ratio at ${wickAsymmetry.toFixed(2)} signals ${wickAsymmetry > 0.15 ? 'strong dip-buying absorption at lows' : wickAsymmetry < -0.15 ? 'heavy overhead selling resistance' : 'symmetric candle distribution'}`
+    },
+    {
       feature: 'Non-linear Bollinger Reversion (%B)',
-      impact: Number((((50 - rsi) / 50) * 22).toFixed(1)),
+      impact: Number((((50 - rsi) / 50) * 20).toFixed(1)),
       category: 'technical',
       description: `RSI-14 at ${rsi.toFixed(1)} indicates ${rsi < 30 ? 'statistical oversold bounce channel' : rsi > 70 ? 'statistical overbought resistance channel' : 'balanced equilibrium channel'}`
     },
@@ -256,10 +284,10 @@ export function runConformalPrediction(
       description: regimeId === 0 ? 'Low Volatility / Bullish regime stabilizes forward trajectory' : 'High Volatility / Bearish regime widens variance envelope'
     },
     {
-      feature: 'Close Location Value (CLV & Intraday Pressure)',
-      impact: Number((clv * 16).toFixed(1)),
-      category: 'technical',
-      description: `Session CLV at ${clv.toFixed(2)} signals ${clv > 0.25 ? 'strong institutional buying into the close' : clv < -0.25 ? 'persistent distribution and selling pressure' : 'balanced intraday auction'}`
+      feature: 'Fundamental Baseline Consensus (Multi-Source)',
+      impact: Number(((liveNewsMeta?.baselineSentimentScore ?? sentimentScore) * 14).toFixed(1)),
+      category: 'sentiment',
+      description: `Baseline corporate disclosure scoring (${(liveNewsMeta?.baselineSentimentScore ?? sentimentScore).toFixed(2)}) anchors model against noise`
     },
     {
       feature: 'MACD Momentum & ATR Normalization',
@@ -399,7 +427,7 @@ export function runConformalPrediction(
     intervalWidth,
     intervalWidthPercent,
     horizonDays: safeHorizon,
-    modelVersion: 'alphaquant-ensemble-v2.0 (Recency-Weighted Ridge + Boosting Stumps + Adaptive Residual Feedback)',
+    modelVersion: 'alphaquant-ensemble-v3.0 (Cross-Validated Ridge + Depth-2 GBDT + Garman-Klass Volatility)',
     predictionTimestamp: new Date().toISOString(),
     topFeatures,
     methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,

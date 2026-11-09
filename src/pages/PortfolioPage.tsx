@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Briefcase,
   Plus,
@@ -135,6 +136,17 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
       setShowAddModal(true);
     }
   }, [initialTickerToAdd]);
+
+  // Lock background scroll when confirmation or add modal is active
+  useEffect(() => {
+    if (showConfirmModal || showAddModal) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [showConfirmModal, showAddModal]);
 
   const triggerOptimization = async (
     obj = optObjective,
@@ -351,148 +363,36 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 max-w-full overflow-x-hidden min-w-0 pb-28 sm:pb-32">
       {/* Portfolio Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white font-display flex items-center gap-2">
-            <Briefcase className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-            My Portfolio Intelligence & Allocation
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 shadow-xs transition-colors">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white font-display flex items-center gap-2 truncate">
+            <Briefcase className="w-5 h-5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+            <span>My Portfolio Intelligence & Allocation</span>
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
             Real-time mark-to-market valuation, P&L tracking, and Markowitz Mean-Variance Rebalancing.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Sub-Tab Navigation Toggle */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('holdings')}
-              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'holdings'
-                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Briefcase className="w-3.5 h-3.5" />
-              <span>Holdings Ledger</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('trades')}
-              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'trades'
-                  ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold border border-cyan-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <ScrollText className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Trade Ledger</span>
-              <span className="text-[10px] bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-mono px-1.5 py-0.2 rounded-full border border-cyan-500/30 font-bold">
-                Paper Blotter
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('performance')}
-              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'performance'
-                  ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold border border-cyan-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <LineChart className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Performance (D3)</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('correlation')}
-              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'correlation'
-                  ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold border border-cyan-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Correlation (D3)</span>
-              <span className="text-[10px] bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-mono px-1.5 py-0.2 rounded-full border border-cyan-500/30 font-bold">
-                Heatmap
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('stresstest')}
-              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'stresstest'
-                  ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold border border-rose-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-              <span>Stress Test</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('optimizer');
-                if (holdings.length > 0 && !optResult) {
-                  triggerOptimization(optObjective);
-                }
-              }}
-              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'optimizer'
-                  ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold border border-cyan-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Scale className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-              <span>MVO Rebalance</span>
-              <span className="text-[10px] bg-cyan-500 text-slate-950 font-bold px-1.5 py-0.2 rounded-full">
-                MVO
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('dividends')}
-              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'dividends'
-                  ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <CalendarDays className="w-3.5 h-3.5 text-amber-500" />
-              <span>Dividend Yield & Calendar</span>
-              <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 font-mono px-1.5 py-0.2 rounded-full border border-amber-500/30 font-bold">
-                Ex-Dates & Income
-              </span>
-            </button>
-            <button
-              onClick={() => setActiveTab('taxes')}
-              className={`px-3 py-1.5 rounded transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'taxes'
-                  ? 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-500/30'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Receipt className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Tax & Fee Estimator</span>
-              <span className="text-[10px] bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-mono px-1.5 py-0.2 rounded-full border border-indigo-500/30 font-bold">
-                Capital Gains
-              </span>
-            </button>
-          </div>
-
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           {/* Quick Trade Ledger CSV Export when on Trade Ledger Tab */}
           {activeTab === 'trades' && (
             <button
               onClick={handleExportTradeLedgerCSV}
-              className="px-3.5 py-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
               title="Download your full paper trade transaction history as CSV"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Export Transactions (CSV)</span>
+              <span>Export CSV</span>
             </button>
           )}
 
           {/* Import / Export Button */}
           <button
             onClick={() => setShowImportExportModal(true)}
-            className="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
             title="Import from Broker or Export CSV/JSON"
           >
             <Download className="w-3.5 h-3.5" />
@@ -501,7 +401,7 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+            className="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
           >
             <Plus className="w-4 h-4" />
             <span>Add Position</span>
@@ -509,8 +409,57 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
         </div>
       </div>
 
+      {/* Sub-Tab Navigation Ribbon - Dedicated, clean, horizontal scroll-safe container */}
+      <div className="w-full bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-xl p-1 shadow-2xs overflow-hidden">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none text-xs font-semibold p-0.5 w-full">
+          {[
+            { id: 'holdings', label: 'Holdings', icon: Briefcase, badge: `${holdings.length}` },
+            { id: 'trades', label: 'Trade Ledger', icon: ScrollText, badge: 'Blotter' },
+            { id: 'performance', label: 'Performance (D3)', icon: LineChart },
+            { id: 'correlation', label: 'Correlation', icon: Layers, badge: 'Heatmap' },
+            { id: 'stresstest', label: 'Stress Test', icon: ShieldAlert },
+            { id: 'optimizer', label: 'MVO Rebalance', icon: Scale, badge: 'MVO' },
+            { id: 'dividends', label: 'Dividend Calendar', icon: CalendarDays, badge: 'Income' },
+            { id: 'taxes', label: 'Tax Estimator', icon: Receipt, badge: 'Gains' }
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  if (tab.id === 'optimizer' && holdings.length > 0 && !optResult) {
+                    triggerOptimization(optObjective);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap text-xs shrink-0 ${
+                  isActive
+                    ? 'bg-cyan-50 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-300 font-bold border border-cyan-200 dark:border-cyan-800/60 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400 dark:text-slate-500'}`} />
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                      isActive
+                        ? 'bg-cyan-500 text-slate-950'
+                        : 'bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Portfolio Snapshot KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         <div className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm">
           <span className="text-[10px] font-mono uppercase text-slate-400 dark:text-slate-500 block">Total Invested</span>
           <span className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1 block tabular-nums">
@@ -555,7 +504,7 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
         <div
           id="tour-dividend-kpi"
           onClick={() => setActiveTab('dividends')}
-          className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-amber-400/80 transition-all group col-span-1 sm:col-span-2 lg:col-span-1"
+          className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm cursor-pointer hover:border-amber-400/80 transition-all group col-span-2 sm:col-span-2 md:col-span-3 xl:col-span-1"
           title="Click to view full Dividend Yield & Calendar module"
         >
           <div className="flex items-center justify-between">
@@ -1349,9 +1298,19 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
       ) : null}
 
       {/* Confirmation Modal for Rebalance Execution */}
-      {showConfirmModal && optResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4">
+      {showConfirmModal && optResult && typeof document !== 'undefined' && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-3 sm:p-4 overscroll-contain overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowConfirmModal(false);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <Scale className="w-5 h-5 text-cyan-500" />
@@ -1425,13 +1384,24 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add Holding Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
+      {showAddModal && typeof document !== 'undefined' && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-3 sm:p-4 overscroll-contain overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddModal(false);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <h3 className="text-base font-bold text-slate-900 dark:text-white font-display">Add Position to Portfolio</h3>
               <button
@@ -1531,7 +1501,8 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Import & Export Modal */}

@@ -17,12 +17,13 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
   if (!regime) {
     return (
       <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-5 animate-pulse min-h-[260px] flex items-center justify-center">
-        <span className="text-xs font-mono text-slate-500">Estimating Rule-Based Market Regimes...</span>
+        <span className="text-xs font-mono text-slate-500">Estimating HMM Market Regimes...</span>
       </div>
     );
   }
 
   const isBullish = regime.regimeId === 0;
+  const displayName = isBullish ? 'Bullish / Low Volatility' : 'Bearish / High Volatility';
 
   return (
     <div className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-4 sm:p-5 lg:p-6 relative overflow-hidden shadow-xs hover:shadow-sm transition-all">
@@ -35,7 +36,7 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Market Regime Detection</h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              Rule-Based Trend & Volatility Classifier
+              HMM 2-State Latent Model
             </span>
           </div>
         </div>
@@ -65,10 +66,10 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
           )}
           <div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400">
-              Current Market Regime
+              HMM Market Regime
             </div>
             <div className="text-base font-bold tracking-tight text-slate-900 dark:text-white font-display">
-              {regime.currentRegime}
+              {displayName}
             </div>
           </div>
         </div>

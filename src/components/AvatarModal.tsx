@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Upload,
@@ -162,8 +163,21 @@ export const AvatarModal: React.FC<AvatarModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  return typeof document !== 'undefined' ? createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overscroll-contain overflow-y-auto"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] transition-colors"
         onClick={(e) => e.stopPropagation()}
@@ -426,6 +440,7 @@ export const AvatarModal: React.FC<AvatarModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 };

@@ -9,6 +9,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Send,
@@ -124,14 +125,33 @@ export const BrokerRouterModal: React.FC<Props> = ({
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const currentPrice = quote?.price || 100;
   const estimatedTotal = (orderType === 'LIMIT' && limitPrice ? parseFloat(limitPrice) : currentPrice) * qty;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 animate-fadeIn overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-sans transition-colors">
+  return typeof document !== 'undefined' ? createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-2 sm:p-4 overscroll-contain overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 rounded-2xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-sans transition-colors"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Terminal Header */}
         <div className="p-4 sm:p-5 bg-slate-50 dark:bg-slate-950/90 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
@@ -471,6 +491,7 @@ export const BrokerRouterModal: React.FC<Props> = ({
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 };

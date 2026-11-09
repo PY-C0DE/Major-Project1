@@ -13,7 +13,7 @@ export function detectMarketRegime(bars: ComputedBar[], ticker: string): MarketR
     // Graceful default for very short series
     return {
       ticker,
-      currentRegime: 'Low Volatility / Bullish',
+      currentRegime: 'Bullish / Low Volatility',
       regimeId: 0,
       regimeProbability: 0.85,
       stabilityScore: 0.82,
@@ -24,13 +24,13 @@ export function detectMarketRegime(bars: ComputedBar[], ticker: string): MarketR
       ],
       regimeCharacteristics: {
         regime0: {
-          name: 'Low Volatility / Bullish',
+          name: 'Bullish / Low Volatility',
           meanReturn: 0.0012,
           volatility: 0.135,
           interpretation: 'Persistent upward drift with low intraday variance and high Sharpe ratio'
         },
         regime1: {
-          name: 'High Volatility / Bearish',
+          name: 'Bearish / High Volatility',
           meanReturn: -0.0021,
           volatility: 0.312,
           interpretation: 'Elevated downside tail risk, violent swings, and widening spreads'
@@ -95,7 +95,7 @@ export function detectMarketRegime(bars: ComputedBar[], ticker: string): MarketR
     historicalRegimes.push({
       date: bar.date,
       regime: currState,
-      regimeName: currState === 0 ? 'Low Volatility / Bullish' : 'High Volatility / Bearish',
+      regimeName: currState === 0 ? 'Bullish / Low Volatility' : 'Bearish / High Volatility',
       volatility: Number((vol * 100).toFixed(1)),
       returns: Number(((bar.returns || 0) * 100).toFixed(2))
     });
@@ -137,7 +137,7 @@ export function detectMarketRegime(bars: ComputedBar[], ticker: string): MarketR
 
   return {
     ticker,
-    currentRegime: currentRegimeId === 0 ? 'Low Volatility / Bullish' : 'High Volatility / Bearish',
+    currentRegime: currentRegimeId === 0 ? 'Bullish / Low Volatility' : 'Bearish / High Volatility',
     regimeId: currentRegimeId,
     regimeProbability,
     stabilityScore,
@@ -145,13 +145,13 @@ export function detectMarketRegime(bars: ComputedBar[], ticker: string): MarketR
     transitionMatrix,
     regimeCharacteristics: {
       regime0: {
-        name: 'Low Volatility / Bullish',
+        name: 'Bullish / Low Volatility',
         meanReturn: Number((Math.max(0.0008, avgRet + 0.001)).toFixed(4)),
         volatility: Number((avgVol * 0.8).toFixed(3)),
         interpretation: 'Persistent upward drift with low intraday variance and reliable indicator signals'
       },
       regime1: {
-        name: 'High Volatility / Bearish',
+        name: 'Bearish / High Volatility',
         meanReturn: Number((Math.min(-0.0012, avgRet - 0.001)).toFixed(4)),
         volatility: Number((avgVol * 1.5).toFixed(3)),
         interpretation: 'Elevated downside tail risk, violent intraday swings, and wider uncertainty intervals'

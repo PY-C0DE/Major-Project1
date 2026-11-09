@@ -4,7 +4,8 @@
  * Supports Dark and Light themes.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Lock, Mail, User, Sparkles, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -64,9 +65,30 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, defaultMode = 'log
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-fadeIn">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 transition-colors">
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return typeof document !== 'undefined' ? createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-3 sm:p-4 overscroll-contain overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4 transition-colors max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <div>
@@ -185,6 +207,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, defaultMode = 'log
           </button>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 };

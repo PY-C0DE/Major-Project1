@@ -73,9 +73,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 flex flex-col shrink-0 hidden lg:flex h-full max-h-[calc(100vh-57px)] sticky top-[57px] transition-colors duration-200 overflow-hidden">
+    <aside className="w-64 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800/80 flex flex-col shrink-0 hidden lg:flex h-full max-h-[calc(100vh-57px)] sticky top-[57px] transition-colors duration-200 overflow-hidden overscroll-contain">
       {/* Scrollable Navigation Options with Independent Scrollbar */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-6 sidebar-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 space-y-6 sidebar-scrollbar overscroll-contain">
         {/* Core Workspace */}
         <div>
           <div className="px-3 mb-2 text-[10px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-500 font-semibold">
@@ -185,7 +185,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 id="tour-investor-guide-tool"
                 onClick={onOpenInvestorGuide}
-                className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/60 transition-colors cursor-pointer text-left group"
+                className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer text-left group ${
+                  activeTab === 'guide'
+                    ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950/80 border border-emerald-400 dark:border-emerald-600 shadow-2xs'
+                    : 'text-emerald-700 dark:text-emerald-400 bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/60'
+                }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <GraduationCap className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform" />

@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bell,
   Plus,
@@ -126,6 +127,15 @@ export const AlertsPage: React.FC = () => {
   useEffect(() => {
     loadAlerts();
   }, []);
+
+  useEffect(() => {
+    if (!showAddModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showAddModal]);
 
   const handleSimulateTrigger = (alert: AlertRule) => {
     let message = '';
@@ -768,9 +778,19 @@ export const AlertsPage: React.FC = () => {
       </div>
 
       {/* 7. Comprehensive Modal: RSI, Risk-Based & Quant Alert Builder */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto transition-colors">
+      {showAddModal && typeof document !== 'undefined' && createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overscroll-contain overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddModal(false);
+          }}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
@@ -1196,7 +1216,8 @@ export const AlertsPage: React.FC = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <DisclaimerBanner />
