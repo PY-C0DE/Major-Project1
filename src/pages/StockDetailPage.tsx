@@ -28,6 +28,7 @@ import {
   Calendar,
   Eye,
   EyeOff,
+  Tag,
   X
 } from 'lucide-react';
 import { api } from '../services/api';
@@ -47,6 +48,7 @@ import { RegimeIndicator } from '../components/RegimeIndicator';
 import { HMMRegimeGraphicalIndicator } from '../components/HMMRegimeGraphicalIndicator';
 import { SeasonalityAnalysis } from '../components/SeasonalityAnalysis';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Props {
   ticker: string;
@@ -56,6 +58,7 @@ interface Props {
 
 export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onSelectTicker }) => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [history, setHistory] = useState<HistoricalBar[]>([]);
   const [prediction, setPrediction] = useState<ConformalPrediction | null>(null);
@@ -72,17 +75,19 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
 
   // Optional Deep-Dive Analysis Modules (Hidden by default; only visible if user clicks on option)
   const [activeOptions, setActiveOptions] = useState<{
-    valuationStats: boolean;
     regime: boolean;
     decisionSupport: boolean;
+    previousDayAudit: boolean;
+    classifiedEvents: boolean;
     sentiment: boolean;
     drift: boolean;
     volSurface: boolean;
     seasonality: boolean;
   }>({
-    valuationStats: false,
     regime: false,
     decisionSupport: false,
+    previousDayAudit: false,
+    classifiedEvents: false,
     sentiment: false,
     drift: false,
     volSurface: false,
@@ -98,9 +103,10 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
 
   const handleSelectAllOptions = () => {
     setActiveOptions({
-      valuationStats: true,
       regime: true,
       decisionSupport: true,
+      previousDayAudit: true,
+      classifiedEvents: true,
       sentiment: true,
       drift: true,
       volSurface: true,
@@ -110,9 +116,10 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
 
   const handleHideAllOptions = () => {
     setActiveOptions({
-      valuationStats: false,
       regime: false,
       decisionSupport: false,
+      previousDayAudit: false,
+      classifiedEvents: false,
       sentiment: false,
       drift: false,
       volSurface: false,
@@ -316,7 +323,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               {isUp ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               {isUp ? '+' : ''}{quote?.change?.toFixed(2)} ({isUp ? '+' : ''}{quote?.changePercent?.toFixed(2)}%)
             </span>
-            <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">Today</span>
+            <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">{t('stock.today', 'Today')}</span>
 
             {/* Live Date and Time in the Analysis (Requirement 13) */}
             {currentDateTime && (
@@ -344,7 +351,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             <div className="w-56 sm:w-64">
               <CompanySearchCombobox
                 compact
-                placeholder="Switch company (e.g. Tata, Nvidia)..."
+                placeholder={t('stock.switch_company', 'Switch company (e.g. Tata, Nvidia)...')}
                 onSelect={(item) => onSelectTicker(item.ticker)}
               />
             </div>
@@ -365,7 +372,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
             >
               <BookmarkPlus className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              <span>{watchlistSuccess ? 'Added!' : 'Watchlist'}</span>
+              <span>{watchlistSuccess ? 'Added!' : t('stock.add_watchlist', 'Watchlist')}</span>
             </button>
 
           {onOpenAddHolding && (
@@ -374,7 +381,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
             >
               <Briefcase className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Add to Portfolio</span>
+              <span>{t('stock.add_portfolio', 'Add to Portfolio')}</span>
             </button>
           )}
 
@@ -384,7 +391,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               className="px-3.5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
             >
               <Download className="w-4 h-4 text-amber-500" />
-              <span>{isExporting ? 'Exporting...' : 'Export Factsheet'}</span>
+              <span>{isExporting ? 'Exporting...' : t('stock.export_factsheet', 'Export Factsheet')}</span>
             </button>
 
             <button
@@ -393,7 +400,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               title="Jump directly to Implied Volatility Surface card on this page"
             >
               <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-              <span>Vol Surface</span>
+              <span>{t('stock.vol_surface', 'Vol Surface')}</span>
             </button>
 
             <button
@@ -402,7 +409,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               title="Open full Derivatives Terminal (Greeks, Strike Matrix & Mispricing)"
             >
               <Zap className="w-4 h-4 text-amber-500" />
-              <span>Options Terminal</span>
+              <span>{t('stock.options_terminal', 'Options Terminal')}</span>
             </button>
 
             <button
@@ -410,44 +417,39 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
             >
               <History className="w-4 h-4" />
-              <span>{savedSuccess ? 'Forecast Logged!' : 'Log Forecast'}</span>
+              <span>{savedSuccess ? t('stock.forecast_logged', 'Forecast Logged!') : t('stock.log_forecast', 'Log Forecast')}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* 2. Key Valuation & 52-Week Statistics Tape (Optional Module: Only visible if clicked) */}
-      {activeOptions.valuationStats && (
-        <div className="space-y-2 animate-fadeIn p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
-          <div className="flex items-center justify-between text-xs px-1">
-            <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 font-mono">
-              <BarChart2 className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-              Valuation & 52-Week Trading Range Statistics
-            </span>
-            <button
-              onClick={() => toggleOption('valuationStats')}
-              className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
-            >
-              <X className="w-3 h-3" /> Hide Option
-            </button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {[
-              { label: '52-Week High', value: `${currSym}${quote?.high52?.toLocaleString() || '---'}` },
-              { label: '52-Week Low', value: `${currSym}${quote?.low52?.toLocaleString() || '---'}` },
-              { label: 'Day Range', value: `${currSym}${quote?.low?.toFixed(1)} - ${currSym}${quote?.high?.toFixed(1)}` },
-              { label: 'Volume (Shares)', value: quote?.volume ? (quote.volume / 1000000).toFixed(2) + 'M' : '---' },
-              { label: 'P/E Ratio', value: quote?.pe ? `${quote.pe.toFixed(1)}x` : '---' },
-              { label: 'Market Cap', value: quote?.marketCap ? `${(quote.marketCap / 1e9).toFixed(1)}B` : '---' }
-            ].map(stat => (
-              <div key={stat.label} className="p-3 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
-                <span className="text-[10px] font-mono uppercase text-slate-400 dark:text-slate-500 block">{stat.label}</span>
-                <span className="text-xs font-bold font-mono text-slate-900 dark:text-white mt-0.5 block tabular-nums">{stat.value}</span>
-              </div>
-            ))}
-          </div>
+      {/* 2. Key Valuation & 52-Week Statistics Tape (ALWAYS VISIBLE CORE) */}
+      <div className="space-y-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800">
+        <div className="flex items-center justify-between text-xs px-1">
+          <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 font-mono">
+            <BarChart2 className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+            {t('stock.valuation_title', 'Valuation & 52-Week Trading Range Statistics')}
+          </span>
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+            {t('stock.valuation_subtitle', 'Fundamental & Range Metrics')}
+          </span>
         </div>
-      )}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: t('stock.high_52w', '52-Week High'), value: `${currSym}${quote?.high52?.toLocaleString() || '---'}` },
+            { label: t('stock.low_52w', '52-Week Low'), value: `${currSym}${quote?.low52?.toLocaleString() || '---'}` },
+            { label: t('stock.day_range', 'Day Range'), value: `${currSym}${quote?.low?.toFixed(1)} - ${currSym}${quote?.high?.toFixed(1)}` },
+            { label: t('stock.volume', 'Volume (Shares)'), value: quote?.volume ? (quote.volume / 1000000).toFixed(2) + 'M' : '---' },
+            { label: t('stock.pe_ratio', 'P/E Ratio'), value: quote?.pe ? `${quote.pe.toFixed(1)}x` : '---' },
+            { label: t('stock.market_cap', 'Market Cap'), value: quote?.marketCap ? `${(quote.marketCap / 1e9).toFixed(1)}B` : '---' }
+          ].map(stat => (
+            <div key={stat.label} className="p-3 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
+              <span className="text-[10px] font-mono uppercase text-slate-400 dark:text-slate-500 block">{stat.label}</span>
+              <span className="text-xs font-bold font-mono text-slate-900 dark:text-white mt-0.5 block tabular-nums">{stat.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* 3. Interactive OHLCV Multi-Indicator Daily Candle Chart (ALWAYS VISIBLE CORE) */}
       <InteractiveStockChart
@@ -473,14 +475,14 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
               <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                Additional Analytical Modules (Optional Deep Dive)
+                {t('stock.additional_modules')}
               </h3>
               <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                {activeOptionsCount} of 7 visible
+                {activeOptionsCount} / 8 {t('stock.visible_of')}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Only the daily candle chart and prediction are visible by default. Click any module below to inspect deeper quantitative factors.
+              {t('stock.modules_subtitle')}
             </p>
           </div>
 
@@ -489,7 +491,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               onClick={handleSelectAllOptions}
               className="text-xs font-mono font-medium px-2.5 py-1 rounded-md text-slate-600 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
-              Show All
+              {t('action.show_all')}
             </button>
             <span className="text-slate-300 dark:text-slate-700">|</span>
             <button
@@ -501,7 +503,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
                   : 'text-slate-600 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              Hide All
+              {t('action.hide_all')}
             </button>
           </div>
         </div>
@@ -523,15 +525,15 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               </span>
               <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.regime ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
                 {activeOptions.regime ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {activeOptions.regime ? 'ACTIVE' : 'OFF'}
+                {activeOptions.regime ? t('action.active') : t('action.off')}
               </span>
             </div>
             <div className="mt-2">
               <div className="text-xs font-bold text-slate-900 dark:text-white">
-                HMM Market Regime
+                {t('stock.mod_regime_title')}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                {regime?.currentRegime || '2-State Latent Model'}
+                {regime?.currentRegime || t('stock.mod_regime_sub')}
               </div>
             </div>
           </button>
@@ -551,43 +553,71 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               </span>
               <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.decisionSupport ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
                 {activeOptions.decisionSupport ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {activeOptions.decisionSupport ? 'ACTIVE' : 'OFF'}
+                {activeOptions.decisionSupport ? t('action.active') : t('action.off')}
               </span>
             </div>
             <div className="mt-2">
               <div className="text-xs font-bold text-slate-900 dark:text-white">
-                Decision Support & Signals
+                {t('stock.mod_decision_title')}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                Target, Stop Loss & Prev Day Audit
+                {t('stock.mod_decision_sub')}
               </div>
             </div>
           </button>
 
-          {/* Option: Key Valuation Stats */}
+          {/* Option: Previous-Day Stats Audit */}
           <button
-            onClick={() => toggleOption('valuationStats')}
+            onClick={() => toggleOption('previousDayAudit')}
             className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-              activeOptions.valuationStats
+              activeOptions.previousDayAudit
                 ? 'bg-cyan-50 dark:bg-cyan-950/40 border-cyan-400 dark:border-cyan-600 ring-1 ring-cyan-400 shadow-xs'
                 : 'bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`p-1.5 rounded-lg ${activeOptions.valuationStats ? 'bg-cyan-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
-                <BarChart2 className="w-3.5 h-3.5" />
+              <span className={`p-1.5 rounded-lg ${activeOptions.previousDayAudit ? 'bg-cyan-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+                <History className="w-3.5 h-3.5" />
               </span>
-              <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.valuationStats ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
-                {activeOptions.valuationStats ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {activeOptions.valuationStats ? 'ACTIVE' : 'OFF'}
+              <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.previousDayAudit ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
+                {activeOptions.previousDayAudit ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                {activeOptions.previousDayAudit ? t('action.active') : t('action.off')}
               </span>
             </div>
             <div className="mt-2">
               <div className="text-xs font-bold text-slate-900 dark:text-white">
-                Valuation & 52W Stats
+                {t('stock.mod_audit_title')}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                52W Range, P/E, Cap, Vol
+                {t('stock.mod_audit_sub')}
+              </div>
+            </div>
+          </button>
+
+          {/* Option: Classified Financial Events */}
+          <button
+            onClick={() => toggleOption('classifiedEvents')}
+            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+              activeOptions.classifiedEvents
+                ? 'bg-cyan-50 dark:bg-cyan-950/40 border-cyan-400 dark:border-cyan-600 ring-1 ring-cyan-400 shadow-xs'
+                : 'bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className={`p-1.5 rounded-lg ${activeOptions.classifiedEvents ? 'bg-cyan-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+                <Tag className="w-3.5 h-3.5" />
+              </span>
+              <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.classifiedEvents ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
+                {activeOptions.classifiedEvents ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                {activeOptions.classifiedEvents ? t('action.active') : t('action.off')}
+              </span>
+            </div>
+            <div className="mt-2">
+              <div className="text-xs font-bold text-slate-900 dark:text-white">
+                {t('stock.mod_events_title')}
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                {prediction?.classifiedEvents?.length || 0} {t('stock.mod_events_sub')}
               </div>
             </div>
           </button>
@@ -607,15 +637,15 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               </span>
               <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.sentiment ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
                 {activeOptions.sentiment ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {activeOptions.sentiment ? 'ACTIVE' : 'OFF'}
+                {activeOptions.sentiment ? t('action.active') : t('action.off')}
               </span>
             </div>
             <div className="mt-2">
               <div className="text-xs font-bold text-slate-900 dark:text-white">
-                News & Sentiment
+                {t('stock.mod_sentiment_title')}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                {news.length} Sources · FinBERT NLP
+                {news.length} Sources · {t('stock.mod_sentiment_sub')}
               </div>
             </div>
           </button>
@@ -635,15 +665,15 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               </span>
               <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.drift ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
                 {activeOptions.drift ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {activeOptions.drift ? 'ACTIVE' : 'OFF'}
+                {activeOptions.drift ? t('action.active') : t('action.off')}
               </span>
             </div>
             <div className="mt-2">
               <div className="text-xs font-bold text-slate-900 dark:text-white">
-                Concept Drift Monitor
+                {t('stock.mod_drift_title')}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                KS 2-Sample Non-Stationarity
+                {t('stock.mod_drift_sub')}
               </div>
             </div>
           </button>
@@ -663,15 +693,15 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               </span>
               <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.volSurface ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
                 {activeOptions.volSurface ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {activeOptions.volSurface ? 'ACTIVE' : 'OFF'}
+                {activeOptions.volSurface ? t('action.active') : t('action.off')}
               </span>
             </div>
             <div className="mt-2">
               <div className="text-xs font-bold text-slate-900 dark:text-white">
-                3D Vol Surface & Smile
+                {t('stock.mod_surface_title')}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                D3 Implied Volatility & Smile
+                {t('stock.mod_surface_sub')}
               </div>
             </div>
           </button>
@@ -691,15 +721,15 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               </span>
               <span className={`text-[10px] font-mono font-bold flex items-center gap-1 ${activeOptions.seasonality ? 'text-cyan-700 dark:text-cyan-300' : 'text-slate-400'}`}>
                 {activeOptions.seasonality ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                {activeOptions.seasonality ? 'ACTIVE' : 'OFF'}
+                {activeOptions.seasonality ? t('action.active') : t('action.off')}
               </span>
             </div>
             <div className="mt-2">
               <div className="text-xs font-bold text-slate-900 dark:text-white">
-                Seasonality Alpha
+                {t('stock.mod_seasonality_title')}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                Monthly Return Heatmap
+                {t('stock.mod_seasonality_sub')}
               </div>
             </div>
           </button>
@@ -714,13 +744,13 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             <div className="flex items-center justify-between px-1">
               <span className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono">
                 <Layers className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                HMM Market Regime Detection & Latent State Dynamics
+                {t('stock.section_regime')}
               </span>
               <button
                 onClick={() => toggleOption('regime')}
                 className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <X className="w-3 h-3" /> Hide Option
+                <X className="w-3 h-3" /> {t('action.hide_option')}
               </button>
             </div>
             <HMMRegimeGraphicalIndicator regime={regime} ticker={ticker} />
@@ -728,25 +758,74 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
           </div>
         )}
 
-        {/* Module: Algorithmic Decision Support */}
+        {/* Module: Algorithmic Decision Support & Signals */}
         {activeOptions.decisionSupport && (
           <div className="space-y-2 animate-fadeIn">
             <div className="flex items-center justify-between px-1">
               <span className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono">
-                <Sparkles className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                Algorithmic Decision Support & Previous Day Audit
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                {t('stock.section_decision')}
               </span>
               <button
                 onClick={() => toggleOption('decisionSupport')}
                 className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <X className="w-3 h-3" /> Hide Option
+                <X className="w-3 h-3" /> {t('action.hide_option')}
               </button>
             </div>
             <StockDecisionAndHistoryCard
               prediction={prediction}
               currency={quote?.currency || 'INR'}
               ticker={ticker}
+              viewMode="decision"
+            />
+          </div>
+        )}
+
+        {/* Module: Previous-Day Stats Audit */}
+        {activeOptions.previousDayAudit && (
+          <div className="space-y-2 animate-fadeIn">
+            <div className="flex items-center justify-between px-1">
+              <span className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono">
+                <History className="w-3.5 h-3.5 text-cyan-500" />
+                {t('stock.section_audit')}
+              </span>
+              <button
+                onClick={() => toggleOption('previousDayAudit')}
+                className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <X className="w-3 h-3" /> {t('action.hide_option')}
+              </button>
+            </div>
+            <StockDecisionAndHistoryCard
+              prediction={prediction}
+              currency={quote?.currency || 'INR'}
+              ticker={ticker}
+              viewMode="previous_day"
+            />
+          </div>
+        )}
+
+        {/* Module: Classified Financial Events */}
+        {activeOptions.classifiedEvents && (
+          <div className="space-y-2 animate-fadeIn">
+            <div className="flex items-center justify-between px-1">
+              <span className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono">
+                <Tag className="w-3.5 h-3.5 text-amber-500" />
+                {t('stock.section_events')}
+              </span>
+              <button
+                onClick={() => toggleOption('classifiedEvents')}
+                className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <X className="w-3 h-3" /> {t('action.hide_option')}
+              </button>
+            </div>
+            <StockDecisionAndHistoryCard
+              prediction={prediction}
+              currency={quote?.currency || 'INR'}
+              ticker={ticker}
+              viewMode="classified_events"
             />
           </div>
         )}
@@ -757,7 +836,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             <div className="flex items-center justify-between px-1">
               <span className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono">
                 <Newspaper className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                News Sentiment & Concept Drift Monitoring
+                {t('stock.section_sentiment_drift')}
               </span>
             </div>
             <div className={`grid grid-cols-1 ${activeOptions.sentiment && activeOptions.drift ? 'lg:grid-cols-2' : ''} gap-6`}>
@@ -768,7 +847,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
                       onClick={() => toggleOption('sentiment')}
                       className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
                     >
-                      <X className="w-3 h-3" /> Hide Sentiment
+                      <X className="w-3 h-3" /> {t('action.hide_option')}
                     </button>
                   </div>
                   <SentimentCard news={news} ticker={ticker} />
@@ -781,7 +860,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
                       onClick={() => toggleOption('drift')}
                       className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
                     >
-                      <X className="w-3 h-3" /> Hide Drift
+                      <X className="w-3 h-3" /> {t('action.hide_option')}
                     </button>
                   </div>
                   <ConceptDriftCard drift={drift} />
@@ -797,13 +876,13 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             <div className="flex items-center justify-between px-1">
               <span className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono">
                 <Zap className="w-3.5 h-3.5 text-amber-500" />
-                D3 Implied Volatility Surface & Volatility Smile Engine
+                {t('stock.section_surface')}
               </span>
               <button
                 onClick={() => toggleOption('volSurface')}
                 className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <X className="w-3 h-3" /> Hide Option
+                <X className="w-3 h-3" /> {t('action.hide_option')}
               </button>
             </div>
             <OptionsVolatilitySurface
@@ -820,13 +899,13 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             <div className="flex items-center justify-between px-1">
               <span className="font-semibold text-xs text-slate-700 dark:text-slate-300 flex items-center gap-1.5 font-mono">
                 <Calendar className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                Seasonality & Calendar Alpha Analysis
+                {t('stock.section_seasonality')}
               </span>
               <button
                 onClick={() => toggleOption('seasonality')}
                 className="text-[11px] font-mono text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <X className="w-3 h-3" /> Hide Option
+                <X className="w-3 h-3" /> {t('action.hide_option')}
               </button>
             </div>
             <SeasonalityAnalysis

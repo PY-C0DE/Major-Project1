@@ -27,6 +27,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import avatarImg from '../assets/images/avatar_lead_quant_1791318574843.jpg';
 
 interface SidebarProps {
@@ -55,20 +56,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenInvestorGuide
 }) => {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
+
   const mainItems = [
-    { id: 'home', label: 'Home Overview', icon: Home },
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'analysis', label: `Analysis (${selectedTicker.replace('.NS', '')})`, icon: LineChart },
-    { id: 'markets', label: 'Markets Screener', icon: Globe2 },
-    { id: 'portfolio', label: 'My Portfolio', icon: Briefcase },
-    { id: 'watchlist', label: 'Watchlist', icon: BookmarkCheck }
+    { id: 'home', label: t('nav.home', 'Home Overview'), icon: Home },
+    { id: 'dashboard', label: t('nav.dashboard', 'Dashboard'), icon: LayoutDashboard },
+    { id: 'analysis', label: `${t('nav.analysis', 'Stock Analysis')} (${selectedTicker.replace('.NS', '')})`, icon: LineChart },
+    { id: 'markets', label: t('nav.markets', 'Markets Screener'), icon: Globe2 },
+    { id: 'portfolio', label: t('nav.portfolio', 'My Portfolio'), icon: Briefcase },
+    { id: 'watchlist', label: t('nav.watchlist', 'Watchlist'), icon: BookmarkCheck }
   ];
 
   const intelligenceItems = [
-    { id: 'news', label: 'News Intelligence', icon: Newspaper },
-    { id: 'predictions', label: 'Conformal Forecasts', icon: Target },
-    { id: 'performance', label: 'Model Evaluation', icon: BarChart3 },
-    { id: 'drift', label: 'Drift Monitor', icon: ActivitySquare },
+    { id: 'news', label: t('stock.mod_sentiment_title', 'News Intelligence'), icon: Newspaper },
+    { id: 'predictions', label: t('conformal.title', 'Conformal Forecasts'), icon: Target },
+    { id: 'performance', label: t('nav.accuracy', 'Model Accuracy'), icon: BarChart3 },
+    { id: 'drift', label: t('nav.drift', 'Drift Monitor'), icon: ActivitySquare },
     { id: 'alerts', label: 'Alert Manager', icon: Bell }
   ];
 

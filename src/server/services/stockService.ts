@@ -434,10 +434,52 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
       }
     }
   } catch (err) {
-    // Network or rate-limit: fall through to verified fallback quote
+    // Network or rate-limit: fall through to resilient fallback quote
   }
 
-  // Resilient verified fallback quote
+  // 1. If we already have a live quote cached (even if older than TTL), preserve the real live price!
+  if (cached && cached.data && cached.data.isLive) {
+    return {
+      ...cached.data,
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  // 2. If historical bars were cached from Yahoo Finance, anchor to the latest real market close!
+  const cachedBars = historyCache.get(`${ticker}_250`) || historyCache.get(`${ticker}_30`);
+  if (cachedBars && cachedBars.data.length > 0) {
+    const lastBar = cachedBars.data[cachedBars.data.length - 1];
+    const prevBar = cachedBars.data.length > 1 ? cachedBars.data[cachedBars.data.length - 2] : null;
+    const currentPrice = lastBar.close;
+    const prevClose = prevBar ? prevBar.close : lastBar.open;
+    const change = Number((currentPrice - prevClose).toFixed(2));
+    const changePercent = Number(((change / (prevClose || 1)) * 100).toFixed(2));
+
+    const quote: StockQuote = {
+      ticker,
+      name: meta.name,
+      price: currentPrice,
+      change,
+      changePercent,
+      open: lastBar.open,
+      high: lastBar.high,
+      low: lastBar.low,
+      previousClose: prevClose,
+      high52: Number((currentPrice * 1.25).toFixed(2)),
+      low52: Number((currentPrice * 0.8).toFixed(2)),
+      volume: lastBar.volume,
+      pe: meta.pe,
+      marketCap: meta.marketCap,
+      currency: meta.currency,
+      exchange: meta.exchange,
+      lastUpdated: new Date().toISOString(),
+      isLive: true
+    };
+    quoteCache.set(ticker, { data: quote, timestamp: Date.now() });
+    return quote;
+  }
+
+  // 3. Resilient catalog fallback quote with short 5-second retry TTL
   const currentPrice = meta.basePrice;
   const change = Number((meta.basePrice * 0.0125).toFixed(2));
   const changePercent = 1.25;
@@ -463,7 +505,8 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
     isLive: false
   };
 
-  quoteCache.set(ticker, { data: quote, timestamp: Date.now() });
+  // Cache fallback for only 5 seconds so next request retries live API immediately
+  quoteCache.set(ticker, { data: quote, timestamp: Date.now() - QUOTE_TTL_MS + 5000 });
   return quote;
 }
 

@@ -18,6 +18,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { MarketRegime } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface RegimeIndicatorProps {
   regime: MarketRegime | null;
@@ -36,6 +37,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
   onToggleOption,
   isOptionActive = false
 }) => {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!regime) {
@@ -49,8 +51,9 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
     );
   }
 
-  const regimeName = regime.currentRegime || (regime.regimeId === 0 ? 'Bullish / Low Volatility' : 'Bearish / High Volatility');
-  const lowerName = regimeName.toLowerCase();
+  const rawName = regime.currentRegime || (regime.regimeId === 0 ? 'Bullish / Low Volatility' : 'Bearish / High Volatility');
+  const lowerName = rawName.toLowerCase();
+  const regimeName = regime.regimeId === 0 ? t('regime.bullish_low_vol') : t('regime.bearish_high_vol');
 
   // Classify regime type for colors and icons
   let theme = {
@@ -60,7 +63,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
     dot: 'bg-emerald-500 shadow-emerald-500/50',
     badgeBg: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200',
     icon: TrendingUp,
-    label: 'Bullish / Low Volatility',
+    label: t('regime.bullish_low_vol'),
     description: 'Persistent upward drift with compressed volatility and reliable conformal intervals.'
   };
 

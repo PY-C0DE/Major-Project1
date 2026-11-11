@@ -89,7 +89,7 @@ export const CompanySearchCombobox: React.FC<Props> = ({
     { ticker: 'SBIN.NS', name: 'State Bank of India', exchange: 'NSE', currency: 'INR', price: 815.60, sector: 'Banking & Financial Services' },
     { ticker: 'GOOGL', name: 'Alphabet Inc. (Google)', exchange: 'NASDAQ', currency: 'USD', price: 178.60, sector: 'Internet & Search' },
     { ticker: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', currency: 'USD', price: 248.90, sector: 'Automotive & Clean Energy' },
-    { ticker: 'TMCV.NS', name: 'Tata Motors Ltd.', exchange: 'NSE', currency: 'INR', price: 414.25, sector: 'Automobile' },
+    { ticker: 'TMCV.NS', name: 'Tata Motors Ltd.', exchange: 'NSE', currency: 'INR', price: 446.05, sector: 'Automobile' },
     { ticker: 'ETERNAL.NS', name: 'Eternal Ltd. (formerly Zomato)', exchange: 'NSE', currency: 'INR', price: 304.45, sector: 'Consumer Internet & Food Tech' }
   ];
 

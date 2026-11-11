@@ -6,14 +6,17 @@
 
 import React from 'react';
 import { AlertTriangle, Info } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export const DisclaimerBanner: React.FC<{ compact?: boolean }> = ({ compact }) => {
+  const { t } = useLanguage();
+
   if (compact) {
     return (
       <div className="text-[11px] text-slate-600 dark:text-slate-500 flex items-center gap-1.5 py-1 px-2 bg-slate-100 dark:bg-slate-900/30 rounded border border-slate-200 dark:border-slate-800/40">
         <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
         <span>
-          Educational & research platform only. Prediction intervals represent statistical uncertainty and are not financial guarantees.
+          {t('footer.disclaimer')}
         </span>
       </div>
     );
@@ -28,7 +31,7 @@ export const DisclaimerBanner: React.FC<{ compact?: boolean }> = ({ compact }) =
             Statistical Uncertainty & Regulatory Financial Disclaimer
           </div>
           <p className="leading-relaxed">
-            AlphaQuant AI is designed strictly for quantitative research, backtesting, and academic education. All price forecasts, conformal prediction bands, market regime classifications, and sentiment scores are outputs of statistical machine-learning models. They do not constitute financial, investment, legal, or tax advice. Market prices are subject to systemic risk and past model accuracy does not guarantee future financial returns.
+            {t('footer.disclaimer')} All price forecasts, conformal prediction bands, market regime classifications, and sentiment scores are outputs of statistical machine-learning models. They do not constitute financial, investment, legal, or tax advice. Market prices are subject to systemic risk and past model accuracy does not guarantee future financial returns.
           </p>
         </div>
       </div>

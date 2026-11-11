@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { Target, HelpCircle, TrendingUp, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Award, BarChart2 } from 'lucide-react';
 import { ConformalPrediction } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Props {
   prediction: ConformalPrediction | null;
@@ -21,6 +22,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
   currency,
   onConfigChange
 }) => {
+  const { t } = useLanguage();
   const [showTooltip, setShowTooltip] = useState(false);
   const [showExplain, setShowExplain] = useState(true);
   const [selectedHorizon, setSelectedHorizon] = useState<number>(prediction?.horizonDays || 1);
@@ -74,7 +76,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
           </div>
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-              Conformal Prediction
+              {t('conformal.title')}
               <button
                 type="button"
                 aria-label="Explain conformal prediction interval"
@@ -85,7 +87,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
               </button>
             </h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-Day Horizon`} · Ensemble v3.0 (Depth-2 GBDT + Adaptive Ridge)
+              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-${t('conformal.horizon')}`} · Ensemble v3.0 (Depth-2 GBDT + Adaptive Ridge)
             </span>
           </div>
         </div>
@@ -113,7 +115,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
       <div className="mb-4 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-3 text-xs">
         {/* Horizon Selector */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-mono uppercase text-slate-500 font-semibold">Horizon:</span>
+          <span className="text-[10px] font-mono uppercase text-slate-500 font-semibold">{t('conformal.horizon')}:</span>
           <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded border border-slate-200 dark:border-slate-800">
             {[1, 3, 5, 10, 30].map(h => (
               <button
@@ -133,7 +135,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
 
         {/* Confidence Level Selector */}
         <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-mono uppercase text-slate-500 font-semibold">Confidence (1-α):</span>
+          <span className="text-[10px] font-mono uppercase text-slate-500 font-semibold">{t('conformal.confidence')} (1-α):</span>
           <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded border border-slate-200 dark:border-slate-800">
             {[0.80, 0.90, 0.95, 0.99].map(c => (
               <button
@@ -179,7 +181,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
         <div>
           <div className="text-[11px] sm:text-xs uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between flex-wrap gap-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span>Predicted Target</span>
+              <span>{t('conformal.predicted_price')}</span>
               {prediction.targetDateFormatted && (
                 <span className="px-2 py-0.5 rounded-md bg-cyan-100 dark:bg-cyan-950/80 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 text-[10px] font-bold normal-case tracking-normal">
                   📅 {prediction.targetDateFormatted} ({prediction.horizonDays}D)
@@ -211,7 +213,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
         {/* Prediction Interval Envelope */}
         <div>
           <div className="text-[11px] uppercase tracking-wider font-mono text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
-            <span>{(prediction.confidenceLevel * 100).toFixed(0)}% Prediction Interval</span>
+            <span>{(prediction.confidenceLevel * 100).toFixed(0)}% {t('conformal.title')}</span>
             <span className="text-slate-400 dark:text-slate-500 font-mono text-[10px]">
               Width: ±{(prediction.intervalWidthPercent / 2).toFixed(1)}%
             </span>
@@ -229,8 +231,8 @@ export const ConformalPredictionCard: React.FC<Props> = ({
             />
           </div>
           <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
-            <span>Lower ({(5 * (1 - prediction.confidenceLevel) * 10).toFixed(1)}th %ile)</span>
-            <span>Upper ({(100 - 5 * (1 - prediction.confidenceLevel) * 10).toFixed(1)}th %ile)</span>
+            <span>{t('conformal.lower_bound')} ({(5 * (1 - prediction.confidenceLevel) * 10).toFixed(1)}th %ile)</span>
+            <span>{t('conformal.upper_bound')} ({(100 - 5 * (1 - prediction.confidenceLevel) * 10).toFixed(1)}th %ile)</span>
           </div>
         </div>
       </div>

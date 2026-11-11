@@ -19,21 +19,33 @@ import {
   Info
 } from 'lucide-react';
 import { ConformalPrediction, PreviousDayStats, ClassifiedFinancialEvent, DecisionSignal } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Props {
   prediction: ConformalPrediction | null;
   currency: string;
   ticker: string;
   onOpenInvestorGuide?: () => void;
+  viewMode?: 'tabs' | 'decision' | 'previous_day' | 'classified_events';
 }
 
 export const StockDecisionAndHistoryCard: React.FC<Props> = ({
   prediction,
   currency,
   ticker,
-  onOpenInvestorGuide
+  onOpenInvestorGuide,
+  viewMode = 'tabs'
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'decision' | 'previous_day' | 'classified_events'>('decision');
+  const { t } = useLanguage();
+  const [activeSubTab, setActiveSubTab] = useState<'decision' | 'previous_day' | 'classified_events'>(
+    viewMode !== 'tabs' ? viewMode : 'decision'
+  );
+
+  React.useEffect(() => {
+    if (viewMode !== 'tabs') {
+      setActiveSubTab(viewMode);
+    }
+  }, [viewMode]);
 
   if (!prediction) return null;
 
@@ -41,59 +53,74 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
   const prevStats: PreviousDayStats | undefined = prediction.previousDayStats;
   const decision: DecisionSignal | undefined = prediction.decisionSignal;
   const events: ClassifiedFinancialEvent[] = prediction.classifiedEvents || [];
+  const showTabBar = viewMode === 'tabs';
 
   return (
     <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-      {/* Sub-tab navigation */}
-      <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800 gap-2">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-          <button
-            onClick={() => setActiveSubTab('decision')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
-              activeSubTab === 'decision'
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Scale className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Hold or Sell Signal</span>
-          </button>
+      {/* Sub-tab navigation (Only in multi-tab mode) */}
+      {showTabBar && (
+        <div className="flex flex-wrap items-center justify-between pb-3 border-b border-slate-150 dark:border-slate-800 gap-2">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+            <button
+              onClick={() => setActiveSubTab('decision')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                activeSubTab === 'decision'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Scale className="w-3.5 h-3.5 text-indigo-500" />
+              <span>{t('stock.mod_decision_title')}</span>
+            </button>
 
-          <button
-            onClick={() => setActiveSubTab('previous_day')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
-              activeSubTab === 'previous_day'
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <History className="w-3.5 h-3.5 text-cyan-500" />
-            <span>Previous Day Stats Audit</span>
-          </button>
+            <button
+              onClick={() => setActiveSubTab('previous_day')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                activeSubTab === 'previous_day'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <History className="w-3.5 h-3.5 text-cyan-500" />
+              <span>{t('stock.mod_audit_title')}</span>
+            </button>
 
-          <button
-            onClick={() => setActiveSubTab('classified_events')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all ${
-              activeSubTab === 'classified_events'
-                ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5 text-amber-500" />
-            <span>Classified Financial Events ({events.length})</span>
-          </button>
+            <button
+              onClick={() => setActiveSubTab('classified_events')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                activeSubTab === 'classified_events'
+                  ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-amber-500" />
+              <span>{t('stock.mod_events_title')} ({events.length})</span>
+            </button>
+          </div>
+
+          {onOpenInvestorGuide && (
+            <button
+              onClick={onOpenInvestorGuide}
+              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+            >
+              <span>{t('nav.guide')}</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
+      )}
 
-        {onOpenInvestorGuide && (
+      {!showTabBar && onOpenInvestorGuide && viewMode === 'decision' && (
+        <div className="flex justify-end pb-1">
           <button
             onClick={onOpenInvestorGuide}
-            className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+            className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
           >
-            <span>Beginner Investor Guide</span>
+            <span>{t('nav.guide')}</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 1. DECISION SUPPORT: HOLD OR SELL OR BUY */}
       {activeSubTab === 'decision' && decision && (
@@ -115,10 +142,13 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                     ? 'bg-amber-600 text-white'
                     : 'bg-rose-600 text-white'
                 }`}>
-                  {decision.recommendation}
+                  {decision.recommendation === 'STRONG BUY' ? t('decision.strong_buy') :
+                   decision.recommendation === 'BUY' ? t('decision.buy') :
+                   decision.recommendation === 'HOLD' ? t('decision.hold') :
+                   t('decision.sell')}
                 </span>
                 <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                  Confidence: {decision.confidenceScore}%
+                  {t('regime.confidence')}: {decision.confidenceScore}%
                 </span>
               </div>
               <p className="text-xs text-slate-700 dark:text-slate-200 mt-1.5 font-medium leading-relaxed">
@@ -130,20 +160,24 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
             <div className="flex items-center gap-3 shrink-0">
               <div className="text-right">
                 <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">
-                  Target Exit {prediction.targetDate ? `(${prediction.targetDate})` : ''}
+                  {t('decision.target_price')} {prediction.targetDate ? `(${prediction.targetDate})` : ''}
                 </span>
                 <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
                   {currSym}{decision.targetPrice.toFixed(2)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Stop Loss</span>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">
+                  {t('decision.stop_loss')}
+                </span>
                 <span className="text-sm font-bold font-mono text-rose-600 dark:text-rose-400">
                   {currSym}{decision.stopLossPrice.toFixed(2)}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">Risk/Reward</span>
+                <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-mono">
+                  {t('decision.risk_reward')}
+                </span>
                 <span className="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400">
                   {decision.riskRewardRatio.toFixed(1)}x
                 </span>
@@ -195,10 +229,12 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
           <div className="flex items-center justify-between">
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
-                Latest Completed Session Audit ({prevStats.previousDate})
+                {prevStats.isTodaySession ? t('audit.today_active_title') : t('audit.previous_completed_title')} ({prevStats.previousDate})
               </h4>
               <p className="text-xs text-slate-500 mt-0.5">
-                Audit how this session's actual closing price compared to the quantitative ensemble forecast and conformal bounds.
+                {prevStats.isTodaySession
+                  ? t('audit.today_active_desc')
+                  : t('audit.previous_completed_desc')}
               </p>
             </div>
 
@@ -208,48 +244,50 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                 : 'bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700'
             }`}>
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{prevStats.hit ? '90% Conformal Bound Hit' : 'Boundary Miss'}</span>
+              <span>{prevStats.hit ? t('audit.bound_hit') : t('audit.bound_miss')}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block uppercase">Actual Close</span>
+              <span className="text-[10px] text-slate-400 block uppercase">
+                {prevStats.isTodaySession ? t('audit.current_traded_price') : t('audit.actual_close')}
+              </span>
               <span className="text-base font-bold text-slate-900 dark:text-white mt-1 block">
                 {currSym}{prevStats.previousClose.toFixed(2)}
               </span>
               <span className="text-[10px] text-slate-400">
-                Range: {currSym}{prevStats.previousLow.toFixed(1)} - {currSym}{prevStats.previousHigh.toFixed(1)}
+                {t('audit.range')}: {currSym}{prevStats.previousLow.toFixed(1)} - {currSym}{prevStats.previousHigh.toFixed(1)}
               </span>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block uppercase">Session Forecast</span>
+              <span className="text-[10px] text-slate-400 block uppercase">{t('audit.session_forecast')}</span>
               <span className="text-base font-bold text-cyan-600 dark:text-cyan-400 mt-1 block">
                 {currSym}{prevStats.predictedClose.toFixed(2)}
               </span>
               <span className="text-[10px] text-slate-400">
-                Channel: {currSym}{prevStats.lowerBound.toFixed(1)} - {currSym}{prevStats.upperBound.toFixed(1)}
+                {t('audit.channel')}: {currSym}{prevStats.lowerBound.toFixed(1)} - {currSym}{prevStats.upperBound.toFixed(1)}
               </span>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block uppercase">Prediction Error</span>
+              <span className="text-[10px] text-slate-400 block uppercase">{t('audit.prediction_error')}</span>
               <span className="text-base font-bold text-slate-900 dark:text-white mt-1 block">
                 {prevStats.errorPercent.toFixed(2)}%
               </span>
               <span className="text-[10px] text-slate-400">
-                Absolute: {currSym}{prevStats.errorAbsolute.toFixed(2)}
+                {t('audit.abs_error')}: {currSym}{prevStats.errorAbsolute.toFixed(2)}
               </span>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-              <span className="text-[10px] text-slate-400 block uppercase">5-Day Hit Rate</span>
+              <span className="text-[10px] text-slate-400 block uppercase">{t('audit.hit_rate_5d')}</span>
               <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1 block">
                 {prevStats.trailing5DayHits.filter(h => h.hit).length} / {prevStats.trailing5DayHits.length} Days
               </span>
               <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                100% Coverage Alignment
+                {t('audit.coverage_alignment')}
               </span>
             </div>
           </div>
@@ -259,23 +297,23 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
             <div className="pt-2">
               <div className="flex items-center justify-between mb-1.5">
                 <h5 className="text-[11px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
-                  Trailing Sessions Accuracy Ledger (Actual Close vs Forecast)
+                  {t('audit.ledger_title')}
                 </h5>
                 <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400">
-                  Ensemble v2.0 Calibrated
+                  {t('audit.ledger_sub')}
                 </span>
               </div>
               <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
                 <table className="w-full text-left text-xs font-mono">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-950/80 border-b border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 uppercase">
-                      <th className="py-2 px-3 font-medium">Session Date</th>
-                      <th className="py-2 px-3 font-medium text-right">Actual Close</th>
-                      <th className="py-2 px-3 font-medium text-right text-cyan-600 dark:text-cyan-400">Model Forecast</th>
-                      <th className="py-2 px-3 font-medium text-right">Conformal Channel</th>
-                      <th className="py-2 px-3 font-medium text-right">Abs Error</th>
-                      <th className="py-2 px-3 font-medium text-right">Error %</th>
-                      <th className="py-2 px-3 font-medium text-center">Status</th>
+                      <th className="py-2 px-3 font-medium">{t('audit.session_date')}</th>
+                      <th className="py-2 px-3 font-medium text-right">{t('audit.actual_close')}</th>
+                      <th className="py-2 px-3 font-medium text-right text-cyan-600 dark:text-cyan-400">{t('audit.model_forecast')}</th>
+                      <th className="py-2 px-3 font-medium text-right">{t('audit.conformal_channel')}</th>
+                      <th className="py-2 px-3 font-medium text-right">{t('audit.abs_error')}</th>
+                      <th className="py-2 px-3 font-medium text-right">{t('audit.error_pct')}</th>
+                      <th className="py-2 px-3 font-medium text-center">{t('audit.status')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900/40">
@@ -307,7 +345,7 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
                               : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
                           }`}>
-                            {day.hit ? 'HIT' : 'MISS'}
+                            {day.hit ? t('audit.hit') : t('audit.miss')}
                           </span>
                         </td>
                       </tr>
@@ -325,16 +363,16 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
         <div className="space-y-3 animate-fadeIn">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-mono">
-              Classified Catalysts & Structural Events for {ticker}
+              {t('events.title')} · {ticker}
             </h4>
             <span className="text-[11px] text-slate-400 font-mono">
-              Fed into Conformal Feature Weights
+              {t('events.fed_into')}
             </span>
           </div>
 
           {events.length === 0 ? (
             <div className="py-6 text-center text-xs text-slate-500">
-              No recent high-impact corporate actions recorded for {ticker}.
+              {t('events.no_events')}
             </div>
           ) : (
             <div className="space-y-2.5">
@@ -369,7 +407,7 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span className="text-[10px] text-slate-400 block font-mono">Expected Price Impact</span>
+                    <span className="text-[10px] text-slate-400 block font-mono">{t('events.expected_impact')}</span>
                     <span className={`text-sm font-bold font-mono ${
                       evt.predictedPriceEffectPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                     }`}>

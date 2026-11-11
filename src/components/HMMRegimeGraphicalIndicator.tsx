@@ -13,6 +13,7 @@ import {
   BarChart2
 } from 'lucide-react';
 import { MarketRegime, HistoricalRegimeItem } from '../types';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Props {
   regime: MarketRegime | null;
@@ -21,6 +22,7 @@ interface Props {
 }
 
 export const HMMRegimeGraphicalIndicator: React.FC<Props> = ({ regime, ticker = '', className = '' }) => {
+  const { t } = useLanguage();
   const [hoveredBar, setHoveredBar] = useState<HistoricalRegimeItem | null>(null);
 
   if (!regime) {
@@ -116,7 +118,7 @@ export const HMMRegimeGraphicalIndicator: React.FC<Props> = ({ regime, ticker = 
             {isBullish ? <TrendingUp className="w-4 h-4" /> : <AlertOctagon className="w-4 h-4" />}
 
             <span>
-              {isBullish ? 'Bullish / Low Volatility' : 'Bearish / High Volatility'}
+              {isBullish ? t('regime.bullish_low_vol') : t('regime.bearish_high_vol')}
             </span>
 
             <span

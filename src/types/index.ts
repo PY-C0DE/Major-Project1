@@ -763,6 +763,8 @@ export interface PreviousDayStats {
     hit: boolean;
     errorPct: number;
   }>;
+  isTodaySession?: boolean;
+  sessionType?: 'active' | 'completed';
 }
 
 export interface ClassifiedFinancialEvent {

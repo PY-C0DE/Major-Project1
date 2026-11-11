@@ -312,9 +312,13 @@ export function runConformalPrediction(
     const prevBand = qNorm * priorBaseBar.close * prevDailyVol * volMultiplier;
     const prevLower = Number((prevPredPrice - prevBand).toFixed(2));
     const prevUpper = Number((prevPredPrice + prevBand).toFixed(2));
-    const prevHit = targetAuditedBar.close >= prevLower && targetAuditedBar.close <= prevUpper;
-    const errAbs = Number(Math.abs(targetAuditedBar.close - prevPredPrice).toFixed(2));
-    const errPct = Number(((errAbs / targetAuditedBar.close) * 100).toFixed(2));
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = targetAuditedBar.date === todayStr;
+    const auditedClose = isToday ? currentPrice : targetAuditedBar.close;
+
+    const prevHit = auditedClose >= prevLower && auditedClose <= prevUpper;
+    const errAbs = Number(Math.abs(auditedClose - prevPredPrice).toFixed(2));
+    const errPct = Number(((errAbs / auditedClose) * 100).toFixed(2));
 
     const trailing5DayHits: PreviousDayStats['trailing5DayHits'] = [];
     const trailStart = Math.max(1, n - 6);
@@ -328,12 +332,13 @@ export function runConformalPrediction(
       const bWidth = qNorm * bBase.close * dVol * volMultiplier;
       const lB = Number((pPrice - bWidth).toFixed(2));
       const uB = Number((pPrice + bWidth).toFixed(2));
-      const isHit = bTarget.close >= lB && bTarget.close <= uB;
-      const ePct = Number(((Math.abs(bTarget.close - pPrice) / bTarget.close) * 100).toFixed(2));
+      const targetClose = (k === n - 1 && isToday) ? currentPrice : bTarget.close;
+      const isHit = targetClose >= lB && targetClose <= uB;
+      const ePct = Number(((Math.abs(targetClose - pPrice) / targetClose) * 100).toFixed(2));
 
       trailing5DayHits.push({
         date: bTarget.date,
-        actualClose: bTarget.close,
+        actualClose: targetClose,
         predictedClose: pPrice,
         lowerBound: lB,
         upperBound: uB,
@@ -344,9 +349,9 @@ export function runConformalPrediction(
 
     previousDayStats = {
       previousDate: targetAuditedBar.date,
-      previousClose: targetAuditedBar.close,
-      previousHigh: targetAuditedBar.high,
-      previousLow: targetAuditedBar.low,
+      previousClose: auditedClose,
+      previousHigh: Math.max(auditedClose, targetAuditedBar.high),
+      previousLow: Math.min(auditedClose, targetAuditedBar.low),
       previousOpen: targetAuditedBar.open,
       predictedClose: prevPredPrice,
       lowerBound: prevLower,
@@ -355,9 +360,11 @@ export function runConformalPrediction(
       hit: prevHit,
       errorAbsolute: errAbs,
       errorPercent: errPct,
-      actualReturnPercent: Number((((targetAuditedBar.close - priorBaseBar.close) / priorBaseBar.close) * 100).toFixed(2)),
+      actualReturnPercent: Number((((auditedClose - priorBaseBar.close) / priorBaseBar.close) * 100).toFixed(2)),
       predictedReturnPercent: Number((prevPredRet * 100).toFixed(2)),
-      trailing5DayHits
+      trailing5DayHits,
+      isTodaySession: isToday,
+      sessionType: isToday ? 'active' : 'completed'
     };
   }
 

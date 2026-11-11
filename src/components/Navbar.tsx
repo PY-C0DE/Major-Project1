@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
+import { LanguageDropdown } from './LanguageDropdown';
 import { AvatarModal } from './AvatarModal';
 import { CompanySearchCombobox } from './CompanySearchCombobox';
 import avatarImg from '../assets/images/avatar_lead_quant_1791318574843.jpg';
@@ -65,6 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { user, isAuthenticated, logout, updateProfile, enterDemoMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -90,26 +93,26 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const coreNavLinks = isAuthenticated
     ? [
-        { id: 'dashboard', label: 'Dashboard' },
-        { id: 'analysis', label: 'Analysis' },
-        { id: 'portfolio', label: 'Portfolio' },
-        { id: 'watchlist', label: 'Watchlist' }
+        { id: 'dashboard', label: t('nav.dashboard', 'Dashboard') },
+        { id: 'analysis', label: t('nav.analysis', 'Stock Analysis') },
+        { id: 'portfolio', label: t('nav.portfolio', 'Portfolio') },
+        { id: 'watchlist', label: t('nav.watchlist', 'Watchlist') }
       ]
     : [
-        { id: 'home', label: 'Home' },
-        { id: 'features', label: 'Features' },
-        { id: 'usps', label: 'Innovations' },
-        { id: 'safety', label: 'Model Safety' },
-        { id: 'dashboard', label: 'Dashboard', locked: true }
+        { id: 'home', label: t('nav.home', 'Home') },
+        { id: 'features', label: t('nav.features', 'Features') },
+        { id: 'usps', label: t('nav.innovations', 'Innovations') },
+        { id: 'safety', label: t('nav.safety', 'Model Safety') },
+        { id: 'dashboard', label: t('nav.dashboard', 'Dashboard'), locked: true }
       ];
 
   const quantTools = [
-    { id: 'options_greeks', label: 'Options & Greeks', desc: 'Black-Scholes & Volatility Smiles', icon: ActivitySquare },
-    { id: 'backtest', label: 'Backtest Strategy', desc: 'Algorithmic Simulation & Sharpe', icon: BarChart3 },
-    { id: 'broker_router', label: 'Broker Router', desc: 'Alpaca Paper & Execution Gateway', icon: ShieldCheck },
-    { id: 'social_copy', label: 'Social & Copy-Trade', desc: 'Leaderboard & 1-Click Sync', icon: Users },
-    { id: 'optimizer', label: 'AI Portfolio Optimizer', desc: 'Markowitz Mean-Variance Frontier', icon: Sliders },
-    { id: 'performance', label: 'Model Calibration & Accuracy', desc: 'Project-Wide MAPE & Metrics', icon: LineChart }
+    { id: 'options_greeks', label: t('nav.options', 'Options & Greeks'), desc: 'Black-Scholes & Volatility Smiles', icon: ActivitySquare },
+    { id: 'backtest', label: t('nav.backtest', 'Backtest Strategy'), desc: 'Algorithmic Simulation & Sharpe', icon: BarChart3 },
+    { id: 'broker_router', label: t('nav.broker', 'Broker Gateway'), desc: 'Alpaca Paper & Execution Gateway', icon: ShieldCheck },
+    { id: 'social_copy', label: t('nav.social', 'Social & Copy-Trade'), desc: 'Leaderboard & 1-Click Sync', icon: Users },
+    { id: 'optimizer', label: t('nav.optimizer', 'Portfolio Optimizer'), desc: 'Markowitz Mean-Variance Frontier', icon: Sliders },
+    { id: 'performance', label: t('nav.accuracy', 'Model Accuracy'), desc: 'Project-Wide MAPE & Metrics', icon: LineChart }
   ];
 
   const handleNavClick = (id: string, locked?: boolean) => {
@@ -270,7 +273,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/60 dark:hover:bg-cyan-900/60 border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-300 font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
             >
               <Sparkles className="w-3.5 h-3.5 text-cyan-500 animate-pulse shrink-0" />
-              <span className="hidden sm:inline">Tour</span>
+              <span className="hidden sm:inline">{t('nav.tour', 'Tour')}</span>
             </button>
           )}
 
@@ -298,6 +301,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               />
             </div>
           </button>
+
+          {/* Multilingual Language Selector */}
+          <LanguageDropdown />
 
           {/* User state & Actions */}
           {isAuthenticated && user ? (
@@ -599,7 +605,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 transition-all cursor-pointer shrink-0 flex items-center justify-center gap-1.5 shadow-2xs font-semibold text-xs"
               >
                 <LogOut className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
-                <span className="hidden xl:inline">Sign Out</span>
+                <span className="hidden xl:inline">{t('nav.logout', 'Sign Out')}</span>
               </button>
             </div>
           ) : (
@@ -610,19 +616,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="px-2.5 py-1.5 text-xs font-bold text-cyan-800 dark:text-cyan-300 bg-cyan-50 hover:bg-cyan-100 dark:bg-cyan-950/60 dark:hover:bg-cyan-900/60 border border-cyan-300 dark:border-cyan-800/60 rounded-lg transition-colors whitespace-nowrap cursor-pointer flex items-center gap-1"
               >
                 <Sparkles className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                <span className="hidden sm:inline">Demo Desk</span>
+                <span className="hidden sm:inline">{t('nav.demo_mode', 'Demo Desk')}</span>
               </button>
               <button
                 onClick={() => onOpenAuth?.('login')}
                 className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
               >
-                Log In
+                {t('nav.login', 'Log In')}
               </button>
               <button
                 onClick={() => onOpenAuth?.('register')}
                 className="px-3 sm:px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-cyan-400 hover:bg-cyan-300 rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer shadow-xs shadow-cyan-500/20"
               >
-                <span>Sign Up</span>
+                <span>{t('nav.signup', 'Sign Up')}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>

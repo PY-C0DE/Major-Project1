@@ -21,6 +21,7 @@ import {
 import { TrendingUp, TrendingDown, Layers, Activity } from 'lucide-react';
 import { HistoricalBar, ConformalPrediction } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import { useLanguage } from '../context/LanguageContext';
 
 interface Props {
   bars: HistoricalBar[];
@@ -31,6 +32,7 @@ interface Props {
 
 export const InteractiveStockChart: React.FC<Props> = ({ bars, prediction, currency, ticker }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const [rangeDays, setRangeDays] = useState<number>(90);
   const [showSMA50, setShowSMA50] = useState<boolean>(true);
   const [showSMA200, setShowSMA200] = useState<boolean>(true);
@@ -94,43 +96,43 @@ export const InteractiveStockChart: React.FC<Props> = ({ bars, prediction, curre
     if (latestSMA50 && latestSMA200) {
       if (latestClose >= latestSMA50 && latestSMA50 >= latestSMA200) {
         return {
-          label: 'Golden Cross / Bullish Trend',
+          label: t('chart.golden_cross'),
           badge: 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700',
           rationale: 'Price trading above both SMA 50 and SMA 200 (Institutional Uptrend)'
         };
       }
       if (latestClose <= latestSMA50 && latestSMA50 <= latestSMA200) {
         return {
-          label: 'Death Cross / Bearish Trend',
+          label: t('chart.death_cross'),
           badge: 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700',
           rationale: 'Price suppressed below both SMA 50 and SMA 200 (Macro Downside Trend)'
         };
       }
       if (latestClose <= latestSMA50 && latestClose >= latestSMA200) {
         return {
-          label: 'Consolidation / Macro Support',
+          label: t('chart.consolidation'),
           badge: 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700',
           rationale: 'Holding above 200-day baseline with intermediate pullback below SMA 50'
         };
       }
       if (latestClose >= latestSMA50 && latestClose <= latestSMA200) {
         return {
-          label: 'Counter-Trend Recovery',
+          label: t('chart.counter_trend'),
           badge: 'bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-700',
           rationale: 'Short-term recovery above SMA 50 testing 200-day macro barrier'
         };
       }
     } else if (latestSMA50) {
       return {
-        label: latestClose >= latestSMA50 ? 'Bullish Trend (> SMA 50)' : 'Bearish Trend (< SMA 50)',
+        label: latestClose >= latestSMA50 ? `${t('chart.golden_cross')} (> SMA 50)` : `${t('chart.death_cross')} (< SMA 50)`,
         badge: latestClose >= latestSMA50
           ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
           : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700',
-        rationale: `Price trading ${latestClose >= latestSMA50 ? 'above' : 'below'} 50-day average`
+        rationale: `Price trading ${latestClose >= latestSMA50 ? t('chart.above') : t('chart.below')} 50-day average`
       };
     }
     return null;
-  }, [latestClose, latestSMA50, latestSMA200]);
+  }, [latestClose, latestSMA50, latestSMA200, t]);
 
   return (
     <div className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-5 lg:p-6 shadow-xs hover:shadow-sm transition-all">

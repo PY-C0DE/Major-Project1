@@ -89,7 +89,7 @@ export const TICKER_CATALOG: TickerMeta[] = [
     name: 'Tata Motors Ltd. (Commercial Vehicles)',
     exchange: 'NSE',
     currency: 'INR',
-    basePrice: 414.25,
+    basePrice: 446.05,
     pe: 14.5,
     marketCap: 1520000000000,
     sector: 'Automobile',
