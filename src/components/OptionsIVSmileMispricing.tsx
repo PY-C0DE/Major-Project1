@@ -841,9 +841,9 @@ export const OptionsIVSmileMispricing: React.FC<Props> = ({
 
           {/* Interactive Hover Card HUD */}
           {hoveredContract && (
-            <div className="absolute top-3 right-4 p-3 rounded-xl bg-slate-950/95 text-white border border-slate-700 shadow-xl backdrop-blur-md text-xs font-mono max-w-xs space-y-1.5 pointer-events-none z-20">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-1">
-                <span className="font-bold text-cyan-400 text-sm">
+            <div className="absolute top-3 right-4 p-3 rounded-xl bg-white/95 dark:bg-slate-950/95 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-xl shadow-slate-900/10 dark:shadow-2xl backdrop-blur-md text-xs font-mono max-w-xs space-y-1.5 pointer-events-none z-20">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-1">
+                <span className="font-bold text-cyan-600 dark:text-cyan-400 text-sm">
                   ${hoveredContract.strike} {hoveredContract.type}
                 </span>
                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
@@ -851,7 +851,7 @@ export const OptionsIVSmileMispricing: React.FC<Props> = ({
                     ? 'bg-rose-500 text-white'
                     : hoveredContract.valuation === 'CHEAP'
                     ? 'bg-emerald-500 text-slate-950'
-                    : 'bg-slate-700 text-slate-300'
+                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
                 }`}>
                   {hoveredContract.valuation} ({hoveredContract.deltaIV > 0 ? `+${hoveredContract.deltaIV}%` : `${hoveredContract.deltaIV}%`})
                 </span>
@@ -859,26 +859,26 @@ export const OptionsIVSmileMispricing: React.FC<Props> = ({
 
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div>
-                  <span className="text-slate-400 block text-[9px] uppercase">Market IV</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[9px] uppercase">Market IV</span>
                   <span className="font-bold">{hoveredContract.marketIV}%</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[9px] uppercase">Fair Value IV</span>
-                  <span className="font-bold text-cyan-300">{hoveredContract.theoreticalIV}%</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[9px] uppercase">Fair Value IV</span>
+                  <span className="font-bold text-cyan-700 dark:text-cyan-300">{hoveredContract.theoreticalIV}%</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[9px] uppercase">Market Price</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[9px] uppercase">Market Price</span>
                   <span className="font-bold">${hoveredContract.marketPrice}</span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[9px] uppercase">Theoretical BS</span>
+                  <span className="text-slate-500 dark:text-slate-400 block text-[9px] uppercase">Theoretical BS</span>
                   <span className="font-bold">${hoveredContract.theoreticalPrice}</span>
                 </div>
               </div>
 
-              <div className="pt-1 border-t border-slate-800/80 text-[10px] text-slate-300">
-                <span className="text-slate-400">Strategy Edge: </span>
-                <strong className={hoveredContract.valuation === 'RICH' ? 'text-rose-400' : 'text-emerald-400'}>
+              <div className="pt-1 border-t border-slate-200 dark:border-slate-800/80 text-[10px] text-slate-600 dark:text-slate-300">
+                <span className="text-slate-500 dark:text-slate-400">Strategy Edge: </span>
+                <strong className={hoveredContract.valuation === 'RICH' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
                   {hoveredContract.recommendedAction}
                 </strong>
               </div>

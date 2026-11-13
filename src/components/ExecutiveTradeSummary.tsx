@@ -719,9 +719,8 @@ export const ExecutiveTradeSummary: React.FC<Props> = ({
                         cy={pt.y}
                         r={activeTooltipIndex === i ? 5 : 3.5}
                         fill={i === 0 ? '#94a3b8' : pt.data.deltaPnL >= 0 ? '#10b981' : '#f43f5e'}
-                        stroke="#0f172a"
                         strokeWidth="1.5"
-                        className="cursor-pointer transition-all"
+                        className="cursor-pointer transition-all stroke-white dark:stroke-slate-900"
                         onMouseEnter={() => setActiveTooltipIndex(i)}
                         onMouseLeave={() => setActiveTooltipIndex(null)}
                       />
@@ -731,15 +730,15 @@ export const ExecutiveTradeSummary: React.FC<Props> = ({
 
                 {/* Active Hover Point Tooltip */}
                 {activeTooltipIndex !== null && coords[activeTooltipIndex] && (
-                  <div className="absolute top-2 right-2 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[10px] font-mono border border-slate-700 shadow-xl pointer-events-none animate-fadeIn">
-                    <span className="font-bold text-cyan-400 block">
+                  <div className="absolute top-2 right-2 px-2.5 py-1.5 rounded-lg bg-white/95 dark:bg-slate-900/95 text-slate-900 dark:text-white text-[10px] font-mono border border-slate-200 dark:border-slate-700 shadow-xl shadow-slate-900/10 dark:shadow-2xl backdrop-blur-md pointer-events-none animate-fadeIn">
+                    <span className="font-bold text-cyan-600 dark:text-cyan-400 block">
                       {coords[activeTooltipIndex].data.ticker}
                     </span>
                     <span>
                       Cumulative PnL: ${coords[activeTooltipIndex].data.cumulativePnL.toFixed(2)}
                     </span>
                     {coords[activeTooltipIndex].data.deltaPnL !== 0 && (
-                      <span className={`block ${coords[activeTooltipIndex].data.deltaPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span className={`block ${coords[activeTooltipIndex].data.deltaPnL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         Trade PnL: {coords[activeTooltipIndex].data.deltaPnL >= 0 ? '+' : ''}${coords[activeTooltipIndex].data.deltaPnL.toFixed(2)}
                       </span>
                     )}

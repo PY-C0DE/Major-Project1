@@ -1622,15 +1622,15 @@ export const PortfolioCorrelation: React.FC<Props> = ({
 
           {/* Floating Minimap / Cluster Navigator when zoomed in */}
           {zoomLevel > 115 && showMinimap && (
-            <div className="absolute bottom-3 right-3 z-20 p-2.5 rounded-lg bg-slate-950/95 text-white border border-slate-700 shadow-2xl backdrop-blur-md text-[10px] space-y-1.5">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-800 pb-1">
-                <span className="font-mono font-bold text-cyan-400 flex items-center gap-1">
-                  <Grid className="w-3 h-3 text-cyan-400" />
+            <div className="absolute bottom-3 right-3 z-20 p-2.5 rounded-lg bg-white/95 dark:bg-slate-950/95 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-xl shadow-slate-900/10 dark:shadow-2xl backdrop-blur-md text-[10px] space-y-1.5">
+              <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-1">
+                <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
+                  <Grid className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
                   Cluster Navigator
                 </span>
                 <button
                   onClick={() => setShowMinimap(false)}
-                  className="text-slate-400 hover:text-white cursor-pointer px-1 leading-none"
+                  className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white cursor-pointer px-1 leading-none"
                   title="Close mini-map"
                 >
                   ✕
@@ -1642,7 +1642,7 @@ export const PortfolioCorrelation: React.FC<Props> = ({
                 width={110}
                 height={110}
                 viewBox={`0 0 ${orderedTickers.length} ${orderedTickers.length}`}
-                className="rounded border border-slate-800 bg-slate-900 cursor-crosshair block"
+                className="rounded border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 cursor-crosshair block"
                 onClick={(e) => {
                   if (!svgRef.current || !zoomBehaviorRef.current) return;
                   const rect = e.currentTarget.getBoundingClientRect();
@@ -1690,9 +1690,9 @@ export const PortfolioCorrelation: React.FC<Props> = ({
                 />
               </svg>
 
-              <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono">
+              <div className="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 font-mono">
                 <span>Click to re-center</span>
-                <span className="text-cyan-400">{zoomLevel}%</span>
+                <span className="text-cyan-600 dark:text-cyan-400">{zoomLevel}%</span>
               </div>
             </div>
           )}
@@ -1701,9 +1701,9 @@ export const PortfolioCorrelation: React.FC<Props> = ({
           {zoomLevel > 115 && !showMinimap && (
             <button
               onClick={() => setShowMinimap(true)}
-              className="absolute bottom-3 right-3 z-20 px-2 py-1 rounded bg-slate-900/90 hover:bg-slate-800 text-slate-300 border border-slate-700 shadow-md text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+              className="absolute bottom-3 right-3 z-20 px-2 py-1 rounded bg-white/95 hover:bg-slate-100 dark:bg-slate-900/90 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-md text-[10px] font-mono flex items-center gap-1 cursor-pointer"
             >
-              <Grid className="w-3 h-3 text-cyan-400" />
+              <Grid className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
               <span>Show Map</span>
             </button>
           )}
@@ -1711,14 +1711,14 @@ export const PortfolioCorrelation: React.FC<Props> = ({
           {/* Floating Tooltip HUD */}
           {hoveredCell && (
             <div
-              className="absolute pointer-events-none z-30 px-3.5 py-2.5 rounded-lg bg-slate-950/95 text-white border border-slate-700 shadow-xl backdrop-blur-md text-xs font-sans max-w-xs transition-opacity duration-100"
+              className="absolute pointer-events-none z-30 px-3.5 py-2.5 rounded-lg bg-white/95 dark:bg-slate-950/95 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 shadow-xl shadow-slate-900/10 dark:shadow-2xl backdrop-blur-md text-xs font-sans max-w-xs transition-opacity duration-100"
               style={{
                 left: `${Math.min(containerWidth - 240, Math.max(16, hoveredCell.x + 14))}px`,
                 top: `${Math.max(10, hoveredCell.y - 85)}px`
               }}
             >
-              <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-1.5">
-                <span className="font-mono font-bold text-cyan-400 text-sm">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-1.5 mb-1.5">
+                <span className="font-mono font-bold text-cyan-600 dark:text-cyan-400 text-sm">
                   {hoveredCell.rowTicker} × {hoveredCell.colTicker}
                 </span>
                 <span
@@ -1733,31 +1733,31 @@ export const PortfolioCorrelation: React.FC<Props> = ({
               </div>
 
               {hoveredCell.rowIdx === hoveredCell.colIdx ? (
-                <div className="text-[11px] text-slate-300">
+                <div className="text-[11px] text-slate-600 dark:text-slate-300">
                   Self-correlation diagonal identity. Asset weight:{' '}
-                  <strong className="text-white">{hoveredCell.rowWeight ?? 0}%</strong> of portfolio.
+                  <strong className="text-slate-900 dark:text-white">{hoveredCell.rowWeight ?? 0}%</strong> of portfolio.
                 </div>
               ) : (
                 <div className="space-y-1 text-[11px]">
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>{hoveredCell.rowTicker}:</span>
-                    <span className="text-slate-200 font-mono font-semibold">{hoveredCell.rowWeight ?? 0}% of portfolio</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-mono font-semibold">{hoveredCell.rowWeight ?? 0}% of portfolio</span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>{hoveredCell.colTicker}:</span>
-                    <span className="text-slate-200 font-mono font-semibold">{hoveredCell.colWeight ?? 0}% of portfolio</span>
+                    <span className="text-slate-800 dark:text-slate-200 font-mono font-semibold">{hoveredCell.colWeight ?? 0}% of portfolio</span>
                   </div>
 
-                  <div className="pt-1 border-t border-slate-800/80">
-                    <span className="text-slate-400">Diversification Impact: </span>
+                  <div className="pt-1 border-t border-slate-200 dark:border-slate-800/80">
+                    <span className="text-slate-500 dark:text-slate-400">Diversification Impact: </span>
                     <strong className={
                       hoveredCell.value < 0
-                        ? 'text-emerald-400'
+                        ? 'text-emerald-600 dark:text-emerald-400'
                         : hoveredCell.value < 0.35
-                        ? 'text-cyan-400'
+                        ? 'text-cyan-600 dark:text-cyan-400'
                         : hoveredCell.value < 0.70
-                        ? 'text-amber-400'
-                        : 'text-rose-400'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-rose-600 dark:text-rose-400'
                     }>
                       {hoveredCell.value < 0
                         ? 'Inverse / Strong Hedge (Reduces Drawdown)'
@@ -1769,7 +1769,7 @@ export const PortfolioCorrelation: React.FC<Props> = ({
                     </strong>
                   </div>
 
-                  <div className="text-[10px] text-slate-400 italic pt-0.5">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 italic pt-0.5">
                     Click cell to inspect {hoveredCell.rowTicker}
                   </div>
                 </div>

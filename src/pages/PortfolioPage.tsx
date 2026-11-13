@@ -74,6 +74,7 @@ import { TradeLedger } from '../components/TradeLedger';
 import { exportTradesToCSV } from '../utils/tradeExport';
 import { getCurrencySymbol } from '../utils/currency';
 import { ConvertedPrice } from '../components/ConvertedPrice';
+import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -81,6 +82,8 @@ interface Props {
 }
 
 export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerToAdd }) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [activeTab, setActiveTab] = useState<'holdings' | 'trades' | 'performance' | 'correlation' | 'stresstest' | 'optimizer' | 'dividends' | 'taxes'>('holdings');
   const [holdings, setHoldings] = useState<PortfolioHolding[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1243,13 +1246,13 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
                     data={optResult?.efficientFrontier || []}
                     margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                   >
-                    <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" opacity={0.4} />
+                    <CartesianGrid stroke={isDark ? '#1e293b' : '#e2e8f0'} strokeDasharray="3 3" opacity={isDark ? 0.4 : 0.8} />
                     <XAxis
                       dataKey="volatilityPct"
                       type="number"
                       domain={['auto', 'auto']}
                       unit="%"
-                      stroke="#64748b"
+                      stroke={isDark ? '#64748b' : '#475569'}
                       fontSize={10}
                       tickLine={false}
                     />
@@ -1258,13 +1261,20 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
                       type="number"
                       domain={['auto', 'auto']}
                       unit="%"
-                      stroke="#64748b"
+                      stroke={isDark ? '#64748b' : '#475569'}
                       fontSize={10}
                       tickLine={false}
                     />
                     <Tooltip
                       formatter={(val: any, name: any) => [`${val}%`, name === 'expectedReturnPct' ? 'Exp. Return' : 'Volatility']}
-                      contentStyle={{ backgroundColor: '#090d16', borderColor: '#1e293b', borderRadius: '8px', fontSize: '11px', color: '#e2e8f0' }}
+                      contentStyle={{
+                        backgroundColor: isDark ? '#090d16' : '#ffffff',
+                        borderColor: isDark ? '#1e293b' : '#cbd5e1',
+                        borderRadius: '8px',
+                        fontSize: '11px',
+                        color: isDark ? '#e2e8f0' : '#0f172a',
+                        boxShadow: isDark ? '0 10px 25px -5px rgba(0,0,0,0.5)' : '0 10px 25px -5px rgba(15,23,42,0.1)'
+                      }}
                     />
                     <Line
                       type="monotone"

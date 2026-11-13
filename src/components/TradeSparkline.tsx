@@ -262,15 +262,15 @@ export const TradeSparkline: React.FC<Props> = ({
 
       {/* Floating Detailed Performance Popover on Hover */}
       {isHovered && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2.5 rounded-xl bg-slate-950/95 text-white border border-slate-700/80 shadow-2xl z-50 pointer-events-none text-left animate-fadeIn backdrop-blur-md space-y-1.5 font-sans">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 text-[11px]">
-            <div className="flex items-center gap-1 font-bold text-white">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-52 p-2.5 rounded-xl bg-white/95 dark:bg-slate-950/95 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700/80 shadow-xl shadow-slate-900/10 dark:shadow-2xl z-50 pointer-events-none text-left animate-fadeIn backdrop-blur-md space-y-1.5 font-sans">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-1.5 text-[11px]">
+            <div className="flex items-center gap-1 font-bold text-slate-900 dark:text-white">
               <span>{trade.ticker}</span>
-              <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-300 font-mono">
+              <span className="text-[9px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
                 {trade.side}
               </span>
             </div>
-            <span className="text-[10px] font-mono text-cyan-400 font-semibold">
+            <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 font-semibold">
               {durationText}
             </span>
           </div>
@@ -278,12 +278,12 @@ export const TradeSparkline: React.FC<Props> = ({
           <div className="space-y-1 text-[10px] font-mono">
             {/* Realized/MTM PnL */}
             <div className="flex items-center justify-between">
-              <span className="text-slate-400">
+              <span className="text-slate-500 dark:text-slate-400">
                 {isClosed ? 'Realized PnL:' : isOpen ? 'Unrealized MTM:' : 'Status:'}
               </span>
               <span
                 className={`font-bold flex items-center gap-0.5 ${
-                  isProfit ? 'text-emerald-400' : 'text-rose-400'
+                  isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                 }`}
               >
                 {isPending ? (
@@ -298,9 +298,9 @@ export const TradeSparkline: React.FC<Props> = ({
 
             {/* Peak Gain MFE */}
             {!isPending && (
-              <div className="flex items-center justify-between text-slate-400">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                 <span>Peak Gain (MFE):</span>
-                <span className="text-emerald-400 font-medium">
+                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                   +${Math.max(0, peakPnL).toFixed(2)}
                 </span>
               </div>
@@ -308,16 +308,16 @@ export const TradeSparkline: React.FC<Props> = ({
 
             {/* Max Drawdown MAE */}
             {!isPending && (
-              <div className="flex items-center justify-between text-slate-400">
+              <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                 <span>Max Drawdown:</span>
-                <span className="text-rose-400 font-medium">
+                <span className="text-rose-600 dark:text-rose-400 font-medium">
                   {maxDrawdown < 0 ? `-$${Math.abs(maxDrawdown).toFixed(2)}` : '$0.00'}
                 </span>
               </div>
             )}
 
             {/* Price points */}
-            <div className="flex items-center justify-between border-t border-slate-800/80 pt-1 text-[9px] text-slate-400">
+            <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800/80 pt-1 text-[9px] text-slate-500 dark:text-slate-400">
               <span>Inception: ${trade.entryPrice.toFixed(2)}</span>
               <span>Exit: ${trade.exitPrice?.toFixed(2) || trade.entryPrice.toFixed(2)}</span>
             </div>
