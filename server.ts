@@ -39,6 +39,7 @@ import { getSocialFeed, getVerifiedTraders } from './src/server/services/socialS
 import { generateQuantCopilotAnswer } from './src/server/services/copilotKnowledge';
 import { getEarningsCalendarData } from './src/server/services/earningsService';
 import { computeSeasonality } from './src/server/math/seasonality';
+import { getFxRates } from './src/server/services/fxService';
 import { db, StoredPrediction } from './src/server/store/db';
 import { generateSupportFallback } from './src/utils/supportKnowledge';
 
@@ -392,6 +393,16 @@ app.get('/api/stocks/quick-watch', async (_req: Request, res: Response) => {
   }
 });
 
+app.get('/api/fx/rates', async (_req: Request, res: Response) => {
+  try {
+    const fx = await getFxRates();
+    return res.json(fx);
+  } catch (error: any) {
+    console.error('Error fetching FX rates:', error);
+    return res.status(500).json({ error: 'Failed to retrieve FX exchange rates.' });
+  }
+});
+
 app.get('/api/stocks/:ticker', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
@@ -706,7 +717,7 @@ app.get('/api/model/health', async (req: Request, res: Response) => {
       directionalAccuracy: evalMetrics.directionalAccuracy,
       lastAuditTimestamp: new Date().toISOString(),
       regimeModel: 'Rule-Based Regime Classifier (Trend & Volatility States)',
-      predictionEngine: 'AlphaQuant Ensemble v2.0 (Recency-Weighted Ridge + Boosting Stumps + Adaptive Residual Feedback)',
+      predictionEngine: 'AlphaQuant Ensemble v4.0 (Z-Scored Ridge + Huber GBDT + Kalman Regime + Cosine KNN Stacker)',
       driftDetector: 'Two-Sample Kolmogorov-Smirnov (p-threshold: 0.05)'
     });
   } catch (error: any) {

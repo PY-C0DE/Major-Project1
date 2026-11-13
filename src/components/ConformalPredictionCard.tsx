@@ -9,10 +9,12 @@ import React, { useState, useEffect } from 'react';
 import { Target, HelpCircle, TrendingUp, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Award, BarChart2 } from 'lucide-react';
 import { ConformalPrediction } from '../types';
 import { useLanguage } from '../context/LanguageContext';
+import { ConvertedPrice } from './ConvertedPrice';
 
 interface Props {
   prediction: ConformalPrediction | null;
   currency: string;
+  ticker?: string;
   onRefresh?: () => void;
   onConfigChange?: (horizon: number, confidence: number) => void;
 }
@@ -20,6 +22,7 @@ interface Props {
 export const ConformalPredictionCard: React.FC<Props> = ({
   prediction,
   currency,
+  ticker,
   onConfigChange
 }) => {
   const { t } = useLanguage();
@@ -46,7 +49,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
   }
 
   const isPositive = prediction.predictionChangePercent >= 0;
-  const currSym = currency === 'INR' ? '₹' : '$';
+  const resolvedTicker = ticker || prediction.ticker;
 
   const handleHorizonSelect = (h: number) => {
     setSelectedHorizon(h);
@@ -87,7 +90,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
               </button>
             </h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-${t('conformal.horizon')}`} · Ensemble v3.0 (Depth-2 GBDT + Adaptive Ridge)
+              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-${t('conformal.horizon')}`} · Ensemble v4.0 (Z-Scored Ridge + Huber GBDT + Kalman + KNN)
             </span>
           </div>
         </div>
@@ -194,7 +197,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl sm:text-3xl lg:text-4xl font-black font-mono tracking-tight text-slate-950 dark:text-white tabular-nums">
-              {currSym}{prediction.predictedPrice.toLocaleString()}
+              <ConvertedPrice amount={prediction.predictedPrice} currency={currency} ticker={resolvedTicker} />
             </span>
             <span
               className={`text-xs sm:text-sm font-mono font-bold flex items-center gap-0.5 tabular-nums ${
@@ -206,7 +209,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
             </span>
           </div>
           <div className="text-[11px] text-slate-500 mt-1 font-mono">
-            vs current {currSym}{prediction.currentPrice.toLocaleString()}
+            vs current <ConvertedPrice amount={prediction.currentPrice} currency={currency} ticker={resolvedTicker} />
           </div>
         </div>
 
@@ -219,9 +222,13 @@ export const ConformalPredictionCard: React.FC<Props> = ({
             </span>
           </div>
           <div className="flex items-center justify-between font-mono text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1 tabular-nums">
-            <span className="text-cyan-700 dark:text-cyan-400">{currSym}{prediction.lowerBound.toLocaleString()}</span>
+            <span className="text-cyan-700 dark:text-cyan-400">
+              <ConvertedPrice amount={prediction.lowerBound} currency={currency} ticker={resolvedTicker} />
+            </span>
             <span className="text-slate-400 dark:text-slate-600 font-sans text-xs">──────────</span>
-            <span className="text-cyan-700 dark:text-cyan-400">{currSym}{prediction.upperBound.toLocaleString()}</span>
+            <span className="text-cyan-700 dark:text-cyan-400">
+              <ConvertedPrice amount={prediction.upperBound} currency={currency} ticker={resolvedTicker} />
+            </span>
           </div>
           {/* Visual Bar representation */}
           <div className="w-full bg-slate-200 dark:bg-slate-800/80 rounded-full h-2 mt-2 relative overflow-hidden">

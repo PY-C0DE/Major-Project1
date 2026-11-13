@@ -22,6 +22,7 @@ import { TrendingUp, TrendingDown, Layers, Activity } from 'lucide-react';
 import { HistoricalBar, ConformalPrediction } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { getCurrencySymbol } from '../utils/currency';
 
 interface Props {
   bars: HistoricalBar[];
@@ -40,7 +41,7 @@ export const InteractiveStockChart: React.FC<Props> = ({ bars, prediction, curre
   const [showBB, setShowBB] = useState<boolean>(false);
   const [subChart, setSubChart] = useState<'rsi' | 'macd' | 'none'>('rsi');
 
-  const currSym = currency === 'INR' ? '₹' : '$';
+  const currSym = getCurrencySymbol(currency, ticker);
   const isDark = theme === 'dark';
 
   // Compute rolling moving averages over the full bar history to ensure continuity across all ranges

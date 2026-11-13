@@ -72,6 +72,8 @@ import { TaxFeeEstimator } from '../components/TaxFeeEstimator';
 import { PortfolioCorrelation } from '../components/PortfolioCorrelation';
 import { TradeLedger } from '../components/TradeLedger';
 import { exportTradesToCSV } from '../utils/tradeExport';
+import { getCurrencySymbol } from '../utils/currency';
+import { ConvertedPrice } from '../components/ConvertedPrice';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -692,13 +694,13 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
                           {h.quantity}
                         </td>
                         <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          ₹{h.avgBuyPrice.toLocaleString()}
+                          <ConvertedPrice amount={h.avgBuyPrice} ticker={h.ticker} />
                         </td>
                         <td className="py-3 px-4 text-right text-cyan-700 dark:text-cyan-300 font-semibold tabular-nums">
-                          ₹{h.currentPrice.toLocaleString()}
+                          <ConvertedPrice amount={h.currentPrice} ticker={h.ticker} />
                         </td>
                         <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-bold tabular-nums">
-                          ₹{h.currentValue.toLocaleString()}
+                          <ConvertedPrice amount={h.currentValue} ticker={h.ticker} />
                         </td>
                         <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">
                           {weightPct}%
@@ -734,7 +736,12 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
 
                         <td className="py-3 px-4 text-right tabular-nums">
                           <span className={`font-semibold ${isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                            {isUp ? '+' : ''}₹{h.pnl.toLocaleString()} ({isUp ? '+' : ''}{h.pnlPercent}%)
+                            <ConvertedPrice
+                              amount={Math.abs(h.pnl)}
+                              ticker={h.ticker}
+                              prefix={isUp ? '+' : '-'}
+                            />{' '}
+                            ({isUp ? '+' : ''}{h.pnlPercent}%)
                           </span>
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -1438,7 +1445,7 @@ export const PortfolioPage: React.FC<Props> = ({ onSelectTicker, initialTickerTo
                     </div>
                     {selectedCompany.price !== undefined && (
                       <span className="font-mono font-bold text-cyan-700 dark:text-cyan-300">
-                        {selectedCompany.currency === 'INR' || selectedCompany.ticker.endsWith('.NS') ? '₹' : '$'}
+                        {getCurrencySymbol(selectedCompany.currency, selectedCompany.ticker)}
                         {selectedCompany.price.toLocaleString()}
                       </span>
                     )}

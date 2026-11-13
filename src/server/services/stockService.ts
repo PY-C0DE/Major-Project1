@@ -8,6 +8,7 @@ import { StockQuote, HistoricalBar, StockSearchResult, MarketIndexItem, QuickWat
 import { PriceBar, computeAllIndicators, ComputedBar } from '../math/indicators';
 
 import { TICKER_CATALOG, TickerMeta } from '../../shared/tickerCatalog';
+import { getCurrencySymbol, inferCurrencyFromTicker, inferExchangeFromTicker } from '../../utils/currency';
 export { TICKER_CATALOG };
 export type { TickerMeta };
 
@@ -247,8 +248,8 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
 
           const matchingCatalog = TICKER_CATALOG.find(t => t.ticker === sym);
           const name = matchingCatalog ? matchingCatalog.name : (item.shortname || item.longname || item.name || sym);
-          const exchange = item.exchDisp || item.exchange || (sym.endsWith('.NS') ? 'NSE' : 'US');
-          const currency = sym.endsWith('.NS') || sym.endsWith('.BO') ? 'INR' : 'USD';
+          const exchange = matchingCatalog?.exchange || item.exchDisp || item.exchange || inferExchangeFromTicker(sym);
+          const currency = matchingCatalog?.currency || inferCurrencyFromTicker(sym);
           const price = matchingCatalog?.basePrice;
 
           results.push({
@@ -382,9 +383,9 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
   const meta: TickerMeta = TICKER_CATALOG.find(t => t.ticker === ticker) || {
     ticker,
     name: ticker,
-    exchange: ticker.endsWith('.NS') ? 'NSE' : 'NASDAQ',
-    currency: ticker.endsWith('.NS') ? 'INR' : 'USD',
-    basePrice: 150.0,
+    exchange: ticker.endsWith('.NS') ? 'NSE' : ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 'KRX' : ticker.endsWith('.T') ? 'TSE' : 'NASDAQ',
+    currency: ticker.endsWith('.NS') ? 'INR' : ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 'KRW' : ticker.endsWith('.T') ? 'JPY' : 'USD',
+    basePrice: ticker.endsWith('.KS') ? 56000.0 : 150.0,
     pe: 24.0,
     marketCap: 10000000000,
     sector: 'Equity',
@@ -524,9 +525,9 @@ export async function getHistoricalData(tickerOrName: string, days = 250): Promi
   const meta: TickerMeta = TICKER_CATALOG.find(t => t.ticker === ticker) || {
     ticker,
     name: ticker,
-    exchange: ticker.endsWith('.NS') ? 'NSE' : 'NASDAQ',
-    currency: ticker.endsWith('.NS') ? 'INR' : 'USD',
-    basePrice: 150.0,
+    exchange: inferExchangeFromTicker(ticker),
+    currency: inferCurrencyFromTicker(ticker),
+    basePrice: ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 56000.0 : 150.0,
     pe: 24.0,
     marketCap: 10000000000,
     sector: 'Equity',
@@ -703,7 +704,7 @@ export async function getQuickWatchQuotes(): Promise<QuickWatchItem[]> {
       try {
         const q = await getStockQuote(def.ticker);
         const isUp = q.change >= 0;
-        const sym = q.currency === 'INR' ? '₹' : '$';
+        const sym = getCurrencySymbol(q.currency, def.ticker);
         return {
           ticker: def.ticker,
           name: def.name,
@@ -718,7 +719,7 @@ export async function getQuickWatchQuotes(): Promise<QuickWatchItem[]> {
       } catch {
         const cat = TICKER_CATALOG.find(t => t.ticker === def.ticker);
         const price = cat?.basePrice || 100;
-        const sym = def.currency === 'INR' ? '₹' : '$';
+        const sym = getCurrencySymbol(def.currency, def.ticker);
         return {
           ticker: def.ticker,
           name: def.name,

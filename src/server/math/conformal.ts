@@ -9,13 +9,12 @@
 import { ComputedBar } from './indicators';
 import { ConformalPrediction, FeatureContribution, PreviousDayStats, DecisionSignal, LiveNewsMeta, NewsItem } from '../../types';
 import {
-  extractFeatureVector,
-  fitRidgeRegression,
-  predictReturnFromFeatures,
   fitEnsembleModel,
-  predictEnsembleReturn
+  predictEnsembleReturn,
+  estimateBarDailyVol
 } from './modelEngine';
 import { getClassifiedEventsForTicker } from './nlpEngine';
+import { getCurrencySymbol } from '../../utils/currency';
 
 export function calculateTargetDate(baseDateStr?: string, horizonDays = 1): { targetDate: string; targetDateFormatted: string } {
   let d: Date;
@@ -81,7 +80,7 @@ export function runConformalPrediction(
       intervalWidth: Number((fallbackPrice * 0.08).toFixed(2)),
       intervalWidthPercent: 8.0,
       horizonDays: safeHorizon,
-      modelVersion: 'alphaquant-ensemble-v3.0 (Cross-Validated Ridge + Depth-2 GBDT + Garman-Klass Volatility)',
+      modelVersion: 'alphaquant-ensemble-v4.0 (Z-Scored Ridge + Huber GBDT + Kalman Regime + Cosine KNN Stacker)',
       predictionTimestamp: new Date().toISOString(),
       topFeatures: [],
       methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,
@@ -98,77 +97,69 @@ export function runConformalPrediction(
   const currentPrice = latestBar.close;
   const effectiveSentiment = liveNewsMeta ? liveNewsMeta.blendedSentimentScore : sentimentScore;
 
-  // 1. Train multi-factor ensemble model on historical bars
+  // 1. Train multi-factor stacked ensemble directly for `safeHorizon` on historical bars
   const trainStart = Math.min(25, Math.floor(n * 0.15));
-  const ensembleModel = fitEnsembleModel(bars, trainStart, n - 2);
+  const ensembleModel = fitEnsembleModel(bars, trainStart, n - 1, safeHorizon);
 
-  // Extract latest feature vector and ensemble predicted return at bar n - 1
-  const base1dReturn = predictEnsembleReturn(ensembleModel, bars, n - 1, true);
+  // Direct horizon-calibrated return from stacked ensemble at latest bar `n - 1`
+  const baseHorizonReturn = predictEnsembleReturn(ensembleModel, bars, n - 1, true);
+  const currentBlendedVol = estimateBarDailyVol(bars, n - 1);
 
-  // Blended volatility: 65% ATR daily volatility + 35% Garman-Klass intraday volatility
-  const latestLogHL = Math.log(Math.max(1e-4, latestBar.high) / Math.max(1e-4, latestBar.low));
-  const latestLogCO = Math.log(Math.max(1e-4, latestBar.close) / Math.max(1e-4, latestBar.open));
-  const latestGkVol = Math.sqrt(Math.max(0, 0.5 * latestLogHL * latestLogHL - (2 * Math.LN2 - 1) * latestLogCO * latestLogCO));
-  const currentDailyVol = Math.max(0.006, (latestBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
-  const currentBlendedVol = 0.65 * currentDailyVol + 0.35 * Math.max(0.004, latestGkVol);
+  // Live news + baseline sentiment impulse scaled mildly for horizon
+  const newsAlphaWeight = liveNewsMeta?.isLive && liveNewsMeta.liveArticlesCount > 0 ? 0.18 : 0.10;
+  const newsDrift = effectiveSentiment * currentBlendedVol * newsAlphaWeight * Math.sqrt(Math.min(5, safeHorizon));
 
-  // Real-time live news + baseline sentiment drift impulse:
-  // Blends real-time news shocks with the machine-learning ensemble return
-  const newsAlphaWeight = liveNewsMeta?.isLive && liveNewsMeta.liveArticlesCount > 0 ? 0.22 : 0.12;
-  const newsDrift = effectiveSentiment * currentBlendedVol * newsAlphaWeight;
-
-  const combined1dReturn = base1dReturn + newsDrift;
-
-  // Multi-day horizon scaling: continuous Ornstein-Uhlenbeck mean-reverting drift
-  // Prevents long-horizon predictions from compounding unrealistically into outer space
-  const kappa = 0.22;
-  const ouFactor = (1 - Math.exp(-kappa * safeHorizon)) / kappa;
-  const horizonDrift = combined1dReturn * ouFactor;
-  const maxMove = Math.min(0.22, 0.040 * Math.sqrt(safeHorizon));
-  const predictedChangePct = Math.max(-maxMove, Math.min(maxMove, horizonDrift));
+  const maxMove = Math.min(0.22, currentBlendedVol * Math.sqrt(safeHorizon) * 2.1);
+  const predictedChangePct = Math.max(-maxMove, Math.min(maxMove, baseHorizonReturn + newsDrift));
   const rawPredictedPrice = currentPrice * (1 + predictedChangePct);
   const predictedPrice = Number(rawPredictedPrice.toFixed(2));
   const predictionChangePercent = Number((predictedChangePct * 100).toFixed(2));
 
-  // 2. Conformal Calibration on Historical Validation Set (Past 60 Days)
-  // Locally normalized non-conformity scores: s_i = |actual - pred| / (prevPrice * blendedVol)
-  const calibWindow = Math.min(60, Math.floor(n * 0.4));
+  // 2. Strictly Out-of-Sample Walk-Forward Conformal Calibration (Trailing 50 Days, 1-step horizon for exact daily residuals)
+  const calibWindow = Math.min(50, Math.max(15, n - trainStart - 25));
   const calibScores: number[] = [];
-  const calibStartIndex = Math.max(1, n - calibWindow);
+  const calibStartIndex = Math.max(trainStart + 25, n - calibWindow);
+  let calibBlockModel = fitEnsembleModel(bars, trainStart, Math.max(trainStart + 15, calibStartIndex - 1), 1);
+
+  let inBoundsHits = 0;
+  let sumPctErrors = 0;
+  let dirHits = 0;
+  let evaluatedSamples = 0;
+  const oosPredCache: Array<{ predRet: number; predPrice: number; actual: number; prevPrice: number; vol: number }> = [];
 
   for (let i = calibStartIndex; i < n; i++) {
+    if ((i - calibStartIndex) > 0 && (i - calibStartIndex) % 8 === 0) {
+      calibBlockModel = fitEnsembleModel(bars, trainStart, i - 1, 1);
+    }
     const prevBar = bars[i - 1];
     const prevPrice = prevBar.close;
-    const predRet = predictEnsembleReturn(ensembleModel, bars, i - 1, true);
-    const predPrice = prevPrice * (1 + predRet);
-    const residual = Math.abs(bars[i].close - predPrice);
+    const actual = bars[i].close;
+    if (prevPrice <= 0 || actual <= 0) continue;
 
-    const logHL = Math.log(Math.max(1e-4, prevBar.high) / Math.max(1e-4, prevBar.low));
-    const logCO = Math.log(Math.max(1e-4, prevBar.close) / Math.max(1e-4, prevBar.open));
-    const gkVol = Math.sqrt(Math.max(0, 0.5 * logHL * logHL - (2 * Math.LN2 - 1) * logCO * logCO));
-    const dailyVol = Math.max(0.006, (prevBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
-    const barBlendedVol = 0.65 * dailyVol + 0.35 * Math.max(0.004, gkVol);
+    const predRet = predictEnsembleReturn(calibBlockModel, bars, i - 1, true);
+    const predPrice = prevPrice * (1 + predRet);
+    const residual = Math.abs(actual - predPrice);
+    const barBlendedVol = estimateBarDailyVol(bars, i - 1);
 
     calibScores.push(residual / (prevPrice * barBlendedVol));
+    oosPredCache.push({ predRet, predPrice, actual, prevPrice, vol: barBlendedVol });
   }
 
-  // Sort non-conformity scores
   calibScores.sort((a, b) => a - b);
   const calibSize = calibScores.length;
   const alpha = 1 - safeConfidence;
-  const quantileIdx = Math.min(
-    calibSize - 1,
-    Math.max(0, Math.ceil((calibSize + 1) * (1 - alpha)) - 1)
-  );
+  const quantileIdx = calibSize > 0
+    ? Math.min(calibSize - 1, Math.max(0, Math.ceil((calibSize + 1) * (1 - alpha)) - 1))
+    : 0;
 
-  const qNorm = calibScores[quantileIdx] || 1.645;
+  const qNorm = calibSize > 0 ? calibScores[quantileIdx] : 1.645;
 
-  // If live breaking news exhibits high dispersion or divergence from baseline, dynamically widen uncertainty bounds
+  // Dynamically adjust interval width for live breaking news divergence and volatility regime
   const newsDivergence = liveNewsMeta?.isLive
     ? Math.abs(liveNewsMeta.liveSentimentScore - liveNewsMeta.baselineSentimentScore)
     : 0;
   const newsUncertaintyMultiplier = 1 + Math.min(0.18, newsDivergence * 0.20);
-  const volMultiplier = (regimeId === 1 ? 1.20 : 0.95) * newsUncertaintyMultiplier;
+  const volMultiplier = (regimeId === 1 ? 1.15 : 0.98) * newsUncertaintyMultiplier;
   const horizonScale = Math.sqrt(safeHorizon);
   const qHat = qNorm * currentPrice * currentBlendedVol * volMultiplier * horizonScale;
 
@@ -177,39 +168,15 @@ export function runConformalPrediction(
   const intervalWidth = Number((upperBound - lowerBound).toFixed(2));
   const intervalWidthPercent = Number(((intervalWidth / currentPrice) * 100).toFixed(2));
 
-  // Compute empirical coverage and MAPE strictly by analyzing out-of-sample model predictions
-  let inBoundsHits = 0;
-  let sumPctErrors = 0;
-  let dirHits = 0;
-  let evaluatedSamples = 0;
-
-  for (let i = calibStartIndex; i < n; i++) {
-    const prevBar = bars[i - 1];
-    const prevPrice = prevBar.close;
-    if (prevPrice <= 0) continue;
-
-    const predRet = predictEnsembleReturn(ensembleModel, bars, i - 1, true);
-    const predPrice = prevPrice * (1 + predRet);
-    const actual = bars[i].close;
-    if (actual <= 0) continue;
-
-    const logHL = Math.log(Math.max(1e-4, prevBar.high) / Math.max(1e-4, prevBar.low));
-    const logCO = Math.log(Math.max(1e-4, prevBar.close) / Math.max(1e-4, prevBar.open));
-    const gkVol = Math.sqrt(Math.max(0, 0.5 * logHL * logHL - (2 * Math.LN2 - 1) * logCO * logCO));
-    const dailyVol = Math.max(0.006, (prevBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
-    const barBlendedVol = 0.65 * dailyVol + 0.35 * Math.max(0.004, gkVol);
-
-    const band = qNorm * prevPrice * barBlendedVol;
-    if (actual >= predPrice - band && actual <= predPrice + band) {
+  // Compute true out-of-sample empirical coverage, MAPE, and directional accuracy
+  for (const item of oosPredCache) {
+    const band = qNorm * item.prevPrice * item.vol;
+    if (item.actual >= item.predPrice - band && item.actual <= item.predPrice + band) {
       inBoundsHits++;
     }
-
-    const absError = Math.abs(actual - predPrice);
-    const barPctError = (absError / actual) * 100;
-    sumPctErrors += barPctError;
-
-    const actualRet = (actual - prevPrice) / prevPrice;
-    if ((predRet >= 0 && actualRet >= 0) || (predRet < 0 && actualRet < 0)) {
+    sumPctErrors += (Math.abs(item.actual - item.predPrice) / item.actual) * 100;
+    const actualRet = (item.actual - item.prevPrice) / item.prevPrice;
+    if ((item.predRet >= 0 && actualRet >= 0) || (item.predRet < 0 && actualRet < 0)) {
       dirHits++;
     }
     evaluatedSamples++;
@@ -304,11 +271,11 @@ export function runConformalPrediction(
     const priorBaseBar = bars[n - 2];
 
     // Train walk-forward ensemble strictly without access to the audited target bar
-    const walkForwardModel = fitEnsembleModel(bars, trainStart, n - 2);
+    const walkForwardModel = fitEnsembleModel(bars, trainStart, n - 2, 1);
     const prevPredRet = predictEnsembleReturn(walkForwardModel, bars, n - 2, true);
     const prevPredPrice = Number((priorBaseBar.close * (1 + prevPredRet)).toFixed(2));
 
-    const prevDailyVol = Math.max(0.006, (priorBaseBar.volatility20 || 0.18) * Math.sqrt(1 / 252));
+    const prevDailyVol = estimateBarDailyVol(bars, n - 2);
     const prevBand = qNorm * priorBaseBar.close * prevDailyVol * volMultiplier;
     const prevLower = Number((prevPredPrice - prevBand).toFixed(2));
     const prevUpper = Number((prevPredPrice + prevBand).toFixed(2));
@@ -325,10 +292,10 @@ export function runConformalPrediction(
     for (let k = trailStart; k < n; k++) {
       const bTarget = bars[k];
       const bBase = bars[k - 1];
-      const stepModel = fitEnsembleModel(bars, trainStart, Math.max(2, k - 1));
+      const stepModel = fitEnsembleModel(bars, trainStart, Math.max(2, k - 1), 1);
       const ret = predictEnsembleReturn(stepModel, bars, k - 1, true);
       const pPrice = Number((bBase.close * (1 + ret)).toFixed(2));
-      const dVol = Math.max(0.006, (bBase.volatility20 || 0.18) * Math.sqrt(1 / 252));
+      const dVol = estimateBarDailyVol(bars, k - 1);
       const bWidth = qNorm * bBase.close * dVol * volMultiplier;
       const lB = Number((pPrice - bWidth).toFixed(2));
       const uB = Number((pPrice + bWidth).toFixed(2));
@@ -434,7 +401,7 @@ export function runConformalPrediction(
     intervalWidth,
     intervalWidthPercent,
     horizonDays: safeHorizon,
-    modelVersion: 'alphaquant-ensemble-v3.0 (Cross-Validated Ridge + Depth-2 GBDT + Garman-Klass Volatility)',
+    modelVersion: 'alphaquant-ensemble-v4.0 (Z-Scored Ridge + Huber GBDT + Kalman Regime + Cosine KNN Stacker)',
     predictionTimestamp: new Date().toISOString(),
     topFeatures,
     methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,
@@ -451,5 +418,5 @@ export function runConformalPrediction(
 }
 
 function currencySymbol(ticker: string): string {
-  return ticker.endsWith('.NS') ? '₹' : '$';
+  return getCurrencySymbol(undefined, ticker);
 }

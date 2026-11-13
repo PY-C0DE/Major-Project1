@@ -13,6 +13,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { getCurrencySymbol } from '../utils/currency';
 
 export type LanguageCode = 'en' | 'hi' | 'gu' | 'es' | 'fr' | 'de' | 'ja' | 'zh';
 
@@ -159,7 +160,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'audit.bound_hit': '90% Conformal Bound Hit',
     'audit.bound_miss': 'Boundary Miss',
     'audit.ledger_title': 'Trailing Sessions Accuracy Ledger (Actual Close vs Forecast)',
-    'audit.ledger_sub': 'Ensemble v2.0 Calibrated',
+    'audit.ledger_sub': 'Ensemble v4.0 Calibrated',
     'audit.session_date': 'Session Date',
     'audit.model_forecast': 'Model Forecast',
     'audit.conformal_channel': 'Conformal Channel',
@@ -349,7 +350,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'audit.bound_hit': '90% कन्फॉर्मल बाउंड हिट',
     'audit.bound_miss': 'सीमा से बाहर',
     'audit.ledger_title': 'पिछले सत्रों का सटीकता बहीखाता (वास्तविक बंद बनाम पूर्वानुमान)',
-    'audit.ledger_sub': 'Ensemble v2.0 कैलिब्रेटेड',
+    'audit.ledger_sub': 'Ensemble v4.0 कैलिब्रेटेड',
     'audit.session_date': 'सत्र दिनांक',
     'audit.model_forecast': 'मॉडल पूर्वानुमान',
     'audit.conformal_channel': 'कन्फॉर्मल चैनल',
@@ -539,7 +540,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'audit.bound_hit': '90% કોન્ફોર્મલ બાઉન્ડ હિટ',
     'audit.bound_miss': 'બાઉન્ડ્રી ચૂકી ગયા',
     'audit.ledger_title': 'ચોકસાઈ ખાતાવહી (વાસ્તવિક બંધ વિરુદ્ધ અનુમાન)',
-    'audit.ledger_sub': 'Ensemble v2.0 કેલિબ્રેટેડ',
+    'audit.ledger_sub': 'Ensemble v4.0 કેલિબ્રેટેડ',
     'audit.session_date': 'સત્ર તારીખ',
     'audit.model_forecast': 'મોડલ અનુમાન',
     'audit.conformal_channel': 'ચેનલ રેન્જ',
@@ -729,7 +730,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'audit.bound_hit': 'Impacto dentro de Límite Conforme 90%',
     'audit.bound_miss': 'Fuera de Límites',
     'audit.ledger_title': 'Libro Histórico de Precisión (Cierre Real vs Pronóstico)',
-    'audit.ledger_sub': 'Calibrado con Ensamble v2.0',
+    'audit.ledger_sub': 'Calibrado con Ensamble v4.0',
     'audit.session_date': 'Fecha de Sesión',
     'audit.model_forecast': 'Pronóstico del Modelo',
     'audit.conformal_channel': 'Canal Conforme',
@@ -912,7 +913,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'audit.bound_hit': 'Borne conforme à 90 % respectée',
     'audit.bound_miss': 'Hors limites',
     'audit.ledger_title': 'Historique de précision (Clôture réelle vs Prévision)',
-    'audit.ledger_sub': 'Calibré avec Ensemble v2.0',
+    'audit.ledger_sub': 'Calibré avec Ensemble v4.0',
     'audit.session_date': 'Date de session',
     'audit.model_forecast': 'Prévision du modèle',
     'audit.conformal_channel': 'Canal conforme',
@@ -1089,7 +1090,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'audit.bound_hit': '90% Konforme Grenze getroffen',
     'audit.bound_miss': 'Grenze verfehlt',
     'audit.ledger_title': 'Genauigkeitsbuch (Tatsächlicher Schluss vs. Prognose)',
-    'audit.ledger_sub': 'Ensemble v2.0 Kalibriert',
+    'audit.ledger_sub': 'Ensemble v4.0 Kalibriert',
     'audit.session_date': 'Sitzungsdatum',
     'audit.model_forecast': 'Modellprognose',
     'audit.conformal_channel': 'Konformer Kanal',
@@ -1266,7 +1267,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'audit.bound_hit': '90%信頼区間内的中',
     'audit.bound_miss': '信頼区間外れ',
     'audit.ledger_title': '直近セッション精度監査台帳（実測終値 vs 予測値）',
-    'audit.ledger_sub': 'Ensemble v2.0 キャリブレーション済み',
+    'audit.ledger_sub': 'Ensemble v4.0 キャリブレーション済み',
     'audit.session_date': 'セッション日付',
     'audit.model_forecast': 'モデル予測値',
     'audit.conformal_channel': '共形信頼区間',
@@ -1443,7 +1444,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'audit.bound_hit': '命中90%共形置信区间',
     'audit.bound_miss': '偏离边界',
     'audit.ledger_title': '往期交易时段准确度台账（实测收盘价 vs 预测值）',
-    'audit.ledger_sub': '集成模型 v2.0 校准',
+    'audit.ledger_sub': '集成模型 v4.0 校准',
     'audit.session_date': '交易日期',
     'audit.model_forecast': '模型预测值',
     'audit.conformal_channel': '共形通道',
@@ -1582,14 +1583,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const formatCurrency = (value: number, currency = 'INR'): string => {
     try {
-      const symbol = currency === 'INR' ? '₹' : '$';
+      const symbol = getCurrencySymbol(currency);
+      const isZeroDecimal = currency.toUpperCase() === 'KRW' || currency.toUpperCase() === 'JPY' || symbol === '₩' || symbol === '¥';
       const formatted = new Intl.NumberFormat(currentLanguageMeta.locale, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        minimumFractionDigits: isZeroDecimal ? 0 : 2,
+        maximumFractionDigits: isZeroDecimal ? 0 : 2
       }).format(value);
       return `${symbol}${formatted}`;
     } catch (e) {
-      return `${currency === 'INR' ? '₹' : '$'}${value.toFixed(2)}`;
+      const symbol = getCurrencySymbol(currency);
+      return `${symbol}${value.toFixed(2)}`;
     }
   };
 

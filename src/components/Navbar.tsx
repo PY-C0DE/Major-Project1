@@ -35,6 +35,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useFx, HOME_CURRENCY_OPTIONS } from '../context/FxContext';
 import { LanguageDropdown } from './LanguageDropdown';
 import { AvatarModal } from './AvatarModal';
 import { CompanySearchCombobox } from './CompanySearchCombobox';
@@ -68,6 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { user, isAuthenticated, logout, updateProfile, enterDemoMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { t } = useLanguage();
+  const { homeCurrency, setHomeCurrency, isLive: fxLive } = useFx();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -551,8 +553,38 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
 
                       {/* Quick Setting Controls in Dropdown */}
-                      <div className="p-2.5 mx-2 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800/80 space-y-2">
-                        <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
+                      <div className="p-2.5 mx-2 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-100 dark:border-slate-800/80 space-y-2.5">
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
+                            <span>Home Currency (FX Tooltip)</span>
+                            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                              fxLive
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            }`}>
+                              {fxLive ? 'LIVE FX' : 'REF FX'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1">
+                            {HOME_CURRENCY_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.code}
+                                type="button"
+                                onClick={() => setHomeCurrency(opt.code)}
+                                title={opt.name}
+                                className={`px-1.5 py-1 rounded text-[10px] font-mono font-bold border transition-colors cursor-pointer ${
+                                  homeCurrency === opt.code
+                                    ? 'bg-cyan-500 text-slate-950 border-cyan-500 shadow-2xs'
+                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-cyan-400'
+                                }`}
+                              >
+                                {opt.symbol} {opt.code}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400 pt-1.5 border-t border-slate-200/70 dark:border-slate-800/70">
                           <span>Theme Appearance</span>
                           <button
                             onClick={(e) => toggleTheme(e)}

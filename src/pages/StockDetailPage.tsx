@@ -49,6 +49,8 @@ import { HMMRegimeGraphicalIndicator } from '../components/HMMRegimeGraphicalInd
 import { SeasonalityAnalysis } from '../components/SeasonalityAnalysis';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { ConvertedPrice } from '../components/ConvertedPrice';
+import { getCurrencySymbol, formatCurrencyAmount, inferExchangeFromTicker, inferCurrencyFromTicker } from '../utils/currency';
 
 interface Props {
   ticker: string;
@@ -281,7 +283,8 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
     loadAlerts();
   }, [loadAlerts]);
 
-  const currSym = quote?.currency === 'INR' ? '₹' : '$';
+  const currSym = getCurrencySymbol(quote?.currency, ticker);
+  const effectiveCurrency = quote?.currency || inferCurrencyFromTicker(ticker);
   const isUp = (quote?.change ?? 0) >= 0;
 
   const activeAlerts = alerts.filter(a => a.enabled);
@@ -300,7 +303,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-900 dark:text-white">{ticker}</h1>
             <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
-              {quote?.exchange || 'NSE'} · {quote?.currency || 'INR'}
+              {quote?.exchange || inferExchangeFromTicker(ticker)} · {effectiveCurrency}
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">{quote?.name}</span>
             <RegimeIndicator
@@ -313,7 +316,11 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
           {/* Price Overview Metrics Bar */}
           <div className="flex flex-wrap items-baseline gap-4 mt-2">
             <span className="text-3xl font-extrabold font-mono text-slate-900 dark:text-white tabular-nums">
-              {currSym}{quote?.price?.toLocaleString() || '---'}
+              {quote?.price != null ? (
+                <ConvertedPrice amount={quote.price} currency={effectiveCurrency} ticker={ticker} />
+              ) : (
+                '---'
+              )}
             </span>
             <span
               className={`text-sm font-bold font-mono flex items-center gap-1 tabular-nums ${
@@ -339,7 +346,10 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 shadow-xs animate-pulse"
               >
                 <Bell className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-emerald-500/20" />
-                <span>Threshold Met: {metAlerts[0].type === 'price_above' ? '≥' : metAlerts[0].type === 'price_below' ? '≤' : 'Δ'} {currSym}{metAlerts[0].threshold}</span>
+                <span>
+                  Threshold Met: {metAlerts[0].type === 'price_above' ? '≥' : metAlerts[0].type === 'price_below' ? '≤' : 'Δ'}{' '}
+                  <ConvertedPrice amount={metAlerts[0].threshold} currency={effectiveCurrency} ticker={ticker} />
+                </span>
               </div>
             )}
           </div>
@@ -436,12 +446,33 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {[
-            { label: t('stock.high_52w', '52-Week High'), value: `${currSym}${quote?.high52?.toLocaleString() || '---'}` },
-            { label: t('stock.low_52w', '52-Week Low'), value: `${currSym}${quote?.low52?.toLocaleString() || '---'}` },
-            { label: t('stock.day_range', 'Day Range'), value: `${currSym}${quote?.low?.toFixed(1)} - ${currSym}${quote?.high?.toFixed(1)}` },
+            {
+              label: t('stock.high_52w', '52-Week High'),
+              value: quote?.high52 != null ? <ConvertedPrice amount={quote.high52} currency={effectiveCurrency} ticker={ticker} /> : '---'
+            },
+            {
+              label: t('stock.low_52w', '52-Week Low'),
+              value: quote?.low52 != null ? <ConvertedPrice amount={quote.low52} currency={effectiveCurrency} ticker={ticker} /> : '---'
+            },
+            {
+              label: t('stock.day_range', 'Day Range'),
+              value:
+                quote?.low != null && quote?.high != null ? (
+                  <>
+                    <ConvertedPrice amount={quote.low} currency={effectiveCurrency} ticker={ticker} decimals={effectiveCurrency === 'KRW' || effectiveCurrency === 'JPY' ? 0 : 1} />
+                    {' - '}
+                    <ConvertedPrice amount={quote.high} currency={effectiveCurrency} ticker={ticker} decimals={effectiveCurrency === 'KRW' || effectiveCurrency === 'JPY' ? 0 : 1} />
+                  </>
+                ) : (
+                  '---'
+                )
+            },
             { label: t('stock.volume', 'Volume (Shares)'), value: quote?.volume ? (quote.volume / 1000000).toFixed(2) + 'M' : '---' },
             { label: t('stock.pe_ratio', 'P/E Ratio'), value: quote?.pe ? `${quote.pe.toFixed(1)}x` : '---' },
-            { label: t('stock.market_cap', 'Market Cap'), value: quote?.marketCap ? `${(quote.marketCap / 1e9).toFixed(1)}B` : '---' }
+            {
+              label: t('stock.market_cap', 'Market Cap'),
+              value: quote?.marketCap ? <ConvertedPrice amount={quote.marketCap / 1e9} currency={effectiveCurrency} ticker={ticker} decimals={1} suffix="B" /> : '---'
+            }
           ].map(stat => (
             <div key={stat.label} className="p-3 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
               <span className="text-[10px] font-mono uppercase text-slate-400 dark:text-slate-500 block">{stat.label}</span>
@@ -455,7 +486,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
       <InteractiveStockChart
         bars={history}
         prediction={prediction}
-        currency={quote?.currency || 'INR'}
+        currency={effectiveCurrency}
         ticker={ticker}
       />
 
@@ -463,7 +494,8 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
       <div className="w-full">
         <ConformalPredictionCard
           prediction={prediction}
-          currency={quote?.currency || 'INR'}
+          currency={effectiveCurrency}
+          ticker={ticker}
           onConfigChange={handleConfigChange}
         />
       </div>
@@ -775,7 +807,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             </div>
             <StockDecisionAndHistoryCard
               prediction={prediction}
-              currency={quote?.currency || 'INR'}
+              currency={effectiveCurrency}
               ticker={ticker}
               viewMode="decision"
             />
@@ -799,7 +831,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             </div>
             <StockDecisionAndHistoryCard
               prediction={prediction}
-              currency={quote?.currency || 'INR'}
+              currency={effectiveCurrency}
               ticker={ticker}
               viewMode="previous_day"
             />
@@ -823,7 +855,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             </div>
             <StockDecisionAndHistoryCard
               prediction={prediction}
-              currency={quote?.currency || 'INR'}
+              currency={effectiveCurrency}
               ticker={ticker}
               viewMode="classified_events"
             />

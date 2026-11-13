@@ -48,9 +48,11 @@ import { NewsTicker } from '../components/NewsTicker';
 import { RealTimeNewsPulse } from '../components/RealTimeNewsPulse';
 import { MarketHeatmap } from '../components/MarketHeatmap';
 import { DailyMarketDigest } from '../components/DailyMarketDigest';
+import { ConvertedPrice } from '../components/ConvertedPrice';
 import { EarningsCalendar } from '../components/EarningsCalendar';
 import { RegimeIndicator } from '../components/RegimeIndicator';
 import { useAuth } from '../context/AuthContext';
+import { getCurrencySymbol, inferExchangeFromTicker } from '../utils/currency';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -499,7 +501,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
       <div id="tour-candle-chart" className="space-y-4 sm:space-y-6">
         {/* Real-Time Live Stock Header & FinBERT News Sentiment Bar */}
         {(() => {
-          const currSym = quote?.currency === 'INR' ? '₹' : (quote?.currency === 'USD' ? '$' : (quote?.currency || '₹'));
+          const currSym = getCurrencySymbol(quote?.currency, selectedTicker);
           const isUp = (quote?.change ?? 0) >= 0;
           const posPct = sentiment?.distribution ? Math.round(sentiment.distribution.positive * 100) : 64;
           const neuPct = sentiment?.distribution ? Math.round(sentiment.distribution.neutral * 100) : 24;
@@ -520,7 +522,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                       LIVE QUOTE
                     </span>
                     <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
-                      {quote?.exchange || 'NSE'} · {selectedTicker}
+                      {quote?.exchange || inferExchangeFromTicker(selectedTicker)} · {selectedTicker}
                     </span>
                     <span className="text-[11px] text-slate-400 dark:text-slate-500 hidden sm:inline">
                       • {quote?.name || selectedTicker.replace('.NS', '')}
@@ -529,9 +531,11 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
 
                   <div className="flex flex-wrap items-baseline gap-3">
                     <span className="text-2xl sm:text-3xl md:text-4xl font-black font-mono text-slate-950 dark:text-white tabular-nums tracking-tight">
-                      {quote
-                        ? `${currSym}${quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                        : `${currSym}—`}
+                      {quote ? (
+                        <ConvertedPrice amount={quote.price} currency={quote.currency} ticker={selectedTicker} />
+                      ) : (
+                        `${currSym}—`
+                      )}
                     </span>
                     {quote && (
                       <span
@@ -543,7 +547,13 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                       >
                         {isUp ? <TrendingUp className="w-3.5 h-3.5 shrink-0" /> : <TrendingDown className="w-3.5 h-3.5 shrink-0" />}
                         <span>
-                          {isUp ? '+' : ''}{currSym}{Math.abs(quote.change).toFixed(2)} ({isUp ? '+' : ''}{quote.changePercent.toFixed(2)}%)
+                          <ConvertedPrice
+                            amount={Math.abs(quote.change)}
+                            currency={quote.currency}
+                            ticker={selectedTicker}
+                            prefix={isUp ? '+' : '-'}
+                          />{' '}
+                          ({isUp ? '+' : ''}{quote.changePercent.toFixed(2)}%)
                         </span>
                       </span>
                     )}
@@ -554,19 +564,19 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                     <div>
                       <span className="text-slate-400 dark:text-slate-500 mr-1">Day High:</span>
                       <strong className="text-slate-800 dark:text-slate-200">
-                        {quote?.high ? `${currSym}${quote.high.toLocaleString()}` : '—'}
+                        {quote?.high ? <ConvertedPrice amount={quote.high} currency={quote.currency} ticker={selectedTicker} /> : '—'}
                       </strong>
                     </div>
                     <div>
                       <span className="text-slate-400 dark:text-slate-500 mr-1">Day Low:</span>
                       <strong className="text-slate-800 dark:text-slate-200">
-                        {quote?.low ? `${currSym}${quote.low.toLocaleString()}` : '—'}
+                        {quote?.low ? <ConvertedPrice amount={quote.low} currency={quote.currency} ticker={selectedTicker} /> : '—'}
                       </strong>
                     </div>
                     <div>
                       <span className="text-slate-400 dark:text-slate-500 mr-1">Open:</span>
                       <strong className="text-slate-800 dark:text-slate-200">
-                        {quote?.open ? `${currSym}${quote.open.toLocaleString()}` : '—'}
+                        {quote?.open ? <ConvertedPrice amount={quote.open} currency={quote.currency} ticker={selectedTicker} /> : '—'}
                       </strong>
                     </div>
                     <div>
@@ -660,6 +670,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
               <ConformalPredictionCard
                 prediction={prediction}
                 currency={quote?.currency || 'INR'}
+                ticker={selectedTicker}
                 onConfigChange={async (h, c) => {
                   try {
                     const updated = await api.getConformalPrediction(selectedTicker, h, c);

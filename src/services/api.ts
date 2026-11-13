@@ -199,6 +199,18 @@ export const api = {
     return res.json();
   },
 
+  async getFxRates(): Promise<{
+    base: 'USD';
+    rates: Record<string, number>;
+    timestamp: string;
+    isLive: boolean;
+    source: string;
+  }> {
+    const res = await fetch(`${API_BASE}/fx/rates`);
+    if (!res.ok) throw new Error('Failed to fetch live FX rates');
+    return res.json();
+  },
+
   // Core USPs
   async getConformalPrediction(ticker: string, horizon = 1, confidence = 0.90): Promise<ConformalPrediction> {
     const res = await fetch(`${API_BASE}/predictions/${encodeURIComponent(ticker)}?horizon=${horizon}&confidence=${confidence}`);

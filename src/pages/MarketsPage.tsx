@@ -25,6 +25,7 @@ import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { StockQuote, CorrelationMatrixData } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { OptionsVolatilitySurface } from '../components/OptionsVolatilitySurface';
+import { ConvertedPrice } from '../components/ConvertedPrice';
 import { useTheme } from '../context/ThemeContext';
 
 interface Props {
@@ -228,7 +229,6 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
                     const change = quote?.change || (t.basePrice * 0.012);
                     const changePercent = quote?.changePercent || 1.2;
                     const isUp = change >= 0;
-                    const currSym = t.currency === 'INR' ? '₹' : '$';
 
                     return (
                       <tr key={t.ticker} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -247,7 +247,7 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
                           {t.exchange}
                         </td>
                         <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-bold tabular-nums">
-                          {currSym}{price.toLocaleString()}
+                          <ConvertedPrice amount={price} currency={t.currency} ticker={t.ticker} />
                         </td>
                         <td className="py-3 px-4 text-right tabular-nums">
                           <span className={`font-semibold ${isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
@@ -258,7 +258,7 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
                           {t.pe.toFixed(1)}x
                         </td>
                         <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          {currSym}{(t.marketCap / 1e9).toFixed(1)}B
+                          <ConvertedPrice amount={t.marketCap / 1e9} currency={t.currency} ticker={t.ticker} decimals={1} suffix="B" />
                         </td>
                         <td className="py-3 px-4 text-center">
                           <button

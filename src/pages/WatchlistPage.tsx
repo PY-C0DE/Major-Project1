@@ -21,6 +21,7 @@ import { WatchlistItem } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { RealTimeNewsPulse } from '../components/RealTimeNewsPulse';
+import { ConvertedPrice } from '../components/ConvertedPrice';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -162,8 +163,6 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
                 filtered.map(item => {
                   const isUp = item.dailyChange >= 0;
                   const isHealthy = item.driftStatus === 'Healthy';
-                  const isINR = item.ticker.endsWith('.NS');
-                  const currSym = isINR ? '₹' : '$';
 
                   return (
                     <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors">
@@ -180,7 +179,7 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
                       </td>
 
                       <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-bold tabular-nums">
-                        {currSym}{item.currentPrice.toLocaleString()}
+                        <ConvertedPrice amount={item.currentPrice} ticker={item.ticker} />
                       </td>
 
                       <td className="py-3 px-4 text-right tabular-nums">
@@ -194,11 +193,11 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
                       </td>
 
                       <td className="py-3 px-4 text-right text-cyan-700 dark:text-cyan-300 font-semibold tabular-nums">
-                        {currSym}{item.predictedPrice.toLocaleString()}
+                        <ConvertedPrice amount={item.predictedPrice} ticker={item.ticker} />
                       </td>
 
                       <td className="py-3 px-4 text-center tabular-nums text-slate-700 dark:text-slate-300">
-                        {currSym}{item.lowerBound.toLocaleString()} ─ {currSym}{item.upperBound.toLocaleString()}
+                        <ConvertedPrice amount={item.lowerBound} ticker={item.ticker} /> ─ <ConvertedPrice amount={item.upperBound} ticker={item.ticker} />
                       </td>
 
                       <td className="py-3 px-4 text-center">

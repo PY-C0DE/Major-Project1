@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { AlertRule, ConformalPrediction, StockQuote } from '../types';
+import { getCurrencySymbol } from '../utils/currency';
 
 interface Props {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export const PriceAlertModal: React.FC<Props> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const currentPrice = quote?.price || 0;
-  const currSym = quote?.currency === 'INR' ? '₹' : '$';
+  const currSym = getCurrencySymbol(quote?.currency, ticker);
 
   // Load existing alerts for this ticker
   const loadAlerts = async () => {

@@ -8,6 +8,7 @@
 import { EarningsCalendarItem, HistoricalEarningsQuarter } from '../../types';
 import { getStockQuote } from './stockService';
 import { TICKER_CATALOG } from '../../shared/tickerCatalog';
+import { getCurrencySymbol } from '../../utils/currency';
 
 interface StaticEarningsProfile {
   ticker: string;
@@ -770,7 +771,7 @@ export async function getEarningsCalendarData(
         companyName,
         sector,
         currency,
-        currSym: currency === 'INR' ? '₹' : '$',
+        currSym: getCurrencySymbol(currency, ticker),
         currentPrice,
         reportDate: profile.reportDateStr,
         reportDateFormatted,

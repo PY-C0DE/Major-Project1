@@ -690,5 +690,16 @@ export const TICKER_CATALOG: TickerMeta[] = [
     marketCap: 162000000000,
     sector: 'Mobility & Delivery',
     aliases: ['uber', 'uber eats']
+  },
+  {
+    ticker: '005930.KS',
+    name: 'Samsung Electronics Co., Ltd.',
+    exchange: 'KRX',
+    currency: 'KRW',
+    basePrice: 56000,
+    pe: 14.2,
+    marketCap: 335000000000000,
+    sector: 'Semiconductors & Consumer Electronics',
+    aliases: ['samsung', 'samsung electronics', 'galaxy', '005930']
   }
 ];

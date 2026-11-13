@@ -38,6 +38,7 @@ import { ModelEvaluation, StrategyPerformanceMetrics, ModelFeatureImportance } f
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { useTheme } from '../context/ThemeContext';
+import { getCurrencySymbol } from '../utils/currency';
 
 const defaultFeatures: ModelFeatureImportance[] = [
   {
@@ -178,7 +179,7 @@ export const ModelPerformancePage: React.FC = () => {
   }, [ticker, strategyType, activeTab]);
 
   const isAll = ticker === 'ALL';
-  const currSym = isAll ? '' : ticker.endsWith('.NS') ? '₹' : '$';
+  const currSym = isAll ? '' : getCurrencySymbol(undefined, ticker);
 
   const handleExportAudit = () => {
     setIsExporting(true);
@@ -188,7 +189,7 @@ export const ModelPerformancePage: React.FC = () => {
         exportedAt: new Date().toISOString(),
         evaluationScope: isAll ? 'Whole Model Cross-Asset Average (All Assets)' : `Single Asset: ${ticker}`,
         ticker,
-        modelVersion: 'AlphaQuant Ensemble v3.0 (Cross-Validated Ridge + Depth-2 GBDT + Garman-Klass Volatility)',
+        modelVersion: 'AlphaQuant Ensemble v4.0 (Z-Scored Ridge + Huber GBDT + Kalman Regime + Cosine KNN Stacker)',
         evaluationType: 'Chronological Out-of-Sample Walk-Forward Backtest',
         accuracySummary: {
           directionalAccuracy: metrics?.directionalAccuracy != null ? `${metrics.directionalAccuracy}%` : 'n/a',
@@ -200,8 +201,8 @@ export const ModelPerformancePage: React.FC = () => {
           mae: metrics?.mae != null ? (isAll ? `${metrics.mae} pts` : `${currSym}${metrics.mae}`) : 'n/a'
         },
         calibrationParameters: {
-          methodology: 'Split-Conformal Inference with Depth-2 GBDT & Adaptive Ridge Residual Calibration',
-          featuresFused: ['18-Factor Alpha Matrix', 'Garman-Klass Volatility', 'GBDT Interaction Trees', 'EMA Spread', 'VWAP Equilibrium']
+          methodology: '3-Fold Walk-Forward Split-Conformal Inference with Stein-Shrunk Meta-Stacking',
+          featuresFused: ['24-Factor Alpha Matrix', 'Garman-Klass Volatility', 'Huber GBDT Trees', 'Kalman Regime Filter', 'Cosine Analog KNN']
         },
         totalAssetsCount: metrics?.totalAssetsCount || (metrics?.assetBreakdown ? metrics.assetBreakdown.length : 1),
         assetBreakdown: metrics?.assetBreakdown || [],
@@ -605,8 +606,8 @@ export const ModelPerformancePage: React.FC = () => {
                   </h2>
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                     {isAll
-                      ? 'Cross-Asset Normalized Actual (Index = 100) vs Ensemble v3.0 Forecast vs Conformal Uncertainty Envelope'
-                      : 'Actual Price vs Ensemble v3.0 GBDT Predicted vs Conformal Uncertainty Envelope'}
+                      ? 'Cross-Asset Normalized Actual (Index = 100) vs Ensemble v4.0 Forecast vs Conformal Uncertainty Envelope'
+                      : 'Actual Price vs Ensemble v4.0 Stacked Forecast vs Conformal Uncertainty Envelope'}
                   </span>
                 </div>
                 <span className="text-xs px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-400 font-mono">
@@ -623,7 +624,7 @@ export const ModelPerformancePage: React.FC = () => {
                     <Tooltip contentStyle={chartTooltipStyle} />
                     <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                     <Line type="monotone" dataKey="actual" name={isAll ? 'Normalized Actual (Index)' : 'Actual Close'} stroke={chartActualStroke} strokeWidth={2.2} dot={false} />
-                    <Line type="monotone" dataKey="predicted" name="Ensemble v3.0 GBDT Forecast" stroke="#06b6d4" strokeWidth={2} strokeDasharray="4 4" dot={false} />
+                    <Line type="monotone" dataKey="predicted" name="Ensemble v4.0 Stacked Forecast" stroke="#06b6d4" strokeWidth={2} strokeDasharray="4 4" dot={false} />
                     <Line type="monotone" dataKey="upper" name="Upper Interval" stroke="#10b981" strokeWidth={1.2} strokeDasharray="2 2" dot={false} />
                     <Line type="monotone" dataKey="lower" name="Lower Interval" stroke="#10b981" strokeWidth={1.2} strokeDasharray="2 2" dot={false} />
                   </ComposedChart>
@@ -645,7 +646,7 @@ export const ModelPerformancePage: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    Ensemble v3.0 GBDT split-gain and L2-regularized Ridge regression coefficients normalized to 100% relative predictive weight.
+                    Ensemble v4.0 Huber GBDT split-gain and Z-scored L2 Ridge regression coefficients normalized to 100% relative predictive weight.
                   </p>
                 </div>
 

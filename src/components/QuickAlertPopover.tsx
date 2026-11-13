@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { AlertRule, StockQuote, ConformalPrediction } from '../types';
+import { getCurrencySymbol } from '../utils/currency';
 
 interface Props {
   ticker: string;
@@ -52,7 +53,7 @@ export const QuickAlertPopover: React.FC<Props> = ({
   const popoverRef = useRef<HTMLDivElement>(null);
 
   const currentPrice = quote?.price || 0;
-  const currSym = quote?.currency === 'INR' ? '₹' : '$';
+  const currSym = getCurrencySymbol(quote?.currency, ticker);
 
   // Filter alerts for the active ticker
   const tickerAlerts = alerts.filter(

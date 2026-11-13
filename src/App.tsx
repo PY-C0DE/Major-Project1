@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { FxProvider } from './context/FxContext';
 import {
   LayoutDashboard,
   LineChart,
@@ -410,7 +411,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <FxProvider>
+        <AppContent />
+      </FxProvider>
     </AuthProvider>
   );
 }

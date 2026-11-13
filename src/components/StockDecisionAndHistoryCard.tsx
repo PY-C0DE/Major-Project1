@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ConformalPrediction, PreviousDayStats, ClassifiedFinancialEvent, DecisionSignal } from '../types';
 import { useLanguage } from '../context/LanguageContext';
+import { ConvertedPrice } from './ConvertedPrice';
 
 interface Props {
   prediction: ConformalPrediction | null;
@@ -49,7 +50,6 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
 
   if (!prediction) return null;
 
-  const currSym = currency === 'INR' ? '₹' : '$';
   const prevStats: PreviousDayStats | undefined = prediction.previousDayStats;
   const decision: DecisionSignal | undefined = prediction.decisionSignal;
   const events: ClassifiedFinancialEvent[] = prediction.classifiedEvents || [];
@@ -163,7 +163,7 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                   {t('decision.target_price')} {prediction.targetDate ? `(${prediction.targetDate})` : ''}
                 </span>
                 <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                  {currSym}{decision.targetPrice.toFixed(2)}
+                  <ConvertedPrice amount={decision.targetPrice} currency={currency} ticker={ticker} />
                 </span>
               </div>
               <div className="text-right">
@@ -171,7 +171,7 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                   {t('decision.stop_loss')}
                 </span>
                 <span className="text-sm font-bold font-mono text-rose-600 dark:text-rose-400">
-                  {currSym}{decision.stopLossPrice.toFixed(2)}
+                  <ConvertedPrice amount={decision.stopLossPrice} currency={currency} ticker={ticker} />
                 </span>
               </div>
               <div className="text-right">
@@ -254,20 +254,20 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                 {prevStats.isTodaySession ? t('audit.current_traded_price') : t('audit.actual_close')}
               </span>
               <span className="text-base font-bold text-slate-900 dark:text-white mt-1 block">
-                {currSym}{prevStats.previousClose.toFixed(2)}
+                <ConvertedPrice amount={prevStats.previousClose} currency={currency} ticker={ticker} />
               </span>
               <span className="text-[10px] text-slate-400">
-                {t('audit.range')}: {currSym}{prevStats.previousLow.toFixed(1)} - {currSym}{prevStats.previousHigh.toFixed(1)}
+                {t('audit.range')}: <ConvertedPrice amount={prevStats.previousLow} currency={currency} ticker={ticker} decimals={currency === 'KRW' || currency === 'JPY' ? 0 : 1} /> - <ConvertedPrice amount={prevStats.previousHigh} currency={currency} ticker={ticker} decimals={currency === 'KRW' || currency === 'JPY' ? 0 : 1} />
               </span>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
               <span className="text-[10px] text-slate-400 block uppercase">{t('audit.session_forecast')}</span>
               <span className="text-base font-bold text-cyan-600 dark:text-cyan-400 mt-1 block">
-                {currSym}{prevStats.predictedClose.toFixed(2)}
+                <ConvertedPrice amount={prevStats.predictedClose} currency={currency} ticker={ticker} />
               </span>
               <span className="text-[10px] text-slate-400">
-                {t('audit.channel')}: {currSym}{prevStats.lowerBound.toFixed(1)} - {currSym}{prevStats.upperBound.toFixed(1)}
+                {t('audit.channel')}: <ConvertedPrice amount={prevStats.lowerBound} currency={currency} ticker={ticker} decimals={currency === 'KRW' || currency === 'JPY' ? 0 : 1} /> - <ConvertedPrice amount={prevStats.upperBound} currency={currency} ticker={ticker} decimals={currency === 'KRW' || currency === 'JPY' ? 0 : 1} />
               </span>
             </div>
 
@@ -277,7 +277,7 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                 {prevStats.errorPercent.toFixed(2)}%
               </span>
               <span className="text-[10px] text-slate-400">
-                {t('audit.abs_error')}: {currSym}{prevStats.errorAbsolute.toFixed(2)}
+                {t('audit.abs_error')}: <ConvertedPrice amount={prevStats.errorAbsolute} currency={currency} ticker={ticker} />
               </span>
             </div>
 
@@ -323,16 +323,16 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
                           {day.date}
                         </td>
                         <td className="py-2 px-3 text-right font-bold text-slate-900 dark:text-white">
-                          {currSym}{day.actualClose.toFixed(2)}
+                          <ConvertedPrice amount={day.actualClose} currency={currency} ticker={ticker} />
                         </td>
                         <td className="py-2 px-3 text-right font-bold text-cyan-600 dark:text-cyan-400">
-                          {currSym}{day.predictedClose.toFixed(2)}
+                          <ConvertedPrice amount={day.predictedClose} currency={currency} ticker={ticker} />
                         </td>
                         <td className="py-2 px-3 text-right text-slate-500 text-[11px]">
-                          [{currSym}{day.lowerBound.toFixed(1)} – {currSym}{day.upperBound.toFixed(1)}]
+                          [<ConvertedPrice amount={day.lowerBound} currency={currency} ticker={ticker} decimals={currency === 'KRW' || currency === 'JPY' ? 0 : 1} /> – <ConvertedPrice amount={day.upperBound} currency={currency} ticker={ticker} decimals={currency === 'KRW' || currency === 'JPY' ? 0 : 1} />]
                         </td>
                         <td className="py-2 px-3 text-right font-medium text-slate-700 dark:text-slate-300">
-                          {currSym}{Math.abs(day.actualClose - day.predictedClose).toFixed(2)}
+                          <ConvertedPrice amount={Math.abs(day.actualClose - day.predictedClose)} currency={currency} ticker={ticker} />
                         </td>
                         <td className={`py-2 px-3 text-right font-semibold ${
                           day.errorPct < 1.0 ? 'text-emerald-600 dark:text-emerald-400' : day.errorPct < 2.5 ? 'text-cyan-600 dark:text-cyan-400' : 'text-amber-600 dark:text-amber-400'

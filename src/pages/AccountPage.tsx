@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useFx } from '../context/FxContext';
 import { api } from '../services/api';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { AvatarModal } from '../components/AvatarModal';
@@ -51,6 +52,7 @@ import avatarImg from '../assets/images/avatar_lead_quant_1791318574843.jpg';
 export const AccountPage: React.FC = () => {
   const { user, logout, updateProfile } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { setHomeCurrency } = useFx();
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<'profile' | 'preferences' | 'security' | 'notifications' | 'data'>('profile');
@@ -157,6 +159,7 @@ export const AccountPage: React.FC = () => {
       defaultExchange: exchange,
       confidenceLevel
     });
+    setHomeCurrency(currency);
     showToast('Platform & quantitative preferences updated.');
   };
 

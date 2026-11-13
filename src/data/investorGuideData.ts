@@ -179,11 +179,11 @@ export const INVESTOR_GOLDEN_RULES = [
   },
 ];
 
+import { formatCurrencyAmount } from '../utils/currency';
+
 /**
- * Format price according to stock market currency (INR ₹ for .NS, USD $ otherwise)
+ * Format price according to stock market currency (INR ₹ for .NS, KRW ₩ for .KS, USD $ otherwise)
  */
 export function formatStockCurrency(amount: number, ticker: string, currency?: string): string {
-  const isINR = currency === 'INR' || ticker.endsWith('.NS') || ticker === 'RELIANCE' || ticker === 'HDFCBANK' || ticker === 'TCS';
-  const symbol = isINR ? '₹' : '$';
-  return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return formatCurrencyAmount(amount, currency, ticker);
 }

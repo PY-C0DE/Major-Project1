@@ -9,6 +9,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X, Loader2, TrendingUp, TrendingDown, Building2, Globe } from 'lucide-react';
 import { api } from '../services/api';
 import { StockSearchResult } from '../types';
+import { ConvertedPrice } from './ConvertedPrice';
 
 interface Props {
   onSelect: (item: StockSearchResult) => void;
@@ -257,8 +258,6 @@ export const CompanySearchCombobox: React.FC<Props> = ({
           ) : (
             results.map((item, idx) => {
               const isSelected = idx === selectedIndex;
-              const isIndia = item.ticker.endsWith('.NS') || item.exchange === 'NSE';
-              const currSym = item.currency === 'INR' || isIndia ? '₹' : '$';
 
               return (
                 <button
@@ -297,7 +296,7 @@ export const CompanySearchCombobox: React.FC<Props> = ({
                   {showPrice && item.price !== undefined && (
                     <div className="text-right shrink-0 font-mono">
                       <span className="font-bold text-slate-900 dark:text-white block">
-                        {currSym}{item.price.toLocaleString()}
+                        <ConvertedPrice amount={item.price} currency={item.currency} ticker={item.ticker} />
                       </span>
                       {item.changePercent !== undefined && (
                         <span
