@@ -17,6 +17,16 @@ export interface StockQuote {
   exchange: string;
   lastUpdated: string;
   isLive?: boolean;
+  exchangeTimezoneName?: string;
+  marketPeriod?: {
+    regularStart?: number;
+    regularEnd?: number;
+    preStart?: number;
+    preEnd?: number;
+    postStart?: number;
+    postEnd?: number;
+    tzShort?: string;
+  };
 }
 
 export interface StockSearchResult {

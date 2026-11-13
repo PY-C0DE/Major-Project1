@@ -22,6 +22,7 @@ import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { RealTimeNewsPulse } from '../components/RealTimeNewsPulse';
 import { ConvertedPrice } from '../components/ConvertedPrice';
+import { MarketStatusBadge } from '../components/MarketStatusBadge';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -167,12 +168,15 @@ export const WatchlistPage: React.FC<Props> = ({ onSelectTicker }) => {
                   return (
                     <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors">
                       <td className="py-3 px-4">
-                        <button
-                          onClick={() => onSelectTicker(item.ticker)}
-                          className="text-left font-sans font-bold text-slate-900 dark:text-white hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors cursor-pointer block"
-                        >
-                          {item.ticker}
-                        </button>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => onSelectTicker(item.ticker)}
+                            className="text-left font-sans font-bold text-slate-900 dark:text-white hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors cursor-pointer"
+                          >
+                            {item.ticker}
+                          </button>
+                          <MarketStatusBadge ticker={item.ticker} compact showTime={false} />
+                        </div>
                         <span className="text-[10px] text-slate-500 dark:text-slate-400 font-sans block truncate max-w-[140px]">
                           {item.companyName}
                         </span>

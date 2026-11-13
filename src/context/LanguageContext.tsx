@@ -93,6 +93,12 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
 
     // Stock Detail Page - Header & Actions
     'stock.today': 'Today',
+    'stock.market_open': 'Market Open',
+    'stock.market_closed': 'Market Closed',
+    'stock.open_short': 'Open',
+    'stock.closed_short': 'Closed',
+    'stock.pre_market': 'Pre-Market',
+    'stock.after_hours': 'After-Hours',
     'stock.quick_alert': 'Quick Alert',
     'stock.add_watchlist': 'Watchlist',
     'stock.add_portfolio': 'Add to Portfolio',
@@ -283,6 +289,12 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
 
     // Stock Detail Page - Header & Actions
     'stock.today': 'आज',
+    'stock.market_open': 'बाज़ार खुला है',
+    'stock.market_closed': 'बाज़ार बंद है',
+    'stock.open_short': 'खुला',
+    'stock.closed_short': 'बंद',
+    'stock.pre_market': 'प्री-मार्केट',
+    'stock.after_hours': 'आफ्टर-आवर्स',
     'stock.quick_alert': 'त्वरित अलर्ट',
     'stock.add_watchlist': 'वॉचलिस्ट',
     'stock.add_portfolio': 'पोर्टफोलियो में जोड़ें',
@@ -473,6 +485,12 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
 
     // Stock Detail Page - Header & Actions
     'stock.today': 'આજે',
+    'stock.market_open': 'બજાર ખુલ્લું છે',
+    'stock.market_closed': 'બજાર બંધ છે',
+    'stock.open_short': 'ખુલ્લું',
+    'stock.closed_short': 'બંધ',
+    'stock.pre_market': 'પ્રી-માર્કેટ',
+    'stock.after_hours': 'આફ્ટર-અવર્સ',
     'stock.quick_alert': 'ઝડપી ચેતવણી',
     'stock.add_watchlist': 'વોચલિસ્ટ',
     'stock.add_portfolio': 'પોર્ટફોલિયોમાં ઉમેરો',
@@ -663,6 +681,12 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
 
     // Stock Detail Page - Header & Actions
     'stock.today': 'Hoy',
+    'stock.market_open': 'Mercado Abierto',
+    'stock.market_closed': 'Mercado Cerrado',
+    'stock.open_short': 'Abierto',
+    'stock.closed_short': 'Cerrado',
+    'stock.pre_market': 'Pre-Apertura',
+    'stock.after_hours': 'Fuera de Horario',
     'stock.quick_alert': 'Alerta Rápida',
     'stock.add_watchlist': 'Seguimiento',
     'stock.add_portfolio': 'Añadir al Portafolio',
@@ -851,6 +875,12 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'action.try_demo': 'Tester la démo',
 
     'stock.today': "Aujourd'hui",
+    'stock.market_open': 'Marché Ouvert',
+    'stock.market_closed': 'Marché Fermé',
+    'stock.open_short': 'Ouvert',
+    'stock.closed_short': 'Fermé',
+    'stock.pre_market': 'Pré-Ouverture',
+    'stock.after_hours': 'Après-Bourse',
     'stock.quick_alert': 'Alerte rapide',
     'stock.add_watchlist': 'Liste de suivi',
     'stock.add_portfolio': 'Ajouter au portefeuille',
@@ -1028,6 +1058,12 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'action.try_demo': 'Demo testen',
 
     'stock.today': 'Heute',
+    'stock.market_open': 'Markt Geöffnet',
+    'stock.market_closed': 'Markt Geschlossen',
+    'stock.open_short': 'Offen',
+    'stock.closed_short': 'Geschlossen',
+    'stock.pre_market': 'Vorbörslich',
+    'stock.after_hours': 'Nachbörslich',
     'stock.quick_alert': 'Schnellalarm',
     'stock.add_watchlist': 'Watchlist',
     'stock.add_portfolio': 'Zum Portfolio',
@@ -1205,6 +1241,12 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'action.try_demo': 'デモを体験',
 
     'stock.today': '本日',
+    'stock.market_open': '市場開場中',
+    'stock.market_closed': '市場休場中',
+    'stock.open_short': '開場中',
+    'stock.closed_short': '休場',
+    'stock.pre_market': 'プレマーケット',
+    'stock.after_hours': '時間外取引',
     'stock.quick_alert': 'クイックアラート',
     'stock.add_watchlist': 'ウォッチリスト',
     'stock.add_portfolio': 'ポートフォリオに追加',
@@ -1382,6 +1424,12 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'action.try_demo': '体验演示',
 
     'stock.today': '今日',
+    'stock.market_open': '开盘中',
+    'stock.market_closed': '已休市',
+    'stock.open_short': '开盘',
+    'stock.closed_short': '休市',
+    'stock.pre_market': '盘前交易',
+    'stock.after_hours': '盘后交易',
     'stock.quick_alert': '快速预警',
     'stock.add_watchlist': '加入自选',
     'stock.add_portfolio': '加入组合',

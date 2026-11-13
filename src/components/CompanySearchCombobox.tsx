@@ -10,6 +10,7 @@ import { Search, X, Loader2, TrendingUp, TrendingDown, Building2, Globe } from '
 import { api } from '../services/api';
 import { StockSearchResult } from '../types';
 import { ConvertedPrice } from './ConvertedPrice';
+import { MarketStatusBadge } from './MarketStatusBadge';
 
 interface Props {
   onSelect: (item: StockSearchResult) => void;
@@ -283,6 +284,7 @@ export const CompanySearchCombobox: React.FC<Props> = ({
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                         <span>{item.exchange}</span>
+                        <MarketStatusBadge ticker={item.ticker} exchange={item.exchange} compact showTime={false} />
                         {item.sector && (
                           <>
                             <span>·</span>

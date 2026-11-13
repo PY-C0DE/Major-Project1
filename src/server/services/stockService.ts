@@ -8,7 +8,15 @@ import { StockQuote, HistoricalBar, StockSearchResult, MarketIndexItem, QuickWat
 import { PriceBar, computeAllIndicators, ComputedBar } from '../math/indicators';
 
 import { TICKER_CATALOG, TickerMeta } from '../../shared/tickerCatalog';
+import {
+  MACRO_INDEX_CATALOG,
+  MacroIndexConfig,
+  MacroMarketId,
+  DEFAULT_MARKET_IDS,
+  resolveIndicesForMarkets
+} from '../../shared/macroMarkets';
 import { getCurrencySymbol, inferCurrencyFromTicker, inferExchangeFromTicker } from '../../utils/currency';
+import { getExchangeMarketStatus } from '../../utils/marketStatus';
 export { TICKER_CATALOG };
 export type { TickerMeta };
 
@@ -380,11 +388,12 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
     return cached.data;
   }
 
-  const meta: TickerMeta = TICKER_CATALOG.find(t => t.ticker === ticker) || {
+  const catalogMeta = TICKER_CATALOG.find(t => t.ticker === ticker);
+  const meta: TickerMeta = catalogMeta || {
     ticker,
     name: ticker,
-    exchange: ticker.endsWith('.NS') ? 'NSE' : ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 'KRX' : ticker.endsWith('.T') ? 'TSE' : 'NASDAQ',
-    currency: ticker.endsWith('.NS') ? 'INR' : ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 'KRW' : ticker.endsWith('.T') ? 'JPY' : 'USD',
+    exchange: inferExchangeFromTicker(ticker),
+    currency: inferCurrencyFromTicker(ticker),
     basePrice: ticker.endsWith('.KS') ? 56000.0 : 150.0,
     pe: 24.0,
     marketCap: 10000000000,
@@ -409,6 +418,14 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
         const change = currentPrice - prevClose;
         const changePercent = (change / (prevClose || 1)) * 100;
 
+        const rawExch = catalogMeta?.exchange || metaInfo.exchangeName || meta.exchange;
+        const statusMeta = getExchangeMarketStatus({
+          ticker,
+          exchange: rawExch,
+          exchangeTimezoneName: metaInfo.exchangeTimezoneName
+        });
+        const periods = metaInfo.currentTradingPeriod;
+
         const quote: StockQuote = {
           ticker,
           name: metaInfo.shortName || metaInfo.longName || meta.name,
@@ -425,9 +442,19 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
           pe: meta.pe,
           marketCap: meta.marketCap,
           currency: metaInfo.currency || meta.currency,
-          exchange: metaInfo.exchangeName || meta.exchange,
+          exchange: statusMeta.exchangeLabel,
           lastUpdated: new Date().toISOString(),
-          isLive: true
+          isLive: true,
+          exchangeTimezoneName: metaInfo.exchangeTimezoneName || statusMeta.timezone,
+          marketPeriod: periods?.regular ? {
+            regularStart: periods.regular.start,
+            regularEnd: periods.regular.end,
+            preStart: periods.pre?.start,
+            preEnd: periods.pre?.end,
+            postStart: periods.post?.start,
+            postEnd: periods.post?.end,
+            tzShort: periods.regular.timezone || statusMeta.tzAbbr
+          } : undefined
         };
 
         quoteCache.set(ticker, { data: quote, timestamp: Date.now() });
@@ -585,34 +612,51 @@ export async function getHistoricalData(tickerOrName: string, days = 250): Promi
   return computed;
 }
 
-interface IndexConfig {
-  name: string;
-  symbol: string;
-  region: string;
-  fallbackPrice: number;
-  fallbackChange: number;
-  fallbackPct: number;
-}
-
-const INDEX_CONFIGS: IndexConfig[] = [
-  { name: 'NIFTY 50', symbol: '^NSEI', region: 'NSE · IND', fallbackPrice: 24850.30, fallbackChange: 142.15, fallbackPct: 0.58 },
-  { name: 'SENSEX', symbol: '^BSESN', region: 'BSE · IND', fallbackPrice: 81420.10, fallbackChange: 415.80, fallbackPct: 0.51 },
-  { name: 'S&P 500', symbol: '^GSPC', region: 'NYSE · US', fallbackPrice: 5780.20, fallbackChange: 32.40, fallbackPct: 0.56 },
-  { name: 'NASDAQ 100', symbol: '^NDX', region: 'NDQ · US', fallbackPrice: 20110.85, fallbackChange: 164.20, fallbackPct: 0.82 },
-  { name: 'INDIA VIX', symbol: '^INDIAVIX', region: 'VOLATILITY', fallbackPrice: 12.45, fallbackChange: -0.35, fallbackPct: -2.73 }
-];
-
-let cachedIndices: { timestamp: number; data: MarketIndexItem[] } | null = null;
+const indexSymbolCache = new Map<string, { timestamp: number; data: MarketIndexItem }>();
 const INDICES_CACHE_TTL = 45 * 1000;
 
-export async function getMarketIndices(): Promise<MarketIndexItem[]> {
+function buildFallbackIndex(cfg: MacroIndexConfig): MarketIndexItem {
+  const isUp = cfg.fallbackChange >= 0;
+  return {
+    name: cfg.name,
+    symbol: cfg.symbol,
+    region: cfg.region,
+    val: cfg.fallbackPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    change: `${isUp ? '+' : ''}${cfg.fallbackChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
+    up: isUp,
+    price: cfg.fallbackPrice,
+    changeValue: cfg.fallbackChange
+  };
+}
+
+export async function getMarketIndices(options?: {
+  markets?: string[];
+  symbols?: string[];
+}): Promise<MarketIndexItem[]> {
   const now = Date.now();
-  if (cachedIndices && now - cachedIndices.timestamp < INDICES_CACHE_TTL) {
-    return cachedIndices.data;
+
+  let targetConfigs: MacroIndexConfig[];
+  if (options?.symbols && options.symbols.length > 0) {
+    const symSet = options.symbols.map((s) => s.trim().toUpperCase());
+    targetConfigs = MACRO_INDEX_CATALOG.filter((c) => symSet.includes(c.symbol.toUpperCase()));
+    if (targetConfigs.length === 0) {
+      targetConfigs = resolveIndicesForMarkets(DEFAULT_MARKET_IDS);
+    }
+  } else if (options?.markets && options.markets.length > 0) {
+    const marketIds = options.markets.map((m) => m.trim().toUpperCase()) as MacroMarketId[];
+    targetConfigs = resolveIndicesForMarkets(marketIds);
+  } else {
+    targetConfigs = resolveIndicesForMarkets(DEFAULT_MARKET_IDS);
   }
 
-  const results = await Promise.allSettled(
-    INDEX_CONFIGS.map(async (cfg) => {
+  const results = await Promise.all(
+    targetConfigs.map(async (cfg) => {
+      const cached = indexSymbolCache.get(cfg.symbol);
+      if (cached && now - cached.timestamp < INDICES_CACHE_TTL) {
+        return cached.data;
+      }
+
       try {
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cfg.symbol)}?interval=1d&range=1d`;
         const res = await fetch(url, {
@@ -629,7 +673,7 @@ export async function getMarketIndices(): Promise<MarketIndexItem[]> {
             const pct = prev > 0 ? (diff / prev) * 100 : 0;
             const isUp = diff >= 0;
 
-            return {
+            const item: MarketIndexItem = {
               name: cfg.name,
               symbol: cfg.symbol,
               region: cfg.region,
@@ -639,47 +683,21 @@ export async function getMarketIndices(): Promise<MarketIndexItem[]> {
               up: isUp,
               price: Number(price.toFixed(2)),
               changeValue: Number(diff.toFixed(2))
-            } as MarketIndexItem;
+            };
+            indexSymbolCache.set(cfg.symbol, { timestamp: Date.now(), data: item });
+            return item;
           }
         }
       } catch {
         // network fallback below
       }
 
-      const isUp = cfg.fallbackChange >= 0;
-      return {
-        name: cfg.name,
-        symbol: cfg.symbol,
-        region: cfg.region,
-        val: cfg.fallbackPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        change: `${isUp ? '+' : ''}${cfg.fallbackChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-        pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
-        up: isUp,
-        price: cfg.fallbackPrice,
-        changeValue: cfg.fallbackChange
-      } as MarketIndexItem;
+      if (cached) return cached.data;
+      return buildFallbackIndex(cfg);
     })
   );
 
-  const items = results.map((r, i) => {
-    if (r.status === 'fulfilled') return r.value;
-    const cfg = INDEX_CONFIGS[i];
-    const isUp = cfg.fallbackChange >= 0;
-    return {
-      name: cfg.name,
-      symbol: cfg.symbol,
-      region: cfg.region,
-      val: cfg.fallbackPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      change: `${isUp ? '+' : ''}${cfg.fallbackChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
-      up: isUp,
-      price: cfg.fallbackPrice,
-      changeValue: cfg.fallbackChange
-    };
-  });
-
-  cachedIndices = { timestamp: now, data: items };
-  return items;
+  return results;
 }
 
 const QUICK_WATCH_DEFS = [

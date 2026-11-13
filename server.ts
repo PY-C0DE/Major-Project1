@@ -373,9 +373,15 @@ app.get('/api/stocks/search', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/markets/indices', async (_req: Request, res: Response) => {
+app.get('/api/markets/indices', async (req: Request, res: Response) => {
   try {
-    const indices = await getMarketIndices();
+    const rawMarkets = typeof req.query.markets === 'string' && req.query.markets.trim()
+      ? req.query.markets.split(',').filter(Boolean)
+      : undefined;
+    const rawSymbols = typeof req.query.symbols === 'string' && req.query.symbols.trim()
+      ? req.query.symbols.split(',').filter(Boolean)
+      : undefined;
+    const indices = await getMarketIndices({ markets: rawMarkets, symbols: rawSymbols });
     return res.json(indices);
   } catch (error: any) {
     console.error('Error fetching market indices:', error);

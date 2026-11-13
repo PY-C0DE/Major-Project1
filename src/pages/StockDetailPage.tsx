@@ -50,6 +50,7 @@ import { SeasonalityAnalysis } from '../components/SeasonalityAnalysis';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { ConvertedPrice } from '../components/ConvertedPrice';
+import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { getCurrencySymbol, formatCurrencyAmount, inferExchangeFromTicker, inferCurrencyFromTicker } from '../utils/currency';
 
 interface Props {
@@ -305,6 +306,12 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-mono">
               {quote?.exchange || inferExchangeFromTicker(ticker)} · {effectiveCurrency}
             </span>
+            <MarketStatusBadge
+              ticker={ticker}
+              exchange={quote?.exchange}
+              exchangeTimezoneName={quote?.exchangeTimezoneName}
+              marketPeriod={quote?.marketPeriod}
+            />
             <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">{quote?.name}</span>
             <RegimeIndicator
               regime={regime}

@@ -21,7 +21,11 @@ import {
   Clock,
   Sparkles,
   RefreshCw,
-  Cpu
+  Cpu,
+  Globe2,
+  MapPin,
+  Check,
+  ChevronDown
 } from 'lucide-react';
 import { api } from '../services/api';
 import {
@@ -51,21 +55,46 @@ import { DailyMarketDigest } from '../components/DailyMarketDigest';
 import { ConvertedPrice } from '../components/ConvertedPrice';
 import { EarningsCalendar } from '../components/EarningsCalendar';
 import { RegimeIndicator } from '../components/RegimeIndicator';
+import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { useAuth } from '../context/AuthContext';
 import { getCurrencySymbol, inferExchangeFromTicker } from '../utils/currency';
+import {
+  MACRO_MARKET_GROUPS,
+  MacroMarketId,
+  detectMarketsFromTimezone,
+  resolveIndicesForMarkets
+} from '../shared/macroMarkets';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
   onNavigate: (tab: string) => void;
 }
 
-const defaultIndices: MarketIndexItem[] = [
-  { name: 'NIFTY 50', symbol: '^NSEI', region: 'NSE · IND', val: '24,850.30', change: '+142.15', pct: '+0.58%', up: true, price: 24850.30, changeValue: 142.15 },
-  { name: 'SENSEX', symbol: '^BSESN', region: 'BSE · IND', val: '81,420.10', change: '+415.80', pct: '+0.51%', up: true, price: 81420.10, changeValue: 415.80 },
-  { name: 'S&P 500', symbol: '^GSPC', region: 'NYSE · US', val: '5,780.20', change: '+32.40', pct: '+0.56%', up: true, price: 5780.20, changeValue: 32.40 },
-  { name: 'NASDAQ 100', symbol: '^NDX', region: 'NDQ · US', val: '20,110.85', change: '+164.20', pct: '+0.82%', up: true, price: 20110.85, changeValue: 164.20 },
-  { name: 'INDIA VIX', symbol: '^INDIAVIX', region: 'VOLATILITY', val: '12.45', change: '-0.35', pct: '-2.73%', up: false, price: 12.45, changeValue: -0.35 }
-];
+const MACRO_PREFS_STORAGE_KEY = 'alphaquant_macro_markets_pref_v1';
+
+interface MacroMarketsPref {
+  mode: 'auto' | 'custom';
+  marketIds: MacroMarketId[];
+}
+
+function getInitialMacroPrefs(): MacroMarketsPref {
+  try {
+    const raw = typeof window !== 'undefined' ? window.localStorage.getItem(MACRO_PREFS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (
+        (parsed?.mode === 'auto' || parsed?.mode === 'custom') &&
+        Array.isArray(parsed?.marketIds) &&
+        parsed.marketIds.length > 0
+      ) {
+        return parsed;
+      }
+    }
+  } catch {}
+  const tz = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : '';
+  const detected = detectMarketsFromTimezone(tz);
+  return { mode: 'auto', marketIds: detected.marketIds };
+}
 
 const defaultQuickWatch: QuickWatchItem[] = [
   { ticker: 'RELIANCE.NS', name: 'Reliance Ind.', price: '₹2,980.50', priceNum: 2980.50, chg: '+1.25%', chgPct: 1.25, up: true, sector: 'Energy & Tech', currency: 'INR' },
@@ -90,14 +119,51 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
   const [marketIndices, setMarketIndices] = useState<MarketIndexItem[]>([]);
   const [quickWatchItems, setQuickWatchItems] = useState<QuickWatchItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [indicesLoading, setIndicesLoading] = useState(false);
   const [streamView, setStreamView] = useState<'pulse' | 'wire'>('pulse');
+  const [macroPrefs, setMacroPrefs] = useState<MacroMarketsPref>(() => getInitialMacroPrefs());
+  const [showMarketPicker, setShowMarketPicker] = useState(false);
+
+  const detectedGeo = detectMarketsFromTimezone(
+    typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : ''
+  );
+  const effectiveMarketIds: MacroMarketId[] =
+    macroPrefs.mode === 'auto' ? detectedGeo.marketIds : macroPrefs.marketIds;
+  const effectiveMarketKey = effectiveMarketIds.join(',');
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(MACRO_PREFS_STORAGE_KEY, JSON.stringify(macroPrefs));
+    } catch {}
+  }, [macroPrefs]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadSelectedMarkets() {
+      setIndicesLoading(true);
+      try {
+        const idxs = await api.getMarketIndices({ markets: effectiveMarketIds });
+        if (!cancelled && idxs && idxs.length > 0) {
+          setMarketIndices(idxs);
+        }
+      } catch {
+        // fallback handled via resolveIndicesForMarkets below
+      } finally {
+        if (!cancelled) setIndicesLoading(false);
+      }
+    }
+    loadSelectedMarkets();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveMarketKey]);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
         const userConf = user?.confidenceLevel ? user.confidenceLevel / 100 : 0.90;
-        const [q, h, p, r, n, s, d, port, acc, idxs, qw] = await Promise.all([
+        const [q, h, p, r, n, s, d, port, acc, qw] = await Promise.all([
           api.getQuote(selectedTicker).catch(err => {
             console.error('Quote fetch error:', err);
             return null;
@@ -110,7 +176,6 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
           api.getConceptDrift(selectedTicker).catch(() => null),
           api.getPortfolio().catch(() => []),
           api.getProjectWideAccuracy().catch(() => null),
-          api.getMarketIndices().catch(() => []),
           api.getQuickWatch().catch(() => [])
         ]);
 
@@ -123,7 +188,6 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
         if (d) setDrift(d);
         setPortfolio(port || []);
         if (acc) setAccuracy(acc);
-        if (idxs && idxs.length > 0) setMarketIndices(idxs);
         if (qw && qw.length > 0) setQuickWatchItems(qw);
       } catch (e) {
         console.error('Error loading dashboard:', e);
@@ -134,9 +198,36 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
     loadData();
   }, [selectedTicker]);
 
-  // Active indices & quick watch with fallbacks
-  const activeIndices = marketIndices.length > 0 ? marketIndices : defaultIndices;
+  // Fallback indices shaped dynamically for the currently selected markets
+  const fallbackIndices: MarketIndexItem[] = resolveIndicesForMarkets(effectiveMarketIds).map((cfg) => {
+    const isUp = cfg.fallbackChange >= 0;
+    return {
+      name: cfg.name,
+      symbol: cfg.symbol,
+      region: cfg.region,
+      val: cfg.fallbackPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      change: `${isUp ? '+' : ''}${cfg.fallbackChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
+      up: isUp,
+      price: cfg.fallbackPrice,
+      changeValue: cfg.fallbackChange
+    };
+  });
+
+  const activeIndices = marketIndices.length > 0 ? marketIndices : fallbackIndices;
   const activeQuickWatch = quickWatchItems.length > 0 ? quickWatchItems : defaultQuickWatch;
+
+  const toggleMarketSelection = (id: MacroMarketId) => {
+    setMacroPrefs((prev) => {
+      const baseList = prev.mode === 'auto' ? detectedGeo.marketIds : prev.marketIds;
+      const exists = baseList.includes(id);
+      if (exists && baseList.length <= 1) {
+        return { mode: 'custom', marketIds: baseList };
+      }
+      const next = exists ? baseList.filter((m) => m !== id) : [...baseList, id];
+      return { mode: 'custom', marketIds: next };
+    });
+  };
 
   // Portfolio calculations
   const totalInvested = portfolio.reduce((acc, h) => acc + h.totalInvested, 0);
@@ -200,29 +291,138 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
       {/* 1. Global Market Indices Ticker Ribbon */}
       <div id="tour-macro-tape" className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3 sm:p-4 md:p-5 lg:p-6 shadow-xs hover:shadow-sm transition-all">
         <div className="flex flex-wrap items-center justify-between pb-2.5 mb-2.5 sm:mb-3.5 border-b border-slate-100 dark:border-slate-800/80 gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-pulse shadow-xs shadow-cyan-500/50" />
             <span className="text-xs sm:text-sm md:text-base font-mono uppercase tracking-wider text-slate-800 dark:text-slate-200 font-bold">
               Live Macro Market Tape
             </span>
             <span className="text-[10px] sm:text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/50 hidden xs:inline-flex items-center gap-1">
-              Live Stream
+              {indicesLoading ? 'Updating...' : 'Live Stream'}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <RegimeIndicator regime={regime} compact />
-            <span className="text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400 hidden md:inline">
-              Real-Time Inter-Market Feed (NSE · BSE · US)
+            <span className="text-[10px] sm:text-xs font-mono text-slate-500 dark:text-slate-400 hidden lg:inline">
+              {macroPrefs.mode === 'auto'
+                ? `Auto (${detectedGeo.locationLabel})`
+                : effectiveMarketIds
+                    .map((id) => MACRO_MARKET_GROUPS.find((g) => g.id === id)?.shortLabel || id)
+                    .join(' · ')}
             </span>
+            <button
+              type="button"
+              onClick={() => setShowMarketPicker((prev) => !prev)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-semibold border transition-colors cursor-pointer ${
+                showMarketPicker
+                  ? 'bg-cyan-500 text-slate-950 border-cyan-500 shadow-xs'
+                  : 'bg-slate-50 hover:bg-cyan-50 text-slate-700 dark:bg-slate-800/90 dark:hover:bg-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <Globe2 className="w-3.5 h-3.5" />
+              <span>Markets ({effectiveMarketIds.length})</span>
+              <ChevronDown className={`w-3 h-3 transition-transform ${showMarketPicker ? 'rotate-180' : ''}`} />
+            </button>
           </div>
         </div>
+
+        {/* Selectable Global Markets Panel */}
+        {showMarketPicker && (
+          <div className="mb-3.5 p-3 sm:p-3.5 rounded-xl bg-slate-50/90 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMacroPrefs({ mode: 'auto', marketIds: detectedGeo.marketIds })
+                  }
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-semibold border transition-colors cursor-pointer ${
+                    macroPrefs.mode === 'auto'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-700'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-cyan-300 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700'
+                  }`}
+                >
+                  <MapPin className="w-3 h-3" />
+                  <span>Auto by Location ({detectedGeo.locationLabel})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMacroPrefs({ mode: 'custom', marketIds: ['JP', 'US'] })}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-white hover:bg-cyan-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer transition-colors"
+                >
+                  Japan & US
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMacroPrefs({ mode: 'custom', marketIds: ['IN', 'US'] })}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-white hover:bg-cyan-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer transition-colors"
+                >
+                  India & US
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMacroPrefs({ mode: 'custom', marketIds: ['EU', 'US'] })}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-white hover:bg-cyan-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer transition-colors"
+                >
+                  Europe & US
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMacroPrefs({ mode: 'custom', marketIds: ['JP', 'KR', 'CN', 'APAC'] })}
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-white hover:bg-cyan-50 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-pointer transition-colors"
+                >
+                  Asia-Pacific
+                </button>
+              </div>
+              <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                Select 1 or more global markets
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {MACRO_MARKET_GROUPS.map((group) => {
+                const isSelected = effectiveMarketIds.includes(group.id);
+                return (
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => toggleMarketSelection(group.id)}
+                    className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-start justify-between gap-2 ${
+                      isSelected
+                        ? 'bg-cyan-50/90 dark:bg-cyan-950/60 border-cyan-400 dark:border-cyan-600 text-slate-900 dark:text-white'
+                        : 'bg-white dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-bold font-mono truncate">{group.label}</div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {group.description}
+                      </div>
+                    </div>
+                    <span
+                      className={`w-4 h-4 rounded flex items-center justify-center shrink-0 mt-0.5 border ${
+                        isSelected
+                          ? 'bg-cyan-500 border-cyan-500 text-slate-950'
+                          : 'border-slate-300 dark:border-slate-600'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Screen-Adaptive Grid: Dynamic sizes preventing name truncation */}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2.5 sm:gap-3 md:gap-3.5 lg:gap-4">
           {activeIndices.map(idx => (
             <div
               key={idx.name}
-              className="p-2.5 sm:p-3 md:p-3.5 lg:p-4 rounded-xl sm:rounded-2xl bg-white hover:bg-cyan-50/30 dark:bg-slate-950/70 dark:hover:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/90 hover:border-cyan-400/90 dark:hover:border-cyan-600/70 transition-all flex flex-col justify-between shadow-xs hover:shadow-md group min-h-[76px] sm:min-h-[86px] md:min-h-[96px] last:col-span-2 sm:last:col-span-1"
+              className={`p-2.5 sm:p-3 md:p-3.5 lg:p-4 rounded-xl sm:rounded-2xl bg-white hover:bg-cyan-50/30 dark:bg-slate-950/70 dark:hover:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800/90 hover:border-cyan-400/90 dark:hover:border-cyan-600/70 transition-all flex flex-col justify-between shadow-xs hover:shadow-md group min-h-[76px] sm:min-h-[86px] md:min-h-[96px] ${
+                activeIndices.length % 2 === 1 ? 'last:col-span-2 sm:last:col-span-1' : ''
+              }`}
             >
               {/* Top row: Name & Region Badge */}
               <div className="flex items-center justify-between gap-1">
@@ -489,8 +689,11 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
               <div className="text-slate-950 dark:text-slate-100 font-black text-xs sm:text-sm md:text-base lg:text-lg mt-1 tabular-nums font-mono">
                 {item.price}
               </div>
-              <div className="text-[10px] sm:text-[11px] md:text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                {item.name}
+              <div className="flex items-center justify-between gap-1.5 mt-1 min-w-0">
+                <span className="text-[10px] sm:text-[11px] md:text-xs text-slate-500 dark:text-slate-400 truncate">
+                  {item.name}
+                </span>
+                <MarketStatusBadge ticker={item.ticker} compact showTime={false} />
               </div>
             </button>
           ))}
@@ -517,10 +720,12 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                 {/* Left Section: Live Stock Quote & Day Change */}
                 <div className="lg:col-span-7 space-y-2.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-mono text-[10px] font-bold">
-                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
-                      LIVE QUOTE
-                    </span>
+                    <MarketStatusBadge
+                      ticker={selectedTicker}
+                      exchange={quote?.exchange}
+                      exchangeTimezoneName={quote?.exchangeTimezoneName}
+                      marketPeriod={quote?.marketPeriod}
+                    />
                     <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
                       {quote?.exchange || inferExchangeFromTicker(selectedTicker)} · {selectedTicker}
                     </span>

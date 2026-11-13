@@ -265,8 +265,16 @@ export const api = {
     return res.json();
   },
 
-  async getMarketIndices(): Promise<MarketIndexItem[]> {
-    const res = await fetch(`${API_BASE}/markets/indices`);
+  async getMarketIndices(options?: { markets?: string[]; symbols?: string[] }): Promise<MarketIndexItem[]> {
+    const params = new URLSearchParams();
+    if (options?.markets && options.markets.length > 0) {
+      params.set('markets', options.markets.join(','));
+    }
+    if (options?.symbols && options.symbols.length > 0) {
+      params.set('symbols', options.symbols.join(','));
+    }
+    const qs = params.toString();
+    const res = await fetch(`${API_BASE}/markets/indices${qs ? `?${qs}` : ''}`);
     if (!res.ok) throw new Error('Failed to fetch market indices');
     return res.json();
   },

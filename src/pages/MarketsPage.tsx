@@ -26,6 +26,7 @@ import { StockQuote, CorrelationMatrixData } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { OptionsVolatilitySurface } from '../components/OptionsVolatilitySurface';
 import { ConvertedPrice } from '../components/ConvertedPrice';
+import { MarketStatusBadge } from '../components/MarketStatusBadge';
 import { useTheme } from '../context/ThemeContext';
 
 interface Props {
@@ -244,7 +245,17 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-sans text-xs">
-                          {t.exchange}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{t.exchange}</span>
+                            <MarketStatusBadge
+                              ticker={t.ticker}
+                              exchange={quote?.exchange || t.exchange}
+                              exchangeTimezoneName={quote?.exchangeTimezoneName}
+                              marketPeriod={quote?.marketPeriod}
+                              compact
+                              showTime={false}
+                            />
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-bold tabular-nums">
                           <ConvertedPrice amount={price} currency={t.currency} ticker={t.ticker} />
