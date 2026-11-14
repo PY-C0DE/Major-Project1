@@ -125,16 +125,16 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.visible_of': 'visible',
 
     // Analytical Modules Grid Buttons
-    'stock.mod_regime_title': 'HMM Market Regime',
-    'stock.mod_regime_sub': '2-State Latent Model',
+    'stock.mod_regime_title': 'Market Regime Classifier',
+    'stock.mod_regime_sub': 'Rule-Based Trend & Vol',
     'stock.mod_decision_title': 'Decision Support & Signals',
     'stock.mod_decision_sub': 'Target, Stop Loss & Signals',
     'stock.mod_audit_title': 'Previous-Day Stats Audit',
     'stock.mod_audit_sub': 'Forecast Accuracy & Bounds',
     'stock.mod_events_title': 'Classified Events',
     'stock.mod_events_sub': 'Catalysts & Price Impact',
-    'stock.mod_sentiment_title': 'News & FinBERT Sentiment',
-    'stock.mod_sentiment_sub': 'NLP Sentiment Scoring',
+    'stock.mod_sentiment_title': 'News & Keyword Sentiment',
+    'stock.mod_sentiment_sub': 'Lexicon & Credibility Scoring',
     'stock.mod_drift_title': 'Concept Drift Monitor',
     'stock.mod_drift_sub': 'KS 2-Sample Non-Stationarity',
     'stock.mod_surface_title': '3D Vol Surface & Smile',
@@ -143,7 +143,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_seasonality_sub': 'Monthly Return Heatmap',
 
     // Revealed Modules Titles
-    'stock.section_regime': 'HMM Market Regime Detection & Latent State Dynamics',
+    'stock.section_regime': 'Rule-Based Market Regime Classification & Volatility State',
     'stock.section_decision': 'Algorithmic Decision Support & Position Signals',
     'stock.section_audit': 'Previous-Day Stats Audit & Forecast Accuracy Ledger',
     'stock.section_events': 'Classified Financial Events & Corporate Catalysts',
@@ -210,7 +210,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'regime.bearish_low_vol': 'Bearish / Low Volatility',
     'regime.bearish_high_vol': 'Bearish / High Volatility',
     'regime.confidence': 'Confidence',
-    'regime.latent_state': 'Latent Markov State',
+    'regime.latent_state': 'Rule-Based Regime State',
 
     // Decision Signals
     'decision.strong_buy': 'STRONG BUY',
@@ -321,8 +321,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.visible_of': 'दृश्यमान',
 
     // Grid Buttons
-    'stock.mod_regime_title': 'एचएमएम बाज़ार व्यवस्था',
-    'stock.mod_regime_sub': '2-अवस्था लेटेंट मॉडल',
+    'stock.mod_regime_title': 'नियम-आधारित बाज़ार व्यवस्था',
+    'stock.mod_regime_sub': 'ट्रेंड व अस्थिरता वर्गीकरण',
     'stock.mod_decision_title': 'निर्णय समर्थन और संकेत',
     'stock.mod_decision_sub': 'टारगेट, स्टॉप लॉस व सिग्नल्स',
     'stock.mod_audit_title': 'पिछले दिन का सांख्यिकी ऑडिट',
@@ -330,7 +330,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_events_title': 'वर्गीकृत घटनाएँ',
     'stock.mod_events_sub': 'कॉर्पोरेट उत्प्रेरक व मूल्य प्रभाव',
     'stock.mod_sentiment_title': 'समाचार और भावनाएं',
-    'stock.mod_sentiment_sub': 'FinBERT एनएलपी भावना स्कोरिंग',
+    'stock.mod_sentiment_sub': 'कीवर्ड शब्दकोश व विश्वसनीयता स्कोरिंग',
     'stock.mod_drift_title': 'कॉन्सेप्ट ड्रिफ्ट मॉनिटर',
     'stock.mod_drift_sub': 'केएस 2-सैंपल नॉन-स्टेशनरिटी',
     'stock.mod_surface_title': '3D अस्थिरता सतह',
@@ -339,7 +339,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_seasonality_sub': 'मासिक रिटर्न हीटमैप',
 
     // Revealed Modules Titles
-    'stock.section_regime': 'एचएमएम बाज़ार व्यवस्था पहचान व लेटेंट स्टेट गतिशीलता',
+    'stock.section_regime': 'नियम-आधारित बाज़ार व्यवस्था पहचान व अस्थिरता स्थिति',
     'stock.section_decision': 'एल्गोरिद्मिक निर्णय समर्थन और स्थिति संकेत',
     'stock.section_audit': 'पिछले दिन का सांख्यिकी ऑडिट और पूर्वानुमान बहीखाता',
     'stock.section_events': 'वर्गीकृत वित्तीय घटनाएँ और कॉर्पोरेट उत्प्रेरक',
@@ -406,7 +406,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'regime.bearish_low_vol': 'मंदी / कम अस्थिरता',
     'regime.bearish_high_vol': 'मंदी / उच्च अस्थिरता',
     'regime.confidence': 'विश्वास स्तर',
-    'regime.latent_state': 'लेटेंट मार्कोव अवस्था',
+    'regime.latent_state': 'नियम-आधारित व्यवस्था स्थिति',
 
     // Decision Signals
     'decision.strong_buy': 'मजबूत खरीद',
@@ -517,8 +517,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.visible_of': 'દૃશ્યમાન',
 
     // Grid Buttons
-    'stock.mod_regime_title': 'એચએમએમ માર્કેટ રેજીમ',
-    'stock.mod_regime_sub': '2-સ્ટેટ લેટેન્ટ મોડલ',
+    'stock.mod_regime_title': 'નિયમ-આધારિત માર્કેટ રેજીમ',
+    'stock.mod_regime_sub': 'ટ્રેન્ડ અને વોલેટિલિટી વર્ગીકરણ',
     'stock.mod_decision_title': 'નિર્ણય સપોર્ટ અને સિગ્નલ્સ',
     'stock.mod_decision_sub': 'ટાર્ગેટ, સ્ટોપ લોસ અને સિગ્નલ',
     'stock.mod_audit_title': 'ગત દિવસનું ઓડિટ',
@@ -526,7 +526,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_events_title': 'વર્ગીકૃત ઘટનાઓ',
     'stock.mod_events_sub': 'ઈવેન્ટ્સ અને ભાવ અસર',
     'stock.mod_sentiment_title': 'સમાચાર અને સેન્ટિમેન્ટ',
-    'stock.mod_sentiment_sub': 'FinBERT એનએલપી સેન્ટિમેન્ટ',
+    'stock.mod_sentiment_sub': 'કીવર્ડ લેક્સિકન અને વિશ્વસનીયતા સ્કોરિંગ',
     'stock.mod_drift_title': 'કન્સેપ્ટ ડ્રિફ્ટ મોનિટર',
     'stock.mod_drift_sub': 'KS 2-સેમ્પલ ટેસ્ટ',
     'stock.mod_surface_title': '3D વોલેટિલિટી સરફેસ',
@@ -535,7 +535,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_seasonality_sub': 'માસિક રિટર્ન હીટમેપ',
 
     // Revealed Modules Titles
-    'stock.section_regime': 'એચએમએમ માર્કેટ રેજીમ ડિટેક્શન',
+    'stock.section_regime': 'નિયમ-આધારિત માર્કેટ રેજીમ વર્ગીકરણ',
     'stock.section_decision': 'એલ્ગોરિધમિક નિર્ણય સપોર્ટ અને સિગ્નલ',
     'stock.section_audit': 'ગત સત્ર ઓડિટ અને ચોકસાઈ ખાતાવહી',
     'stock.section_events': 'વર્ગીકૃત નાણાકીય ઘટનાઓ',
@@ -602,7 +602,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'regime.bearish_low_vol': 'મંદી / ઓછી વોલેટિલિટી',
     'regime.bearish_high_vol': 'મંદી / ઊંચી વોલેટિલિટી',
     'regime.confidence': 'વિશ્વાસ સ્તર',
-    'regime.latent_state': 'લેટેન્ટ માર્કોવ સ્ટેટ',
+    'regime.latent_state': 'નિયમ-આધારિત રેજીમ સ્ટેટ',
 
     // Decision Signals
     'decision.strong_buy': 'મજબૂત ખરીદી',
@@ -713,8 +713,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.visible_of': 'visibles',
 
     // Grid Buttons
-    'stock.mod_regime_title': 'Régimen de Mercado HMM',
-    'stock.mod_regime_sub': 'Modelo Latente de 2 Estados',
+    'stock.mod_regime_title': 'Clasificador de Régimen',
+    'stock.mod_regime_sub': 'Reglas de Tendencia y Volatilidad',
     'stock.mod_decision_title': 'Soporte de Decisión y Señales',
     'stock.mod_decision_sub': 'Objetivos, Stop Loss y Señales',
     'stock.mod_audit_title': 'Auditoría del Día Anterior',
@@ -722,7 +722,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_events_title': 'Eventos Clasificados',
     'stock.mod_events_sub': 'Catalizadores e Impacto en Precio',
     'stock.mod_sentiment_title': 'Noticias y Sentimiento',
-    'stock.mod_sentiment_sub': 'Puntuación NLP con FinBERT',
+    'stock.mod_sentiment_sub': 'Léxico Financiero y Credibilidad',
     'stock.mod_drift_title': 'Monitor de Deriva Conceptual',
     'stock.mod_drift_sub': 'Prueba KS de No Estacionariedad',
     'stock.mod_surface_title': 'Superficie Vol 3D y Sonrisa',
@@ -731,7 +731,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_seasonality_sub': 'Mapa de Calor Mensual',
 
     // Revealed Modules Titles
-    'stock.section_regime': 'Detección de Régimen de Mercado HMM y Dinámica Latente',
+    'stock.section_regime': 'Clasificación de Régimen de Mercado por Reglas',
     'stock.section_decision': 'Soporte de Decisión Algorítmica y Señales de Posición',
     'stock.section_audit': 'Auditoría Estadística y Libro de Precisión de Pronósticos',
     'stock.section_events': 'Eventos Financieros Clasificados y Catalizadores Corporativos',
@@ -798,7 +798,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'regime.bearish_low_vol': 'Bajista / Baja Volatilidad',
     'regime.bearish_high_vol': 'Bajista / Alta Volatilidad',
     'regime.confidence': 'Nivel de Confianza',
-    'regime.latent_state': 'Estado Oculto de Markov',
+    'regime.latent_state': 'Estado de Régimen (Reglas)',
 
     // Decision Signals
     'decision.strong_buy': 'COMPRA FUERTE',
@@ -904,8 +904,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.modules_subtitle': 'Par défaut, seuls le graphique journalier, les statistiques et les prévisions sont affichés. Cliquez ci-dessous pour approfondir.',
     'stock.visible_of': 'visibles',
 
-    'stock.mod_regime_title': 'Régime de marché HMM',
-    'stock.mod_regime_sub': 'Modèle latent à 2 états',
+    'stock.mod_regime_title': 'Classifieur de régime',
+    'stock.mod_regime_sub': 'Règles Tendance & Volatilité',
     'stock.mod_decision_title': 'Aide à la décision et signaux',
     'stock.mod_decision_sub': 'Objectifs, stop-loss & signaux',
     'stock.mod_audit_title': 'Audit du jour précédent',
@@ -913,7 +913,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_events_title': 'Événements classifiés',
     'stock.mod_events_sub': 'Catalyseurs & impact sur le cours',
     'stock.mod_sentiment_title': 'Actualités & Sentiment',
-    'stock.mod_sentiment_sub': 'Score NLP FinBERT',
+    'stock.mod_sentiment_sub': 'Lexique financier & crédibilité',
     'stock.mod_drift_title': 'Dérive de concept (KS)',
     'stock.mod_drift_sub': 'Test KS de non-stationnarité',
     'stock.mod_surface_title': 'Surface de volatilité 3D',
@@ -921,7 +921,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_seasonality_title': 'Alpha de saisonnalité',
     'stock.mod_seasonality_sub': 'Carte thermique mensuelle',
 
-    'stock.section_regime': 'Détection du régime de marché HMM & dynamique d’états',
+    'stock.section_regime': 'Classification de régime de marché par règles',
     'stock.section_decision': 'Aide à la décision algorithmique & signaux de position',
     'stock.section_audit': 'Audit statistique de session & livre de précision',
     'stock.section_events': 'Événements financiers classifiés & catalyseurs',
@@ -984,7 +984,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'regime.bearish_low_vol': 'Baissier / Faible volatilité',
     'regime.bearish_high_vol': 'Baissier / Forte volatilité',
     'regime.confidence': 'Niveau de confiance',
-    'regime.latent_state': 'État markovien latent',
+    'regime.latent_state': 'État de régime (Règles)',
 
     'decision.strong_buy': 'ACHAT FORT',
     'decision.buy': 'ACHETER',
@@ -1087,8 +1087,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.modules_subtitle': 'Standardmäßig sind nur Tageskerzenchart, Statistiken und Vorhersagen sichtbar. Klicken Sie unten für Detailanalysen.',
     'stock.visible_of': 'sichtbar',
 
-    'stock.mod_regime_title': 'HMM-Marktregime',
-    'stock.mod_regime_sub': '2-Zustände-Latentmodell',
+    'stock.mod_regime_title': 'Marktregime-Klassifikator',
+    'stock.mod_regime_sub': 'Regelbasierter Trend & Vol',
     'stock.mod_decision_title': 'Entscheidungshilfe & Signale',
     'stock.mod_decision_sub': 'Kursziel, Stop-Loss & Signale',
     'stock.mod_audit_title': 'Audit des Vortages',
@@ -1096,7 +1096,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_events_title': 'Klassifizierte Ereignisse',
     'stock.mod_events_sub': 'Katalysatoren & Kurseffekt',
     'stock.mod_sentiment_title': 'Nachrichten & Sentiment',
-    'stock.mod_sentiment_sub': 'FinBERT-NLP-Sentimentanalyse',
+    'stock.mod_sentiment_sub': 'Schlüsselwort-Lexikon & Glaubwürdigkeit',
     'stock.mod_drift_title': 'Konzept-Drift-Monitor',
     'stock.mod_drift_sub': 'KS 2-Stichproben-Nichtstationarität',
     'stock.mod_surface_title': '3D-Volatilitätsoberfläche',
@@ -1104,7 +1104,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_seasonality_title': 'Saisonalitäts-Alpha',
     'stock.mod_seasonality_sub': 'Monatliche Rendite-Heatmap',
 
-    'stock.section_regime': 'HMM-Marktregime-Erkennung & Zustandstransitionen',
+    'stock.section_regime': 'Regelbasierte Marktregime-Klassifikation & Volatilitätszustand',
     'stock.section_decision': 'Algorithmische Entscheidungshilfe & Positionssignale',
     'stock.section_audit': 'Statistisches Sitzungsaudit & Genauigkeitsbuch',
     'stock.section_events': 'Klassifizierte Finanzereignisse & Unternehmenskatalysatoren',
@@ -1167,7 +1167,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'regime.bearish_low_vol': 'Bärisch / Geringe Volatilität',
     'regime.bearish_high_vol': 'Bärisch / Hohe Volatilität',
     'regime.confidence': 'Vertrauensniveau',
-    'regime.latent_state': 'Latenter Markov-Zustand',
+    'regime.latent_state': 'Regelbasierter Regime-Zustand',
 
     'decision.strong_buy': 'STARKER KAUF',
     'decision.buy': 'KAUFEN',
@@ -1270,8 +1270,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.modules_subtitle': '日足チャート・統計・予測のみが標準表示されます。高度な要因を確認するには各モジュールをクリックしてください。',
     'stock.visible_of': '件表示中',
 
-    'stock.mod_regime_title': 'HMM市場レジーム',
-    'stock.mod_regime_sub': '2状態潜在マルコフモデル',
+    'stock.mod_regime_title': '市場レジーム分類器',
+    'stock.mod_regime_sub': 'ルールベース（トレンド・変動）',
     'stock.mod_decision_title': '意思決定支援・シグナル',
     'stock.mod_decision_sub': '目標値、損切り、売買シグナル',
     'stock.mod_audit_title': '前日予測精度監査',
@@ -1279,7 +1279,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_events_title': '分類済み重要イベント',
     'stock.mod_events_sub': 'カタリストと想定価格インパクト',
     'stock.mod_sentiment_title': 'ニュース・感情分析',
-    'stock.mod_sentiment_sub': 'FinBERT 自然言語処理',
+    'stock.mod_sentiment_sub': 'キーワード金融辞書・信頼度評価',
     'stock.mod_drift_title': 'コンセプトドリフト監視',
     'stock.mod_drift_sub': 'KS非定常性検定',
     'stock.mod_surface_title': '3Dボラティリティ曲面',
@@ -1287,7 +1287,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_seasonality_title': 'アノマリー・季節性',
     'stock.mod_seasonality_sub': '月次リターンヒートマップ',
 
-    'stock.section_regime': 'HMM市場レジーム分類と潜在状態ダイナミクス',
+    'stock.section_regime': 'ルールベース市場レジーム分類とボラティリティ状態',
     'stock.section_decision': '定量的売買シグナル・ポジション管理',
     'stock.section_audit': '前セッション予測精度監査台帳',
     'stock.section_events': '分類済みカタリスト・構造的市場イベント',
@@ -1350,7 +1350,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'regime.bearish_low_vol': '弱気 / 低ボラティリティ',
     'regime.bearish_high_vol': '弱気 / 高ボラティリティ',
     'regime.confidence': '判定確信度',
-    'regime.latent_state': '潜在マルコフ状態',
+    'regime.latent_state': 'ルールベース・レジーム状態',
 
     'decision.strong_buy': '強力買い',
     'decision.buy': '買い',
@@ -1453,8 +1453,8 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.modules_subtitle': '默认仅显示日K线图、估值统计与共形预测。点击下方模块即可展开深度因子分析。',
     'stock.visible_of': '项已显示',
 
-    'stock.mod_regime_title': 'HMM市场体制',
-    'stock.mod_regime_sub': '2状态隐马尔可夫模型',
+    'stock.mod_regime_title': '市场体制分类器',
+    'stock.mod_regime_sub': '基于规则的趋势与波动率',
     'stock.mod_decision_title': '决策支持与交易信号',
     'stock.mod_decision_sub': '目标价、止损位与信号',
     'stock.mod_audit_title': '前一日预测审计',
@@ -1462,7 +1462,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_events_title': '结构化金融事件',
     'stock.mod_events_sub': '催化剂与预期价格影响',
     'stock.mod_sentiment_title': '新闻与情绪分析',
-    'stock.mod_sentiment_sub': 'FinBERT 自然语言量化评分',
+    'stock.mod_sentiment_sub': '金融关键词词典与可信度加权',
     'stock.mod_drift_title': '概念漂移监控',
     'stock.mod_drift_sub': 'KS双样本非平稳性检验',
     'stock.mod_surface_title': '3D波动率曲面与微笑',
@@ -1470,7 +1470,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'stock.mod_seasonality_title': '季节性日历Alpha',
     'stock.mod_seasonality_sub': '月度收益率热力图',
 
-    'stock.section_regime': 'HMM市场体制识别与潜在状态动态',
+    'stock.section_regime': '基于规则的市场体制分类与波动率状态',
     'stock.section_decision': '算法决策支持与仓位建议信号',
     'stock.section_audit': '前一时段统计审计与预测准确度台账',
     'stock.section_events': '结构化金融事件与公司催化剂',
@@ -1533,7 +1533,7 @@ export const TRANSLATIONS: Record<LanguageCode, Record<string, string>> = {
     'regime.bearish_low_vol': '看跌 / 低波动率',
     'regime.bearish_high_vol': '看跌 / 高波动率',
     'regime.confidence': '置信水平',
-    'regime.latent_state': '潜在马尔可夫状态',
+    'regime.latent_state': '规则体制状态',
 
     'decision.strong_buy': '强力买入',
     'decision.buy': '买入',

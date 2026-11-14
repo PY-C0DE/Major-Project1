@@ -34,10 +34,16 @@ import {
   SeasonalityReport,
   MarketIndexItem,
   QuickWatchItem,
-  SentimentScoreResult
+  SentimentScoreResult,
+  ModelAuditResponse
 } from '../types';
 import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { generateSupportFallback } from '../utils/supportKnowledge';
+import {
+  DEFAULT_CONFORMAL_CONFIDENCE,
+  DEFAULT_BACKTEST_STRATEGY,
+  AutomatedBacktestStrategyId
+} from '../shared/modelConfig';
 
 const API_BASE = '/api';
 
@@ -212,7 +218,7 @@ export const api = {
   },
 
   // Core USPs
-  async getConformalPrediction(ticker: string, horizon = 1, confidence = 0.90): Promise<ConformalPrediction> {
+  async getConformalPrediction(ticker: string, horizon = 1, confidence = DEFAULT_CONFORMAL_CONFIDENCE): Promise<ConformalPrediction> {
     const res = await fetch(`${API_BASE}/predictions/${encodeURIComponent(ticker)}?horizon=${horizon}&confidence=${confidence}`);
     if (!res.ok) throw new Error('Failed to compute conformal prediction');
     return res.json();
@@ -228,7 +234,7 @@ export const api = {
     return res.json();
   },
 
-  async getStrategyBacktest(ticker = 'RELIANCE.NS', strategy = 'conformal_reversion'): Promise<StrategyPerformanceMetrics> {
+  async getStrategyBacktest(ticker = 'RELIANCE.NS', strategy = 'sentiment_multimodal'): Promise<StrategyPerformanceMetrics> {
     const res = await fetch(`${API_BASE}/strategy/backtest?ticker=${encodeURIComponent(ticker)}&strategy=${encodeURIComponent(strategy)}`);
     if (!res.ok) throw new Error('Failed to run strategy backtest');
     return res.json();
@@ -299,7 +305,31 @@ export const api = {
 
   async getModelMetrics(ticker = 'RELIANCE.NS'): Promise<ModelEvaluation> {
     const res = await fetch(`${API_BASE}/model/metrics?ticker=${encodeURIComponent(ticker)}`);
+    if (res.status === 503) {
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        available: false,
+        reason: errBody.reason || 'No live market data',
+        dataSource: errBody.dataSource || 'none',
+        evaluatedAssetsCount: 0
+      } as ModelEvaluation;
+    }
     if (!res.ok) throw new Error('Failed to fetch model metrics');
+    return res.json();
+  },
+
+  async getModelAudit(ticker = 'ALL'): Promise<ModelAuditResponse> {
+    const res = await fetch(`${API_BASE}/model/audit?ticker=${encodeURIComponent(ticker)}`);
+    if (res.status === 503) {
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        available: false,
+        reason: errBody.reason || 'No live market data',
+        dataSource: errBody.dataSource || 'none',
+        evaluatedAssetsCount: 0
+      };
+    }
+    if (!res.ok) throw new Error('Failed to fetch model audit');
     return res.json();
   },
 
@@ -516,6 +546,23 @@ export const api = {
   // Project-Wide Price Accuracy Metric obtained by analyzing model predictions
   async getProjectWideAccuracy(): Promise<ProjectWideAccuracyResult> {
     const res = await fetch(`${API_BASE}/metrics/accuracy`);
+    if (res.status === 503) {
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        available: false,
+        reason: errBody.reason || 'No live market data',
+        dataSource: errBody.dataSource || 'none',
+        evaluatedAssetsCount: 0,
+        priceAccuracyPct: 0,
+        mape: 0,
+        mae: 0,
+        rmse: 0,
+        directionalAccuracyPct: 0,
+        conformalCoveragePct: 0,
+        benchmark: '',
+        evaluatedAt: new Date().toISOString()
+      };
+    }
     if (!res.ok) throw new Error('Failed to load project-wide accuracy metrics');
     return res.json();
   },
@@ -541,7 +588,7 @@ export const api = {
   // Automated Backtesting Framework
   async getAutomatedBacktest(
     ticker = 'NVDA',
-    strategy = 'xgboost_conformal',
+    strategy: AutomatedBacktestStrategyId = DEFAULT_BACKTEST_STRATEGY,
     days = 90,
     capital = 100000
   ): Promise<AutomatedBacktestResult> {

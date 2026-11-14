@@ -32,6 +32,7 @@ import {
   X
 } from 'lucide-react';
 import { api } from '../services/api';
+import { DEFAULT_CONFORMAL_CONFIDENCE } from '../shared/modelConfig';
 import { StockQuote, HistoricalBar, ConformalPrediction, MarketRegime, NewsItem, ConceptDriftResult, AlertRule } from '../types';
 import { InteractiveStockChart } from '../components/InteractiveStockChart';
 import { ConformalPredictionCard } from '../components/ConformalPredictionCard';
@@ -157,7 +158,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
     async function loadStock() {
       setLoading(true);
       try {
-        const userConf = user?.confidenceLevel ? user.confidenceLevel / 100 : 0.90;
+        const userConf = user?.confidenceLevel ? user.confidenceLevel / 100 : DEFAULT_CONFORMAL_CONFIDENCE;
         const [q, h, p, r, n, d] = await Promise.all([
           api.getQuote(ticker),
           api.getHistory(ticker, 250),
@@ -312,6 +313,11 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
               exchangeTimezoneName={quote?.exchangeTimezoneName}
               marketPeriod={quote?.marketPeriod}
             />
+            {quote && quote.isLive === false && (
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                Simulated data
+              </span>
+            )}
             <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline">{quote?.name}</span>
             <RegimeIndicator
               regime={regime}
@@ -549,7 +555,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
 
         {/* Option Toggle Buttons Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 pt-1">
-          {/* Option: HMM Market Regime */}
+          {/* Option: Rule-Based Market Regime */}
           <button
             onClick={() => toggleOption('regime')}
             className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
@@ -661,7 +667,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             </div>
           </button>
 
-          {/* Option: News & FinBERT Sentiment */}
+          {/* Option: News & Keyword Sentiment */}
           <button
             onClick={() => toggleOption('sentiment')}
             className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
@@ -777,7 +783,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
 
       {/* 6. Revealed Optional Modules (Rendered only when active) */}
       <div className="space-y-6">
-        {/* Module: HMM Market Regime (Graphical Indicator + Regime Card) */}
+        {/* Module: Rule-Based Market Regime (Graphical Indicator + Regime Card) */}
         {activeOptions.regime && (
           <div className="space-y-4 animate-fadeIn">
             <div className="flex items-center justify-between px-1">

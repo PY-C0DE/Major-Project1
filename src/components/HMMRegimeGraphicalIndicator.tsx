@@ -78,7 +78,7 @@ export const HMMRegimeGraphicalIndicator: React.FC<Props> = ({ regime, ticker = 
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                Hidden Markov Model (HMM) Market Regime
+                Rule-Based Trend/Volatility Market Regime
               </h3>
               {ticker && (
                 <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
@@ -87,7 +87,7 @@ export const HMMRegimeGraphicalIndicator: React.FC<Props> = ({ regime, ticker = 
               )}
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Latent 2-state Gaussian emission inference conditioning volatility and conformal prediction envelopes
+              2-state SMA-20 / RSI-14 / realized volatility classifier conditioning split-conformal prediction intervals
             </p>
           </div>
         </div>
@@ -244,7 +244,7 @@ export const HMMRegimeGraphicalIndicator: React.FC<Props> = ({ regime, ticker = 
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                Markov Regime Persistence Ribbon (Past {historyBars.length} Trading Days)
+                Rule-Based Regime Persistence Ribbon (Past {historyBars.length} Trading Days)
               </span>
               <span className="text-[10px] font-mono text-slate-400">
                 {hoveredBar

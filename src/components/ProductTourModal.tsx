@@ -185,14 +185,14 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     step: 8,
-    title: 'Hidden Markov Model Market Regimes',
+    title: 'Rule-Based Trend & Volatility Market Regimes',
     badge: 'Step 8 of 16',
     category: 'Regime Classification',
     icon: Layers,
     targetSelector: '#tour-regime-card',
     tab: 'dashboard',
     description:
-      'Classifies underlying structural market dynamics using Hidden Markov Models (HMM) and technical indicator envelopes to prevent trading against prevailing macroeconomic momentum.',
+      'Classifies underlying market dynamics using a rule-based trend/volatility regime classifier (SMA-20, RSI-14, and realized volatility) to prevent trading against prevailing market conditions.',
     highlights: [
       'Classifies into Bullish Steady Drift, High Volatility Expansion, or Mean-Reverting Range',
       'Dynamic transition probabilities calculating expected regime persistence durations',

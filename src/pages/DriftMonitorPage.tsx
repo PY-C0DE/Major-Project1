@@ -269,7 +269,7 @@ export const DriftMonitorPage: React.FC = () => {
             Statistical Concept Drift Monitoring
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Two-Sample Kolmogorov-Smirnov distribution testing (<code>scipy.stats.ks_2samp</code>) across financial factor matrices.
+            Two-sample KS drift test across historical and rolling return distributions.
           </p>
         </div>
 

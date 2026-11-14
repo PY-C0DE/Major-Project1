@@ -28,6 +28,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { api } from '../services/api';
+import { DEFAULT_CONFORMAL_CONFIDENCE } from '../shared/modelConfig';
 import {
   StockQuote,
   HistoricalBar,
@@ -162,7 +163,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
     async function loadData() {
       setLoading(true);
       try {
-        const userConf = user?.confidenceLevel ? user.confidenceLevel / 100 : 0.90;
+        const userConf = user?.confidenceLevel ? user.confidenceLevel / 100 : DEFAULT_CONFORMAL_CONFIDENCE;
         const [q, h, p, r, n, s, d, port, acc, qw] = await Promise.all([
           api.getQuote(selectedTicker).catch(err => {
             console.error('Quote fetch error:', err);
@@ -210,7 +211,8 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
       pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
       up: isUp,
       price: cfg.fallbackPrice,
-      changeValue: cfg.fallbackChange
+      changeValue: cfg.fallbackChange,
+      isLive: false
     };
   });
 
@@ -297,7 +299,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
               Live Macro Market Tape
             </span>
             <span className="text-[10px] sm:text-xs font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/50 hidden xs:inline-flex items-center gap-1">
-              {indicesLoading ? 'Updating...' : 'Live Stream'}
+              {indicesLoading ? 'Updating...' : activeIndices.some(i => i.isLive === false) ? 'Simulated data' : 'Live Stream'}
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
@@ -485,30 +487,49 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
           </div>
 
           <div className="space-y-1.5 pt-0.5">
-            <div className="flex items-baseline justify-between gap-2 min-w-0">
-              {(prediction?.priceAccuracy != null || accuracy?.priceAccuracyPct != null) ? (
-                <div className="text-xl sm:text-2xl font-black font-mono text-emerald-500 dark:text-cyan-400 tabular-nums tracking-tight">
-                  {(prediction?.priceAccuracy ?? accuracy?.priceAccuracyPct)?.toFixed(1)}%
+            {accuracy?.available === false && prediction?.priceAccuracy == null ? (
+              <>
+                <div className="text-sm font-mono font-semibold text-amber-600 dark:text-amber-400">
+                  Unavailable
                 </div>
-              ) : (
-                <div className="h-7 w-24 bg-slate-200 dark:bg-slate-800 animate-pulse rounded-md" />
-              )}
-              {(prediction?.priceAccuracy != null || accuracy?.mape != null) && (
-                <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md shrink-0 border border-slate-200/60 dark:border-slate-700/60">
-                  MAPE {prediction?.priceAccuracy != null ? (100 - prediction.priceAccuracy).toFixed(1) : accuracy?.mape?.toFixed(1)}%
-                </span>
-              )}
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono pt-1.5 border-t border-slate-100 dark:border-slate-800/60 gap-2 min-w-0">
-              <span className="truncate">
-                {prediction?.priceAccuracy != null
-                  ? `Asset: ${selectedTicker.replace('.NS', '')}`
-                  : `Universe: ${accuracy?.evaluatedAssetsCount ?? '60'} models`}
-              </span>
-              <span className="text-cyan-600 dark:text-cyan-400 font-semibold shrink-0">
-                Cov {prediction?.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : accuracy?.conformalCoveragePct != null ? `${accuracy.conformalCoveragePct.toFixed(1)}%` : '91.7%'}
-              </span>
-            </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono pt-1.5 border-t border-slate-100 dark:border-slate-800/60 gap-2 min-w-0">
+                  <span className="truncate">No live market data</span>
+                  <span className="text-amber-600 dark:text-amber-400 font-semibold shrink-0">n/a</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-baseline justify-between gap-2 min-w-0">
+                  {(prediction?.priceAccuracy != null || (accuracy?.available !== false && accuracy?.priceAccuracyPct != null)) ? (
+                    <div className="text-xl sm:text-2xl font-black font-mono text-emerald-500 dark:text-cyan-400 tabular-nums tracking-tight">
+                      {(prediction?.priceAccuracy ?? accuracy?.priceAccuracyPct)?.toFixed(1)}%
+                    </div>
+                  ) : (
+                    <div className="h-7 w-24 bg-slate-200 dark:bg-slate-800 animate-pulse rounded-md" />
+                  )}
+                  {(prediction?.priceAccuracy != null || (accuracy?.available !== false && accuracy?.mape != null)) && (
+                    <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md shrink-0 border border-slate-200/60 dark:border-slate-700/60">
+                      MAPE {prediction?.priceAccuracy != null ? (100 - prediction.priceAccuracy).toFixed(1) : accuracy?.mape?.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono pt-1.5 border-t border-slate-100 dark:border-slate-800/60 gap-2 min-w-0">
+                  <span className="truncate flex items-center gap-1">
+                    {prediction?.dataSource === 'synthetic' && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-[9px]">
+                        Simulated data
+                      </span>
+                    )}
+                    {prediction?.priceAccuracy != null
+                      ? `Asset: ${selectedTicker.replace('.NS', '')}`
+                      : `Universe: ${accuracy?.evaluatedAssetsCount ?? '0'} models`}
+                  </span>
+                  <span className="text-cyan-600 dark:text-cyan-400 font-semibold shrink-0">
+                    Cov {prediction?.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : accuracy?.available !== false && accuracy?.conformalCoveragePct != null ? `${accuracy.conformalCoveragePct.toFixed(1)}%` : 'n/a'}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -583,7 +604,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono pt-1.5 border-t border-slate-100 dark:border-slate-800/60 gap-2 min-w-0">
-              <span className="truncate">HMM State 0</span>
+              <span className="truncate">Rule-Based State 0</span>
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold shrink-0">
                 Persistence 88%
               </span>
@@ -702,7 +723,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
 
       {/* 4. Primary Stock Price Prediction Candle Chart */}
       <div id="tour-candle-chart" className="space-y-4 sm:space-y-6">
-        {/* Real-Time Live Stock Header & FinBERT News Sentiment Bar */}
+        {/* Real-Time Live Stock Header & Keyword Sentiment News Bar */}
         {(() => {
           const currSym = getCurrencySymbol(quote?.currency, selectedTicker);
           const isUp = (quote?.change ?? 0) >= 0;
@@ -726,6 +747,11 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                       exchangeTimezoneName={quote?.exchangeTimezoneName}
                       marketPeriod={quote?.marketPeriod}
                     />
+                    {quote && quote.isLive === false && (
+                      <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                        Simulated data
+                      </span>
+                    )}
                     <span className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
                       {quote?.exchange || inferExchangeFromTicker(selectedTicker)} · {selectedTicker}
                     </span>
@@ -803,7 +829,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                     <div className="flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
                       <span className="text-xs font-mono font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                        FinBERT News Tone
+                        Keyword News Sentiment
                       </span>
                     </div>
                     <span

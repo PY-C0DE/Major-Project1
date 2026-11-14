@@ -6,7 +6,18 @@
  */
 
 import { ComputedBar } from './indicators';
-import { ModelEvaluation, BacktestDataPoint, ModelComparisonItem, AssetBreakdownItem, ModelFeatureImportance } from '../../types';
+import {
+  ModelEvaluation,
+  UnavailableEvaluation,
+  BacktestDataPoint,
+  ModelComparisonItem,
+  AssetBreakdownItem,
+  ModelFeatureImportance,
+  ProjectWideAccuracyResult,
+  MetricSummaryStats,
+  PooledDirectionalStats
+} from '../../types';
+import type { HistoricalDataResult } from '../services/stockService';
 import {
   extractFeatureVector,
   fitRidgeRegression,
@@ -16,6 +27,7 @@ import {
   estimateBarDailyVol,
   FEATURE_COUNT
 } from './modelEngine';
+import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
 
 export function computeModelFeatureImportance(
   ensembleModel: ReturnType<typeof fitEnsembleModel>,
@@ -64,9 +76,9 @@ export function computeModelFeatureImportance(
     direction?: 'positive' | 'negative' | 'neutral';
   }> = [
     {
-      feature: 'Real-Time News Tone (FinBERT NLP)',
+      feature: 'Real-Time News Tone (Keyword Sentiment Lexicon)',
       category: 'sentiment',
-      description: 'FinBERT scored sentiment of live financial news feeds and regulatory disclosures',
+      description: 'Keyword financial-sentiment lexicon with publisher-credibility weighting across news feeds and filings',
       customRawGain: 0.18 + Math.abs(rawWeights[1] || 0.05) * 0.45,
       direction: 'positive'
     },
@@ -186,9 +198,9 @@ export function computeModelFeatureImportance(
       description: 'Signed volume accumulation pressure normalized against 20-day average liquidity'
     },
     {
-      feature: 'Markov Market Regime (Trend & Volatility State)',
+      feature: 'Rule-Based Market Regime (Trend & Volatility State)',
       category: 'regime',
-      description: 'Low-volatility drift vs high-volatility turbulence regime conditioning'
+      description: 'Rule-based trend/volatility regime classifier conditioning interval dispersion'
     }
   ];
 
@@ -247,10 +259,119 @@ export function computeModelFeatureImportance(
   return result;
 }
 
-export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEvaluation {
+export type HistoryWithSourceFetcher = (
+  ticker: string,
+  days: number
+) => Promise<HistoricalDataResult | ComputedBar[]>;
+
+function normalizeFetchedHistory(
+  fetched: HistoricalDataResult | ComputedBar[]
+): HistoricalDataResult {
+  if (Array.isArray(fetched)) {
+    return { bars: fetched, source: 'live' };
+  }
+  return fetched;
+}
+
+export function computeSummaryStats(values: number[]): MetricSummaryStats {
+  if (!values || values.length === 0) {
+    return { mean: 0, median: 0, min: 0, max: 0 };
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const n = sorted.length;
+  const mean = sorted.reduce((acc, v) => acc + v, 0) / n;
+  const mid = Math.floor(n / 2);
+  const median = n % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return {
+    mean: Number(mean.toFixed(2)),
+    median: Number(median.toFixed(2)),
+    min: Number(sorted[0].toFixed(2)),
+    max: Number(sorted[n - 1].toFixed(2))
+  };
+}
+
+export function computeWilson95Interval(hits: number, total: number): [number, number] {
+  if (total <= 0) return [0, 0];
+  const z = 1.959963984540054;
+  const z2 = z * z;
+  const p = Math.max(0, Math.min(1, hits / total));
+  const denom = 1 + z2 / total;
+  const center = (p + z2 / (2 * total)) / denom;
+  const halfWidth = (z * Math.sqrt((p * (1 - p)) / total + z2 / (4 * total * total))) / denom;
+  const lower = Math.max(0, center - halfWidth);
+  const upper = Math.min(1, center + halfWidth);
+  return [Number((lower * 100).toFixed(2)), Number((upper * 100).toFixed(2))];
+}
+
+function logGamma(z: number): number {
+  const g = 7;
+  const p = [
+    0.99999999999980993,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.32342877765313,
+    -176.61502916214059,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.9843695780195716e-6,
+    1.5056327351493116e-7
+  ];
+  if (z < 0.5) {
+    return Math.log(Math.PI) - Math.log(Math.sin(Math.PI * z)) - logGamma(1 - z);
+  }
+  const shifted = z - 1;
+  let x = p[0];
+  for (let i = 1; i < g + 2; i++) {
+    x += p[i] / (shifted + i);
+  }
+  const t = shifted + g + 0.5;
+  return 0.5 * Math.log(2 * Math.PI) + (shifted + 0.5) * Math.log(t) - t + Math.log(x);
+}
+
+/**
+ * Exact upper-tail one-sided binomial p-value P(X >= hits | n = total, p = p0)
+ * testing H1: true directional accuracy > p0 (Always-Up baseline rate).
+ */
+export function computeBinomialOneSidedPValue(hits: number, total: number, p0: number): number {
+  if (total <= 0 || hits <= 0) return 1;
+  if (hits > total) return 0;
+  if (p0 <= 0) return 0;
+  if (p0 >= 1) return hits >= total ? 1 : 0;
+
+  const logN = logGamma(total + 1);
+  const logP0 = Math.log(p0);
+  const logQ0 = Math.log(1 - p0);
+  let sum = 0;
+
+  for (let k = hits; k <= total; k++) {
+    const logPmf = logN - logGamma(k + 1) - logGamma(total - k + 1) + k * logP0 + (total - k) * logQ0;
+    if (logPmf > -745) {
+      sum += Math.exp(logPmf);
+    }
+  }
+
+  return Math.max(0, Math.min(1, sum));
+}
+
+export function isModelEvaluationAvailable(
+  res: ModelEvaluation | UnavailableEvaluation
+): res is ModelEvaluation {
+  return res.available !== false;
+}
+
+export function runModelEvaluation(
+  bars: ComputedBar[],
+  ticker: string,
+  source: 'live' | 'synthetic' = 'live'
+): ModelEvaluation {
+  if (source === 'synthetic') {
+    throw new Error(`Cannot run model evaluation on synthetic data for ${ticker}`);
+  }
   const n = bars.length;
-  // Use out-of-sample test window of last 45 trading days
-  const testSize = Math.min(45, Math.floor(n * 0.3));
+  // Use >= 120 trading day walk-forward test window when >= ~1y+ history is present (e.g. 2y ~500 bars -> ~150d test window)
+  const testSize = n >= 260
+    ? Math.min(Math.max(120, Math.floor(n * 0.3)), n - 100)
+    : Math.min(45, Math.floor(n * 0.3));
   const testStartIndex = n - testSize;
 
   // 1. Fit initial ensemble prior to test window for baseline & feature importance inspection
@@ -295,12 +416,12 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
   calibScores.sort((a, b) => a - b);
   const calibSize = calibScores.length;
 
-  // Exact finite-sample quantile (95% backtest channel)
-  const alpha = 0.05;
+  // Exact finite-sample quantile using configured default coverage level (90%)
+  const alpha = 1 - DEFAULT_CONFORMAL_CONFIDENCE;
   const quantileIdx = calibSize > 0
     ? Math.min(calibSize - 1, Math.max(0, Math.ceil((calibSize + 1) * (1 - alpha)) - 1))
     : 0;
-  const qNorm = calibSize > 0 ? calibScores[quantileIdx] : 1.96;
+  const qNorm = calibSize > 0 ? calibScores[quantileIdx] : 1.645;
 
   const backtestSeries: BacktestDataPoint[] = [];
 
@@ -323,12 +444,14 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
   // Track baseline models for authentic empirical comparison
   let baselineSmaAbs = 0, baselineSmaSq = 0, baselineSmaDirCount = 0;
   let baselineLinAbs = 0, baselineLinSq = 0, baselineLinDirCount = 0;
-  let baselineRwAbs = 0, baselineRwSq = 0, baselineRwDirCount = 0;
+  let baselineRwAbs = 0, baselineRwSq = 0;
+  let baselineAlwaysUpDirCount = 0;
+  let baselinePersistDirCount = 0, baselinePersistEligible = 0;
 
-  // Rolling walk-forward model + strictly causal online EWMA bias tracker
+  // Rolling walk-forward model + strictly causal online EWMA bias tracker (no test-window hyperparameter tuning)
   let activeModel = ensembleModel;
   let onlineOosBias = 0;
-  const retrainInterval = 5;
+  const retrainInterval = testSize >= 120 ? 10 : 5;
 
   for (let i = testStartIndex; i < n; i++) {
     if ((i - testStartIndex) > 0 && (i - testStartIndex) % retrainInterval === 0) {
@@ -399,11 +522,22 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
       baselineLinDirCount++;
     }
 
-    // Baseline 3: Naive Last-Price (Random walk persistence: pred = prevClose)
+    // Baseline 3: Naive Last-Price (Random walk: pred = prevClose; MAE/RMSE/R² only, directional accuracy is n/a)
     baselineRwAbs += Math.abs(actual - prevClose);
     baselineRwSq += Math.pow(actual - prevClose, 2);
-    if (actualDiff === 0) {
-      baselineRwDirCount++;
+
+    // Baseline 4: Always-Up Directional Baseline (predicts positive move every session)
+    if (actualDiff > 0) {
+      baselineAlwaysUpDirCount++;
+    }
+
+    // Baseline 5: Persistence Directional Baseline (predicts same sign as prior day move)
+    if (i >= 2 && bars[i - 2]?.close !== undefined) {
+      const priorDiff = prevClose - bars[i - 2].close;
+      baselinePersistEligible++;
+      if (Math.sign(actualDiff) === Math.sign(priorDiff)) {
+        baselinePersistDirCount++;
+      }
     }
 
     backtestSeries.push({
@@ -467,7 +601,27 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
       mae: Number((baselineRwAbs / testSize).toFixed(2)),
       rmse: Number(Math.sqrt(baselineRwSq / testSize).toFixed(2)),
       r2: Number((1 - (baselineRwSq / (totalSumOfSquares || 1))).toFixed(2)),
-      directionalAccuracy: Number(((baselineRwDirCount / testSize) * 100).toFixed(1)),
+      directionalAccuracy: null,
+      trainingTimeSec: 0.00,
+      isProduction: false
+    },
+    {
+      model: 'Always Up',
+      mae: null,
+      rmse: null,
+      r2: null,
+      directionalAccuracy: Number(((baselineAlwaysUpDirCount / testSize) * 100).toFixed(1)),
+      trainingTimeSec: 0.00,
+      isProduction: false
+    },
+    {
+      model: 'Persistence (Prior-Day Sign)',
+      mae: null,
+      rmse: null,
+      r2: null,
+      directionalAccuracy: baselinePersistEligible > 0
+        ? Number(((baselinePersistDirCount / baselinePersistEligible) * 100).toFixed(1))
+        : null,
       trainingTimeSec: 0.00,
       isProduction: false
     }
@@ -475,18 +629,49 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
 
   const featureImportance = computeModelFeatureImportance(ensembleModel, bars, ticker);
 
+  const alwaysUpAccuracy = Number(((baselineAlwaysUpDirCount / testSize) * 100).toFixed(1));
+  const testWindowStart = backtestSeries[0]?.date || bars[testStartIndex]?.date || '';
+  const testWindowEnd = backtestSeries[backtestSeries.length - 1]?.date || bars[n - 1]?.date || '';
+  const directionalStats: PooledDirectionalStats = {
+    totalTestPredictions: testSize,
+    modelHits: prodDirCount,
+    alwaysUpHits: baselineAlwaysUpDirCount,
+    pooledDirectionalAccuracyPct: Number(((prodDirCount / testSize) * 100).toFixed(2)),
+    pooledAlwaysUpAccuracyPct: Number(((baselineAlwaysUpDirCount / testSize) * 100).toFixed(2)),
+    wilson95CI: computeWilson95Interval(prodDirCount, testSize),
+    binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(
+      prodDirCount,
+      testSize,
+      baselineAlwaysUpDirCount / Math.max(1, testSize)
+    )
+  };
+  const summaryStats = {
+    mape: computeSummaryStats([mape]),
+    directionalAccuracy: computeSummaryStats([directionalAccuracy]),
+    conformalCoverage: computeSummaryStats([conformalCoverage])
+  };
+
   return {
+    available: true,
+    dataSource: 'live',
+    evaluatedAssetsCount: 1,
     ticker,
-    modelName: 'AlphaQuant Ensemble v4.0 (Z-Scored Ridge + Huber GBDT + Kalman Regime + Cosine KNN Stacker)',
+    modelName: 'AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)',
     horizonDays: 1,
     mae,
     rmse,
     mape,
     r2,
     directionalAccuracy,
+    alwaysUpAccuracy,
     priceAccuracy,
     conformalCoverage,
     totalBacktestSamples: testSize,
+    testWindowStart,
+    testWindowEnd,
+    testWindowDays: testSize,
+    summaryStats,
+    directionalStats,
     evaluatedAt: new Date().toISOString(),
     comparison,
     backtestSeries,
@@ -494,25 +679,20 @@ export function runModelEvaluation(bars: ComputedBar[], ticker: string): ModelEv
   };
 }
 
-export interface ProjectWideAccuracyResult {
-  priceAccuracyPct: number;
-  mape: number;
-  evaluatedAssetsCount: number;
-  mae: number;
-  rmse: number;
-  directionalAccuracyPct: number;
-  conformalCoveragePct: number;
-  benchmark: string;
-  evaluatedAt: string;
-}
-
 let cachedProjectWideAccuracy: { data: ProjectWideAccuracyResult; timestamp: number } | null = null;
 const ACCURACY_CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
 
+export function clearEvaluationCaches(): void {
+  cachedProjectWideAccuracy = null;
+  cachedAggregateEvaluation = null;
+}
+
+const EVALUATION_HISTORY_DAYS = 730; // >= 2 years (~500 trading bars) for >= 120-day OOS evaluation
+
 export async function computeProjectWideAccuracy(
-  fetchHistory: (ticker: string, days: number) => Promise<ComputedBar[]>,
+  fetchHistory: HistoryWithSourceFetcher,
   catalogTickers: string[]
-): Promise<ProjectWideAccuracyResult> {
+): Promise<ProjectWideAccuracyResult | UnavailableEvaluation> {
   if (cachedProjectWideAccuracy && Date.now() - cachedProjectWideAccuracy.timestamp < ACCURACY_CACHE_TTL) {
     return cachedProjectWideAccuracy.data;
   }
@@ -523,19 +703,25 @@ export async function computeProjectWideAccuracy(
   const evaluatedDirs: number[] = [];
   const evaluatedCovs: number[] = [];
 
-  // Evaluate assets in small concurrent batches to prevent Yahoo Finance network rate-limiting
-  const targetUniverse = catalogTickers && catalogTickers.length > 0 ? catalogTickers : ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS', 'MSFT', 'HDFCBANK.NS', 'GOOGL', 'TSLA', 'TMCV.NS'];
-  const batchSize = 6;
-  const sampleTickers = targetUniverse.slice(0, 36);
+  // Evaluate ALL live tickers in the catalog in concurrency-limited batches
+  const targetUniverse = Array.from(
+    new Set(
+      catalogTickers && catalogTickers.length > 0
+        ? catalogTickers
+        : ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS', 'MSFT', 'HDFCBANK.NS', 'GOOGL', 'TSLA', 'TMCV.NS']
+    )
+  );
+  const batchSize = 5;
 
-  for (let i = 0; i < sampleTickers.length; i += batchSize) {
-    const batch = sampleTickers.slice(i, i + batchSize);
+  for (let i = 0; i < targetUniverse.length; i += batchSize) {
+    const batch = targetUniverse.slice(i, i + batchSize);
     const batchResults = await Promise.all(
       batch.map(async (t) => {
         try {
-          const history = await fetchHistory(t, 120);
-          if (history && history.length >= 40) {
-            return runModelEvaluation(history, t);
+          const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
+          if (source === 'synthetic') return null;
+          if (bars && bars.length >= 40) {
+            return runModelEvaluation(bars, t, source);
           }
         } catch {}
         return null;
@@ -554,40 +740,32 @@ export async function computeProjectWideAccuracy(
       }
     }
 
-    // Small pause between batches
-    if (i + batchSize < sampleTickers.length) {
-      await new Promise(r => setTimeout(r, 40));
+    if (i + batchSize < targetUniverse.length) {
+      await new Promise(r => setTimeout(r, 50));
     }
   }
 
-  // If initial batch failed due to network, guarantee real evaluation over primary benchmark
   if (evaluatedMapes.length === 0) {
-    for (const t of ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL']) {
-      try {
-        const history = await fetchHistory(t, 120);
-        if (history && history.length >= 30) {
-          const r = runModelEvaluation(history, t);
-          evaluatedMapes.push(r.mape);
-          evaluatedMaes.push(r.mae);
-          evaluatedRmses.push(r.rmse);
-          evaluatedDirs.push(r.directionalAccuracy);
-          if (r.conformalCoverage !== undefined) evaluatedCovs.push(r.conformalCoverage);
-        }
-      } catch {}
-    }
+    return {
+      available: false,
+      reason: 'No live market data',
+      dataSource: 'none',
+      evaluatedAssetsCount: 0
+    };
   }
 
-  const sampleCount = Math.max(1, evaluatedMapes.length);
+  const sampleCount = evaluatedMapes.length;
   const avgMape = evaluatedMapes.reduce((a, b) => a + b, 0) / sampleCount;
   const avgMae = evaluatedMaes.reduce((a, b) => a + b, 0) / sampleCount;
   const avgRmse = evaluatedRmses.reduce((a, b) => a + b, 0) / sampleCount;
   const avgDir = evaluatedDirs.reduce((a, b) => a + b, 0) / sampleCount;
-  const avgCov = evaluatedCovs.reduce((a, b) => a + b, 0) / sampleCount;
+  const avgCov = evaluatedCovs.length > 0 ? evaluatedCovs.reduce((a, b) => a + b, 0) / evaluatedCovs.length : 0;
 
-  // Genuine accuracy obtained strictly by analyzing model out-of-sample prediction error
   const priceAccuracyPct = Number(Math.max(0, Math.min(100, 100 - avgMape)).toFixed(2));
 
   const result: ProjectWideAccuracyResult = {
+    available: true,
+    dataSource: 'live',
     priceAccuracyPct,
     mape: Number(avgMape.toFixed(2)),
     evaluatedAssetsCount: sampleCount,
@@ -595,7 +773,7 @@ export async function computeProjectWideAccuracy(
     rmse: Number(avgRmse.toFixed(2)),
     directionalAccuracyPct: Number(avgDir.toFixed(1)),
     conformalCoveragePct: Number(avgCov.toFixed(1)),
-    benchmark: 'Ridge Multi-Factor + Split-Conformal Calibration',
+    benchmark: 'AlphaQuant Ensemble + Split-Conformal Calibration',
     evaluatedAt: new Date().toISOString()
   };
 
@@ -607,45 +785,53 @@ let cachedAggregateEvaluation: { data: ModelEvaluation; timestamp: number } | nu
 const AGGREGATE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 export async function runAggregateModelEvaluation(
-  fetchHistory: (ticker: string, days: number) => Promise<ComputedBar[]>,
+  fetchHistory: HistoryWithSourceFetcher,
   catalog: Array<{ ticker: string; name: string }>
-): Promise<ModelEvaluation> {
+): Promise<ModelEvaluation | UnavailableEvaluation> {
   if (cachedAggregateEvaluation && Date.now() - cachedAggregateEvaluation.timestamp < AGGREGATE_CACHE_TTL) {
     return cachedAggregateEvaluation.data;
   }
 
-  // Representative cross-section of liquid global assets across sectors
-  const representativeTickers = [
-    'RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS',
-    'MSFT', 'HDFCBANK.NS', 'GOOGL', 'TSLA', 'TMCV.NS',
-    'ICICIBANK.NS', 'AMZN', 'META', 'LT.NS', 'SBIN.NS'
-  ];
-
-  const universe = Array.from(new Set([...representativeTickers, ...catalog.map(c => c.ticker)])).slice(0, 18);
+  // Evaluate ALL unique tickers in the catalog using >= 2 years of daily history, concurrency-limited
+  const universe = Array.from(new Set(catalog.map(c => c.ticker)));
   const evaluations: ModelEvaluation[] = [];
+  const batchSize = 5;
 
-  for (const t of universe) {
-    try {
-      const history = await fetchHistory(t, 160);
-      if (history && history.length >= 35) {
-        const evalRes = runModelEvaluation(history, t);
-        evaluations.push(evalRes);
-      }
-    } catch {}
-  }
+  for (let i = 0; i < universe.length; i += batchSize) {
+    const batch = universe.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async (t) => {
+        try {
+          const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
+          if (source === 'synthetic') return null;
+          if (bars && bars.length >= 40) {
+            return runModelEvaluation(bars, t, source);
+          }
+        } catch {}
+        return null;
+      })
+    );
 
-  if (evaluations.length === 0) {
-    for (const fallbackTicker of ['RELIANCE.NS', 'NVDA', 'AAPL']) {
-      try {
-        const hist = await fetchHistory(fallbackTicker, 160);
-        if (hist && hist.length >= 30) {
-          evaluations.push(runModelEvaluation(hist, fallbackTicker));
-        }
-      } catch {}
+    for (const r of batchResults) {
+      if (r) evaluations.push(r);
+    }
+
+    if (i + batchSize < universe.length) {
+      await new Promise(r => setTimeout(r, 50));
     }
   }
 
-  const count = Math.max(1, evaluations.length);
+  if (evaluations.length === 0) {
+    return {
+      available: false,
+      reason: 'No live market data',
+      dataSource: 'none',
+      evaluatedAssetsCount: 0,
+      ticker: 'ALL'
+    };
+  }
+
+  const count = evaluations.length;
 
   const avgPriceAccuracy = evaluations.reduce((acc, e) => acc + (e.priceAccuracy ?? (100 - e.mape)), 0) / count;
   const avgConformalCoverage = evaluations.reduce((acc, e) => acc + (e.conformalCoverage ?? 90), 0) / count;
@@ -656,38 +842,75 @@ export async function runAggregateModelEvaluation(
   const avgDir = evaluations.reduce((acc, e) => acc + e.directionalAccuracy, 0) / count;
   const totalSamples = evaluations.reduce((acc, e) => acc + e.totalBacktestSamples, 0);
 
+  // Statistical summary across per-asset evaluations (mean, median, min, max)
+  const summaryStats = {
+    mape: computeSummaryStats(evaluations.map(e => e.mape)),
+    directionalAccuracy: computeSummaryStats(evaluations.map(e => e.directionalAccuracy)),
+    conformalCoverage: computeSummaryStats(evaluations.map(e => e.conformalCoverage ?? 0))
+  };
+
+  // Pooled directional inference across all out-of-sample predictions
+  const pooledTotal = evaluations.reduce(
+    (acc, e) => acc + (e.directionalStats?.totalTestPredictions ?? e.totalBacktestSamples),
+    0
+  );
+  const pooledModelHits = evaluations.reduce(
+    (acc, e) => acc + (e.directionalStats?.modelHits ?? Math.round((e.directionalAccuracy / 100) * e.totalBacktestSamples)),
+    0
+  );
+  const pooledAlwaysUpHits = evaluations.reduce(
+    (acc, e) => acc + (e.directionalStats?.alwaysUpHits ?? Math.round(((e.alwaysUpAccuracy ?? 50) / 100) * e.totalBacktestSamples)),
+    0
+  );
+  const pooledDirPct = pooledTotal > 0 ? Number(((pooledModelHits / pooledTotal) * 100).toFixed(2)) : 0;
+  const pooledAlwaysUpRate = pooledTotal > 0 ? pooledAlwaysUpHits / pooledTotal : 0.5;
+  const directionalStats: PooledDirectionalStats = {
+    totalTestPredictions: pooledTotal,
+    modelHits: pooledModelHits,
+    alwaysUpHits: pooledAlwaysUpHits,
+    pooledDirectionalAccuracyPct: pooledDirPct,
+    pooledAlwaysUpAccuracyPct: Number((pooledAlwaysUpRate * 100).toFixed(2)),
+    wilson95CI: computeWilson95Interval(pooledModelHits, pooledTotal),
+    binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(pooledModelHits, pooledTotal, pooledAlwaysUpRate)
+  };
+
+  const windowStarts = evaluations.map(e => e.testWindowStart).filter(Boolean) as string[];
+  const windowEnds = evaluations.map(e => e.testWindowEnd).filter(Boolean) as string[];
+  const testWindowStart = windowStarts.length > 0 ? [...windowStarts].sort()[0] : undefined;
+  const testWindowEnd = windowEnds.length > 0 ? [...windowEnds].sort()[windowEnds.length - 1] : undefined;
+  const avgWindowDays = Math.round(totalSamples / count);
+
   const baselineModels = [
     'AlphaQuant Production (Ensemble v4.0 Stacked ML)',
     'SMA-20 Trend Baseline',
     'Plain Linear Model (OLS)',
-    'Naive Last-Price (Random Walk)'
+    'Naive Last-Price (Random Walk)',
+    'Always Up',
+    'Persistence (Prior-Day Sign)'
   ];
 
   const aggregatedComparison: ModelComparisonItem[] = baselineModels.map(modelName => {
-    let totalMae = 0;
-    let totalRmse = 0;
-    let totalR2 = 0;
-    let totalDir = 0;
-    let matchCount = 0;
+    let totalMae = 0, maeCount = 0;
+    let totalRmse = 0, rmseCount = 0;
+    let totalR2 = 0, r2Count = 0;
+    let totalDir = 0, dirCount = 0;
 
     for (const e of evaluations) {
       const item = e.comparison.find(c => c.model === modelName);
       if (item) {
-        totalMae += item.mae;
-        totalRmse += item.rmse;
-        totalR2 += item.r2;
-        totalDir += item.directionalAccuracy;
-        matchCount++;
+        if (item.mae != null) { totalMae += item.mae; maeCount++; }
+        if (item.rmse != null) { totalRmse += item.rmse; rmseCount++; }
+        if (item.r2 != null) { totalR2 += item.r2; r2Count++; }
+        if (item.directionalAccuracy != null) { totalDir += item.directionalAccuracy; dirCount++; }
       }
     }
 
-    const nMatches = Math.max(1, matchCount);
     return {
       model: modelName,
-      mae: Number((totalMae / nMatches).toFixed(2)),
-      rmse: Number((totalRmse / nMatches).toFixed(2)),
-      r2: Number((totalR2 / nMatches).toFixed(2)),
-      directionalAccuracy: Number((totalDir / nMatches).toFixed(1)),
+      mae: maeCount > 0 ? Number((totalMae / maeCount).toFixed(2)) : null,
+      rmse: rmseCount > 0 ? Number((totalRmse / rmseCount).toFixed(2)) : null,
+      r2: r2Count > 0 ? Number((totalR2 / r2Count).toFixed(2)) : null,
+      directionalAccuracy: dirCount > 0 ? Number((totalDir / dirCount).toFixed(1)) : null,
       trainingTimeSec: modelName.includes('Production') ? 0.12 : 0.01,
       isProduction: modelName.includes('Production')
     };
@@ -732,11 +955,15 @@ export async function runAggregateModelEvaluation(
     return {
       ticker: e.ticker,
       name: meta?.name || e.ticker,
+      dataSource: e.dataSource === 'live' ? 'live' : 'synthetic',
+      testWindowStart: e.testWindowStart || '',
+      testWindowEnd: e.testWindowEnd || '',
       priceAccuracy: Number((e.priceAccuracy ?? (100 - e.mape)).toFixed(2)),
       mape: Number(e.mape.toFixed(2)),
       conformalCoverage: Number((e.conformalCoverage ?? 90).toFixed(1)),
       r2: Number(e.r2.toFixed(2)),
       directionalAccuracy: Number(e.directionalAccuracy.toFixed(1)),
+      alwaysUpAccuracy: Number((e.alwaysUpAccuracy ?? 0).toFixed(1)),
       samples: e.totalBacktestSamples,
       rmse: Number(e.rmse.toFixed(2)),
       mae: Number(e.mae.toFixed(2))
@@ -780,17 +1007,26 @@ export async function runAggregateModelEvaluation(
   aggregatedFeatureImportance.sort((a, b) => b.importance - a.importance);
 
   const result: ModelEvaluation = {
+    available: true,
+    dataSource: 'live',
+    evaluatedAssetsCount: evaluations.length,
     ticker: 'ALL',
-    modelName: 'AlphaQuant Ensemble v4.0 (Whole-Model Cross-Asset Stacked Aggregate)',
+    modelName: 'AlphaQuant Ensemble (Cross-Asset Stacked Aggregate)',
     horizonDays: 1,
     mae: Number(avgMae.toFixed(2)),
     rmse: Number(avgRmse.toFixed(2)),
     mape: Number(avgMape.toFixed(2)),
     r2: Number(avgR2.toFixed(2)),
     directionalAccuracy: Number(avgDir.toFixed(1)),
+    alwaysUpAccuracy: directionalStats.pooledAlwaysUpAccuracyPct,
     priceAccuracy: Number(avgPriceAccuracy.toFixed(2)),
     conformalCoverage: Number(avgConformalCoverage.toFixed(1)),
     totalBacktestSamples: totalSamples,
+    testWindowStart,
+    testWindowEnd,
+    testWindowDays: avgWindowDays,
+    summaryStats,
+    directionalStats,
     totalAssetsCount: evaluations.length,
     isAllAssets: true,
     evaluatedAt: new Date().toISOString(),

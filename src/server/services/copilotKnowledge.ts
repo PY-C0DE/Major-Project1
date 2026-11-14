@@ -74,7 +74,7 @@ AlphaQuant features a high-speed **Direct Broker Router** connected to the Alpac
 
 For market conditions surrounding **${ticker}**, consider combining:
 1. **Conformal Volatility Ratio (CVR)**: $\\text{CVR} = \\frac{\\text{Upper Band} - \\text{Lower Band}}{\\text{ATR}(14)}$. When CVR compresses below $1.2$, a volatility expansion is imminent.
-2. **Regime Momentum Oscillator (RMO)**: Weight standard MACD histogram by the state persistence probability of HMM Regime 0.
+2. **Regime Momentum Oscillator (RMO)**: Weight standard MACD histogram by the state persistence probability of Rule-Based Regime 0.
 3. **Asymmetric Tail Ratio**: Measure upside variance versus downside semi-variance.
 
 Click **Backtest** in the top navigation to test this strategy against Buy-and-Hold over trailing 90-day and 252-day sessions!`;

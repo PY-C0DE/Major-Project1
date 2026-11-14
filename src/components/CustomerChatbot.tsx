@@ -103,7 +103,7 @@ I'm your **Quantitative Terminal AI Copilot**. I assist with algorithmic workflo
     { label: '🛡️ Guide Risk Parameters', prompt: 'How should I configure risk parameters, conformal confidence (90% vs 95%), and stop-loss rules?' },
     { label: '🎯 What is 90% Conformal Prediction?', prompt: 'Can you explain how 90% Conformal Prediction works and why it is better than regular price forecasts?' },
     { label: '📈 Options Greeks & IV Smile', prompt: 'How do I interpret Black-Scholes Delta, Gamma, Theta, and Vega in the Options terminal?' },
-    { label: '📊 Automated Backtesting', prompt: 'How does the XGBoost + Conformal Quantile Backtesting framework compare to Buy-and-Hold?' },
+    { label: '📊 Automated Backtesting', prompt: 'How does the AlphaQuant Ensemble + Split-Conformal Quantile Backtesting framework compare to Buy-and-Hold?' },
     { label: '💼 Portfolio MVO Optimizer', prompt: 'How does Markowitz Modern Portfolio Theory optimize asset weights on the Efficient Frontier?' }
   ];
 

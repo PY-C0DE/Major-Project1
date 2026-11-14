@@ -1,6 +1,6 @@
 /**
- * Hidden Markov Model (HMM) Market Regime Detection Engine
- * Discovers latent macroeconomic/market states:
+ * Rule-Based Trend & Volatility Market Regime Classifier
+ * Classifies market states using SMA-20, RSI-14, and 20-day realized volatility thresholds:
  * State 0: Low Volatility / Bullish
  * State 1: High Volatility / Bearish
  */
@@ -59,9 +59,9 @@ export function detectMarketRegime(bars: ComputedBar[], ticker: string): MarketR
   const avgVol = totalVol / n;
   const avgRet = totalRet / n;
 
-  // Thresholds for HMM 2-state Gaussian emissions
+  // Thresholds for rule-based 2-state trend/volatility regime classifier
   // State 0: Volatility < threshold AND 20-day returns positive or neutral
-  // State 1: Volatility >= threshold OR negative trend with erratic volume
+  // State 1: Volatility >= threshold OR negative trend with elevated variance
   let state0Count = 0;
   let state1Count = 0;
   let s0_to_s0 = 0;

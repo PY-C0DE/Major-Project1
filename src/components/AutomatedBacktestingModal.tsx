@@ -1,6 +1,6 @@
 /**
  * Automated Backtesting Framework Modal
- * Simulates model strategies (XGBoost + Conformal Quantile, Volatility Breakout, Regime-Adaptive)
+ * Simulates model strategies (AlphaQuant Ensemble + Split-Conformal Quantile, Volatility Breakout, Rule-Based Regime-Adaptive)
  * against a Buy-and-Hold benchmark over trailing trading sessions.
  * Visualizes historical comparative equity curves, alpha, Sharpe ratios, and drawdowns.
  */
@@ -35,6 +35,7 @@ import {
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { AutomatedBacktestResult } from '../types';
+import { AutomatedBacktestStrategyId, DEFAULT_BACKTEST_STRATEGY } from '../shared/modelConfig';
 
 interface Props {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export const AutomatedBacktestingModal: React.FC<Props> = ({
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [ticker, setTicker] = useState(defaultTicker);
-  const [strategy, setStrategy] = useState<'xgboost_conformal' | 'conformal_breakout' | 'regime_adaptive'>('xgboost_conformal');
+  const [strategy, setStrategy] = useState<AutomatedBacktestStrategyId>(DEFAULT_BACKTEST_STRATEGY);
   const [days, setDays] = useState<number>(90);
   const [capital, setCapital] = useState<number>(100000);
   const [result, setResult] = useState<AutomatedBacktestResult | null>(null);
@@ -148,9 +149,9 @@ export const AutomatedBacktestingModal: React.FC<Props> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-slate-500 dark:text-slate-400">Strategy Model:</span>
             {[
-              { id: 'xgboost_conformal', label: 'XGBoost + Conformal Quantile' },
+              { id: 'ensemble_conformal', label: 'Ensemble + Split-Conformal' },
               { id: 'conformal_breakout', label: 'Volatility Envelope Breakout' },
-              { id: 'regime_adaptive', label: 'HMM Regime Trend' }
+              { id: 'regime_adaptive', label: 'Rule-Based Regime Trend' }
             ].map(s => (
               <button
                 key={s.id}

@@ -56,6 +56,7 @@ export interface HistoricalBar {
   predictedClose?: number;
   lowerBound?: number;
   upperBound?: number;
+  source?: 'live' | 'synthetic';
 }
 
 export interface TechnicalIndicators {
@@ -120,6 +121,7 @@ export interface ConformalPrediction {
   classifiedEvents?: ClassifiedFinancialEvent[];
   decisionSignal?: DecisionSignal;
   liveNewsMeta?: LiveNewsMeta;
+  dataSource?: 'live' | 'synthetic';
 }
 
 export interface EquityCurvePoint {
@@ -183,6 +185,7 @@ export interface MarketRegime {
     regime1: { name: string; meanReturn: number; volatility: number; interpretation: string };
   };
   historicalRegimes: HistoricalRegimeItem[];
+  dataSource?: 'live' | 'synthetic';
 }
 
 export interface NewsItem {
@@ -217,6 +220,7 @@ export interface MarketIndexItem {
   up: boolean;
   price: number;
   changeValue: number;
+  isLive?: boolean;
 }
 
 export interface QuickWatchItem {
@@ -229,6 +233,7 @@ export interface QuickWatchItem {
   up: boolean;
   sector: string;
   currency: string;
+  isLive?: boolean;
 }
 
 export interface SentimentScoreResult {
@@ -269,14 +274,15 @@ export interface ConceptDriftResult {
   checkTimestamp: string;
   safetyWarning: string | null;
   features: FeatureDriftItem[];
+  dataSource?: 'live' | 'synthetic';
 }
 
 export interface ModelComparisonItem {
   model: string;
-  mae: number;
-  rmse: number;
-  r2: number;
-  directionalAccuracy: number;
+  mae: number | null;
+  rmse: number | null;
+  r2: number | null;
+  directionalAccuracy: number | null;
   trainingTimeSec: number;
   isProduction: boolean;
 }
@@ -293,14 +299,35 @@ export interface BacktestDataPoint {
 export interface AssetBreakdownItem {
   ticker: string;
   name: string;
+  dataSource: 'live' | 'synthetic';
+  testWindowStart: string;
+  testWindowEnd: string;
   priceAccuracy: number;
   mape: number;
   conformalCoverage: number;
   r2: number;
   directionalAccuracy: number;
+  alwaysUpAccuracy: number;
   samples: number;
   rmse: number;
   mae: number;
+}
+
+export interface MetricSummaryStats {
+  mean: number;
+  median: number;
+  min: number;
+  max: number;
+}
+
+export interface PooledDirectionalStats {
+  totalTestPredictions: number;
+  modelHits: number;
+  alwaysUpHits: number;
+  pooledDirectionalAccuracyPct: number;
+  pooledAlwaysUpAccuracyPct: number;
+  wilson95CI: [number, number];
+  binomialPValueVsAlwaysUp: number;
 }
 
 export interface ModelFeatureImportance {
@@ -313,6 +340,10 @@ export interface ModelFeatureImportance {
 }
 
 export interface ModelEvaluation {
+  available?: boolean;
+  reason?: string;
+  dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
+  evaluatedAssetsCount?: number;
   ticker: string;
   modelName: string;
   horizonDays: number;
@@ -321,9 +352,19 @@ export interface ModelEvaluation {
   mape: number;
   r2: number;
   directionalAccuracy: number;
+  alwaysUpAccuracy?: number;
   conformalCoverage?: number;
   priceAccuracy?: number;
   totalBacktestSamples: number;
+  testWindowStart?: string;
+  testWindowEnd?: string;
+  testWindowDays?: number;
+  summaryStats?: {
+    mape: MetricSummaryStats;
+    directionalAccuracy: MetricSummaryStats;
+    conformalCoverage: MetricSummaryStats;
+  };
+  directionalStats?: PooledDirectionalStats;
   evaluatedAt: string;
   comparison: ModelComparisonItem[];
   backtestSeries: BacktestDataPoint[];
@@ -331,6 +372,29 @@ export interface ModelEvaluation {
   totalAssetsCount?: number;
   isAllAssets?: boolean;
   featureImportance?: ModelFeatureImportance[];
+}
+
+export interface UnavailableEvaluation {
+  available: false;
+  reason: string;
+  dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
+  evaluatedAssetsCount: number;
+  ticker?: string;
+}
+
+export interface ModelAuditResponse {
+  available: boolean;
+  reason?: string;
+  dataSource: 'live' | 'synthetic' | 'mixed' | 'none';
+  evaluatedAssetsCount: number;
+  evaluatedAt?: string;
+  testWindowStart?: string;
+  testWindowEnd?: string;
+  totalTestPredictions?: number;
+  summaryStats?: ModelEvaluation['summaryStats'];
+  directionalStats?: PooledDirectionalStats;
+  comparison?: ModelComparisonItem[];
+  assets?: AssetBreakdownItem[];
 }
 
 export interface PortfolioHolding {
@@ -411,6 +475,8 @@ export interface PortfolioOptimizationResult {
     tickers: string[];
     matrix: number[][];
   };
+  lookbackDays?: number;
+  covarianceShrinkage?: number;
   optimizedAt: string;
 }
 
@@ -533,6 +599,9 @@ export interface UserProfile {
 }
 
 export interface ProjectWideAccuracyResult {
+  available?: boolean;
+  reason?: string;
+  dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
   priceAccuracyPct: number;
   mape: number;
   evaluatedAssetsCount: number;

@@ -5,7 +5,7 @@
  * Features:
  * - Executive Market Synthesis Briefing with net sentiment barometer
  * - Watchlist Catalyst Cards (Top Bullish Momentum vs Risk Drivers)
- * - Integrated FinBERT NLP tone distribution across watchlist
+ * - Integrated keyword financial-sentiment lexicon tone distribution across watchlist
  * - Filterable Watchlist Intelligence News Feed
  * - Native Browser Speech Audio Digest ("Listen to 60s Briefing")
  * - Direct navigation to ticker analysis and full news hub
@@ -284,7 +284,7 @@ export const DailyMarketDigest: React.FC<Props> = ({ onSelectTicker, onNavigate 
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-sans">
-              AI news synthesis, FinBERT sentiment barometer, and conformal momentum updates for your saved assets
+              AI news synthesis, keyword financial-sentiment barometer, and split-conformal momentum updates for your saved assets
             </p>
           </div>
         </div>
@@ -604,7 +604,7 @@ export const DailyMarketDigest: React.FC<Props> = ({ onSelectTicker, onNavigate 
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
               <BookmarkCheck className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Monitoring {watchlist.length} assets with Conformal intervals & FinBERT NLP</span>
+              <span>Monitoring {watchlist.length} assets with Split-Conformal intervals & Keyword Sentiment Lexicon</span>
             </div>
 
             <div className="flex items-center gap-3">

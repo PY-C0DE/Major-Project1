@@ -12,7 +12,7 @@ import { StrategyPerformanceMetrics, EquityCurvePoint } from '../../types';
 export function runStrategyBacktest(
   bars: ComputedBar[],
   ticker: string,
-  strategyType: 'conformal_reversion' | 'regime_momentum' | 'finbert_multimodal' = 'conformal_reversion'
+  strategyType: 'conformal_reversion' | 'regime_momentum' | 'sentiment_multimodal' = 'conformal_reversion'
 ): StrategyPerformanceMetrics {
   const n = bars.length;
   // Use evaluation window of past 120 trading days
@@ -74,7 +74,7 @@ export function runStrategyBacktest(
         }
       }
     } else if (strategyType === 'regime_momentum') {
-      // HMM Regime Momentum:
+      // Rule-Based Regime Momentum:
       // Long when in Low Volatility Steady Bullish drift (Regime 0) and Price > SMA20
       const isBullishRegime = vol20 < 0.22 && price >= sma20;
       if (!inPosition && isBullishRegime) {
@@ -94,7 +94,7 @@ export function runStrategyBacktest(
         }
       }
     } else {
-      // FinBERT Multimodal Fusion:
+      // Keyword Sentiment & Technical Signal Filter:
       // Combines sentiment trend with MACD expansion and bounded RSI
       const hasPositiveSignal = macdHist > 0 && rsi > 44 && rsi < 66;
       if (!inPosition && hasPositiveSignal) {
@@ -160,7 +160,7 @@ export function runStrategyBacktest(
   const strategyNames: Record<string, string> = {
     conformal_reversion: 'Split-Conformal Mean-Reversion Strategy',
     regime_momentum: 'Rule-Based Regime Momentum Strategy',
-    finbert_multimodal: 'Sentiment & Technical Signal Filter'
+    sentiment_multimodal: 'Keyword Sentiment & Technical Signal Filter'
   };
 
   return {

@@ -139,9 +139,14 @@ export const InteractiveStockChart: React.FC<Props> = ({ bars, prediction, curre
     <div className="bg-white dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl p-3.5 sm:p-5 lg:p-6 shadow-xs hover:shadow-sm transition-all">
       {/* Chart Top Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-200 dark:border-slate-800">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-semibold text-slate-900 dark:text-white font-mono">{ticker}</span>
           <span className="text-xs text-slate-500 dark:text-slate-400">· Daily Candle Stream</span>
+          {bars.length > 0 && bars[0]?.source === 'synthetic' && (
+            <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+              Simulated data
+            </span>
+          )}
         </div>
 
         {/* Toggles & Range Selectors */}

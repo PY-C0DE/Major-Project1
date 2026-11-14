@@ -200,15 +200,15 @@ Access the derivatives terminal via **"Options & Greeks"** in the top navigation
    - Volume PCR & Open Interest PCR identifying bullish/bearish market positioning.`;
   }
 
-  if (p.includes('backtest') || p.includes('simulate') || p.includes('sharpe') || p.includes('drawdown') || p.includes('xgboost')) {
+  if (p.includes('backtest') || p.includes('simulate') || p.includes('sharpe') || p.includes('drawdown') || p.includes('ensemble')) {
     return `### Automated Quantitative Backtesting Engine 📊
 
 Simulate predictive trading strategies against Buy-and-Hold benchmarks:
 
 1. **Available Strategies**:
-   - **XGBoost + Conformal Quantile Strategy**: Buys when price touches the lower calibrated quantile with positive momentum; trims near the upper bound.
-   - **Conformal Volatility Envelope Breakout**: Captures trending momentum surges piercing outside volatility bands.
-   - **HMM Regime-Adaptive Trend Following**: Re-allocates between cash and equity based on low/high volatility regime states.
+   - **AlphaQuant Ensemble + Split-Conformal Quantile Strategy**: Buys when price touches the lower calibrated quantile with positive momentum; trims near the upper bound.
+   - **Split-Conformal Volatility Envelope Breakout**: Captures trending momentum surges piercing outside volatility bands.
+   - **Rule-Based Regime-Adaptive Trend Following**: Re-allocates between cash and equity based on low/high volatility regime states.
 
 2. **Performance Metrics**:
    - **Cumulative Strategy Value vs. Benchmark Curve**
@@ -255,7 +255,7 @@ Explore every layer of the AlphaQuant AI terminal:
 2. Global Macro Market Tape
 3. Aggregate Price Accuracy Metric (100% - MAPE)
 4. Split-Conformal Prediction Envelopes
-5. Rule-Based & HMM Market Regimes
+5. Rule-Based Trend/Volatility Market Regimes
 6. Options Chains & Black-Scholes Greeks
 7. Automated Quantitative Backtesting
 8. Direct Broker Router (Alpaca Paper Trading)

@@ -1,6 +1,6 @@
 /**
  * RegimeIndicator Component
- * Displays the current HMM-detected market regime (e.g., 'Low Volatility / Bullish',
+ * Displays the rule-based trend/volatility market regime (e.g., 'Low Volatility / Bullish',
  * 'Bullish Volatile', 'High Volatility / Bearish', 'Stable Bearish')
  * as a color-coded status badge with animated live pulse, posterior probability,
  * volatility classification, and institutional hover telemetry.
@@ -133,7 +133,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
         }}
         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold transition-all border shadow-xs cursor-pointer ${theme.bg} ${theme.border} ${theme.text} ${isOptionActive ? 'ring-2 ring-cyan-500 shadow-sm' : ''} hover:opacity-95 focus:outline-none`}
         aria-label={`Market Regime: ${regimeName}`}
-        title={onToggleOption ? 'Click to toggle HMM Market Regime module in analysis' : 'HMM Market Regime Detection'}
+        title={onToggleOption ? 'Click to toggle Rule-Based Market Regime module in analysis' : 'Rule-Based Trend/Volatility Regime Classifier'}
       >
         {/* Animated Pulse Indicator */}
         <span className="relative flex h-2 w-2">
@@ -176,7 +176,7 @@ export const RegimeIndicator: React.FC<RegimeIndicatorProps> = ({
               </div>
               <div>
                 <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block font-bold">
-                  HMM Market Regime
+                  Rule-Based Market Regime
                 </span>
                 <span className="text-xs font-bold text-slate-900 dark:text-white">
                   State {regime.regimeId}: {regimeName}

@@ -1,19 +1,21 @@
 # AlphaQuant AI — Global Institutional Stock Intelligence & Price Prediction Platform
 
-An institutional-grade, full-stack quantitative financial intelligence platform engineered for **global stock price prediction**, **distribution-free conformal uncertainty quantification**, **market regime classification**, **real-time concept drift governance**, **multi-currency FX intelligence**, and **portfolio optimization**.
+> **Implementation Note (TypeScript Runtime vs. Standalone Python Directories):** The running application is implemented entirely in TypeScript (`server.ts` + `src/`). The legacy/standalone Python directories (`ml/`, `sentiment_analysis/`, `fake_news_detection/`, and `backend/`) are **not wired into or executed by** the running Node.js/React application.
+
+A full-stack quantitative financial intelligence platform engineered for **global stock price prediction**, **split-conformal prediction intervals**, **rule-based trend/volatility regime classification**, **two-sample KS drift testing**, **multi-currency FX intelligence**, and **portfolio optimization**.
 
 ---
 
 ## 1. Primary Motive: Auditable Global Stock Price Prediction
 
-Conventional forecasting systems output single deterministic price targets that hide volatility regimes and tail risk. **AlphaQuant AI** pairs an out-of-sample, zero-lookahead stacked ensemble (`v4.0 ML Core`) with calibrated **Split-Conformal Prediction Envelopes**, **Hidden Markov Model (HMM) Regimes**, **Financial NLP News Sentiment & Classified Catalyst Events**, and **Kolmogorov-Smirnov Concept Drift Governance** across global equity exchanges.
+Conventional forecasting systems output single deterministic price targets that hide volatility regimes and tail risk. **AlphaQuant AI** pairs the **AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)** with **split-conformal prediction intervals**, a **rule-based trend/volatility regime classifier**, a **keyword financial-sentiment lexicon with publisher-credibility weighting**, and a **two-sample KS drift test** across global equity exchanges.
 
-### Stacked Quantitative Ensemble Engine (`v4.0` — `src/server/math/modelEngine.ts`)
-Every forecast strictly prevents lookahead bias by fitting scalers, trees, regression weights, and meta-stacking coefficients exclusively on historical training bars prior to the target index:
+### AlphaQuant Ensemble (`src/server/math/modelEngine.ts`)
+Every forecast prevents lookahead bias by fitting scalers, trees, regression weights, and meta-stacking coefficients exclusively on historical training bars prior to the target index:
 1. **24-Factor Standardized Feature Vector**: Technical spreads (EMA 12/26, SMA 50), RSI-14, Bollinger %B, MACD impulse, volatility regime ratios, microstructure gap, intraday flow, linear trend quality ($\text{slope} \times R^2$), Donchian channel position, and OBV flow scaled in Garman-Klass + close-to-close blended volatility space (`estimateBarDailyVol`).
 2. **Walk-Forward Huberized Ridge Regressor**: 3-fold expanding time-series cross-validation for $L_2$ regularization in volatility-normalized (Sharpe) space.
 3. **Regularized Depth-2 Gradient-Boosted Decision Trees (GBDT)**: Huber loss optimization with minimum-leaf constraints.
-4. **Adaptive State-Space Kalman / Regime Filter**: Autocorrelation-gated trend vs. mean-reversion estimator.
+4. **Adaptive Kalman Regime Filter**: Autocorrelation-gated trend vs. mean-reversion estimator.
 5. **Cosine-Similarity Pattern Analog Forecaster (KNN)**: Regime-matched historical analog lookup in standardized feature space.
 6. **Out-of-Sample Meta-Stacker & Ornstein-Uhlenbeck Propagation**: Bayesian shrinkage weighting (`shrinkageGain`) across all four base learners with multi-horizon path propagation (`1D`, `5D`, `14D`).
 
@@ -22,26 +24,23 @@ Every forecast strictly prevents lookahead bias by fitting scalers, trees, regre
 ## 2. Four Core Mathematical USPs
 
 ### USP 1 — Split-Conformal Prediction Intervals (`conformal.ts`)
-Provides finite-sample prediction envelopes calibrated at nominal coverage ($1 - \alpha$, user-adjustable across $80\%, 90\%, 95\%, 99\%$):
+Provides finite-sample prediction intervals with default nominal coverage of **90%** (`DEFAULT_CONFORMAL_CONFIDENCE = 0.90` in `src/shared/modelConfig.ts`, user-adjustable across $80\%, 90\%, 95\%, 99\%$):
 
 $$\hat{C}(X_{n+1}) = [\hat{y}_{n+1} - \hat{q}_{1-\alpha}, \; \hat{y}_{n+1} + \hat{q}_{1-\alpha}]$$
 
 - **Distribution-Free Coverage Guarantee**: $P(Y_{n+1} \in \hat{C}(X_{n+1})) \ge 1 - \alpha$ without Gaussian return assumptions.
 - **Residual Non-Conformity Calibration**: Computes quantile envelopes over chronological out-of-sample validation windows.
 
-### USP 2 — Hidden Markov Model (HMM) Market Regimes (`hmmRegime.ts`)
-- **Three-State Classification**:
-  - **State 0 (Bullish Steady Drift)**: Compressed volatility, tight conformal envelopes, high persistence.
-  - **State 1 (High Volatility Expansion / Bear Shock)**: Elevated variance cascades, widened prediction intervals, defensive risk posture.
-  - **State 2 (Mean-Reverting Range)**: Sideways consolidation with oscillator reversion cues.
-- **Empirical Transition Matrix & Persistence**: Tracks state transition probabilities $P(S_t = j \mid S_{t-1} = i)$ and expected holding duration, surfaced via header `RegimeIndicator` badges and graphical HMM visualizers.
+### USP 2 — Rule-Based Trend/Volatility Regime Classifier (`hmmRegime.ts`)
+- **Rule-Based Classification**: Classifies sessions using rolling 20-day return trend vs. 10/30-day realized volatility thresholds into Bullish/Bearish Low-Volatility and High-Volatility regimes.
+- **Empirical Transition Matrix & Persistence**: Tracks observed historical state transitions $P(S_t = j \mid S_{t-1} = i)$ and persistence durations, surfaced via header `RegimeIndicator` badges and regime visualizers.
 
-### USP 3 — Financial NLP Sentiment, Credibility & Classified Event Audit (`nlpEngine.ts`)
-- **Curated Financial Lexicon**: Scores global news headlines for bullish, neutral, and bearish polarity.
-- **Publisher Reputation Weighting**: Weights articles using verified financial publisher credibility (Reuters, Bloomberg, WSJ, Financial Times, Economic Times, Nikkei, etc.).
+### USP 3 — Keyword Financial-Sentiment Lexicon & Publisher-Credibility Weighting (`nlpEngine.ts`)
+- **Keyword Financial-Sentiment Lexicon**: Scores global news headlines for bullish, neutral, and bearish polarity using a curated financial keyword lexicon (`analyzeKeywordSentiment`).
+- **Publisher-Credibility Weighting**: Weights articles by verified financial publisher credibility (Reuters, Bloomberg, WSJ, Financial Times, Economic Times, Nikkei, etc.).
 - **Classified Event Feed**: Categorizes catalysts (Earnings, Macro/Central Bank, M&A/Product, Analyst Actions, Regulatory) in a dedicated analytical module.
 
-### USP 4 — Two-Sample Kolmogorov-Smirnov Concept Drift Detection (`driftDetector.ts`)
+### USP 4 — Two-Sample KS Drift Test (`driftDetector.ts`)
 - Compares baseline training return distributions against rolling live inference windows:
 
 $$D_{n,m} = \sup_x |F_{1,n}(x) - F_{2,m}(x)|$$
@@ -82,7 +81,7 @@ Consistent Light and Dark theme styling across all pages, D3/Recharts visualizat
 - **D3 Options Volatility Surface & IV Smile Mispricing Radar (`OptionsVolatilitySurface.tsx`, `OptionsIVSmileMispricing.tsx`)**: Real-time Black-Scholes Greeks ($\Delta, \Gamma, \Theta, \nu, \rho$), 3D IV surface, ATM expected moves, and ranked rich/cheap strike mispricing arbitrage scanner.
 - **Dividend Yield & Ex-Date Cashflow Calendar (`DividendCalendar.tsx`)**: Annualized income run-rates, Yield on Cost, imminent ex-dividend warnings, quarterly payout schedules, and 1–10 year DRIP compounding simulator.
 - **Executive Trade Summary & Portfolio Correlation (`ExecutiveTradeSummary.tsx`, `PortfolioCorrelation.tsx`)**: Realized Sharpe Ratio, Profit Factor, cumulative closed equity curve, sector risk attribution, zoomable D3 correlation matrix with Cluster Navigator minimap, and stress testing (`PortfolioStressTest.tsx`).
-- **Markowitz Mean-Variance Optimizer (`portfolioOptimizer.ts`)**: Efficient frontier visualization with Sharpe-maximizing, minimum-variance, and constrained rebalancing proposals plus CSV/JSON import/export.
+- **Markowitz Mean-Variance Optimizer (`portfolioOptimizer.ts`)**: Deterministic seeded Monte Carlo simplex search (`mulberry32` seeded from sorted tickers, objective, and constraints) over a **90-trading-day lookback window** with **diagonal covariance shrinkage ($\delta = 0.2$)**, efficient frontier visualization, constrained rebalancing proposals, and CSV/JSON import/export.
 - **Risk-Based & RSI Momentum Alerts (`AlertsPage.tsx`, `QuickAlertPopover.tsx`)**: Parametric VaR triggers, annualized volatility spikes, RSI-14 30/70 thresholds, price targets, and model drift alarms.
 - **Automated Backtesting, Paper Broker Router & AI Copilot**: Walk-forward strategy backtester (`AutomatedBacktestingModal`), simulated paper order blotter (`BrokerRouterModal`), social copy-trade feed (`SocialCopyTradeModal`), and interactive 16-step Spotlight Tour (`ProductTourModal`).
 
@@ -97,10 +96,10 @@ Consistent Light and Dark theme styling across all pages, D3/Recharts visualizat
 | **Markets & Correlation** | `MarketsPage.tsx` | Global sector heatmap, cross-asset Pearson correlation explorer, and live index breadth with Open/Closed exchange status badges. |
 | **Watchlist** | `WatchlistPage.tsx` | Tracked global equities with live native/converted pricing, exchange status badges, conformal envelopes, regimes, and earnings pulse. |
 | **Global News** | `NewsPage.tsx` | Real-time aggregated financial headlines with sentiment tags, credibility scoring, and regional filters. |
-| **Model Accuracy** | `ModelPerformancePage.tsx` | Out-of-sample walk-forward evaluation (`MAE`, `RMSE`, `MAPE`, `Directional Accuracy`, `R²`, Random Walk comparison) for Model `v4.0`. |
-| **Drift Monitor** | `DriftMonitorPage.tsx` | Kolmogorov-Smirnov test statistics, baseline vs. live return CDF comparison, and safety status Governance. |
+| **Model Accuracy** | `ModelPerformancePage.tsx` | Out-of-sample walk-forward evaluation (`MAE`, `RMSE`, `MAPE`, `Directional Accuracy`, `R²`, Always-Up / Persistence / SMA-20 / OLS baselines) for AlphaQuant Ensemble. |
+| **Drift Monitor** | `DriftMonitorPage.tsx` | Two-sample KS drift test statistics, baseline vs. live return CDF comparison, and safety status monitoring. |
 | **Alerts** | `AlertsPage.tsx` | VaR, volatility, RSI-14, price threshold, and regime/drift alert creation and management. |
-| **Investor Guide** | `InvestorGuidePage.tsx` | Interactive educational reference explaining conformal intervals, HMM regimes, Greeks, and quantitative risk metrics. |
+| **Investor Guide** | `InvestorGuidePage.tsx` | Interactive educational reference explaining split-conformal intervals, rule-based market regimes, Greeks, and quantitative risk metrics. |
 | **Account & Settings** | `AccountPage.tsx` | Profile management, preferred home currency, language, theme, and password settings. |
 
 ---
@@ -124,17 +123,17 @@ GET    /api/stocks/:ticker                # Live quote, currency, exchange timez
 GET    /api/stocks/:ticker/history        # Historical OHLCV bars (supports multi-year ranges)
 GET    /api/stocks/:ticker/seasonality    # Multi-year monthly seasonality matrix & calendar bias
 
-# Machine Learning, Conformal Inference, Regimes, NLP & Drift
-GET    /api/predictions/:ticker?h=N&c=N   # v4.0 stacked ensemble forecast + conformal [lower, upper]
+# Forecasting, Split-Conformal Intervals, Regimes, Sentiment & Drift
+GET    /api/predictions/:ticker?h=N&c=N   # AlphaQuant Ensemble forecast + split-conformal [lower, upper] (default 90%)
 POST   /api/predictions                   # Log forecast audit snapshot for authenticated user
 GET    /api/predictions/history           # User's saved forecast tracking history
-GET    /api/regime/:ticker                # HMM regime state, probabilities & transition matrix
-GET    /api/sentiment/:ticker             # NLP sentiment polarity, publisher credibility & classified events
-GET    /api/drift/:ticker                 # Two-sample Kolmogorov-Smirnov drift statistics & p-value
+GET    /api/regime/:ticker                # Rule-based trend/volatility regime state, probabilities & transition matrix
+GET    /api/sentiment/:ticker             # Keyword financial-sentiment lexicon score, publisher credibility & classified events
+GET    /api/drift/:ticker                 # Two-sample KS drift test statistics & p-value
 GET    /api/model/metrics                 # Out-of-sample walk-forward accuracy & benchmark comparison
 GET    /api/metrics/accuracy              # Alias / accuracy metrics summary
-GET    /api/model/health                  # Model governance & health status
-GET    /api/strategy/backtest             # Directional strategy vs. buy-and-hold simulation
+GET    /api/model/health                  # Model health & calibration status
+GET    /api/strategy/backtest             # Directional strategy (e.g. sentiment_multimodal) vs. buy-and-hold simulation
 
 # Options, Correlation, Backtesting & Earnings
 GET    /api/markets/correlation           # Cross-asset market return correlation matrix
@@ -182,7 +181,7 @@ POST   /api/support/chat                  # Platform support assistant endpoint
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS v4, Vite 8, `motion` (Framer Motion v12), Recharts 3, D3.js 7, Lucide Icons.
 - **Backend**: Node.js + Express (`server.ts`) with integrated Vite middleware in development on port `3000`, `tsx`, and `yahoo-finance2`.
-- **Quantitative Math Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Filtering, Cosine KNN Analogs, Split-Conformal Prediction, Two-Sample Kolmogorov-Smirnov Testing, HMM Regimes, Black-Scholes Greeks, and Markowitz MVO.
+- **Quantitative Math Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Regime Filtering, Cosine KNN Analogs, Split-Conformal Prediction Intervals (90% default coverage), Two-Sample KS Drift Test, Rule-Based Trend/Volatility Regime Classifier, Keyword Financial-Sentiment Lexicon, Black-Scholes Greeks, and Markowitz MVO.
 - **Security & Session**: `bcryptjs` password hashing, `jsonwebtoken` stateless JWT authentication, and API rate limiting.
 
 ---
@@ -194,8 +193,20 @@ POST   /api/support/chat                  # Platform support assistant endpoint
 npm install
 ```
 
-### 2. Configure Environment (Optional)
-Copy `.env.example` to `.env` if overriding secrets or optional data provider keys (`JWT_SECRET`, `NEWS_API_KEY`, `ALPHA_VANTAGE_API_KEY`, etc.). The platform works out of the box on port `3000`.
+### 2. Configure Environment Variables
+Copy `.env.example` to `.env` and set required secrets before production or Docker runs:
+```bash
+cp .env.example .env
+# Generate a cryptographically strong 32+ char JWT secret:
+openssl rand -hex 32
+```
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `JWT_SECRET` | **Required in production** (`NODE_ENV=production`). Must be at least 32 characters and not a public placeholder. In development, an ephemeral random secret is generated if unset. | Ephemeral (dev) / Required (prod) |
+| `ALLOW_DEMO_MODE` | Server-side flag (`true` / `false`). When `true`, requests without a valid JWT fall back to the demo user account. Keep `false` in real deployments. | `false` |
+| `VITE_DEMO_MODE` | Client-side flag (`true` / `false`). Enables automatic demo-session fallback in the frontend when unauthenticated. | `false` |
+| `GEMINI_API_KEY` | Optional Google Gemini API key used by `/api/support/chat` and `/api/copilot/chat` (falls back to deterministic knowledge base responses when unset). | Unset |
 
 ### 3. Start Full-Stack Development Server
 ```bash
@@ -206,9 +217,21 @@ Open **http://localhost:3000** in your browser. Express API routes and Vite fron
 ### 4. Verify Build, Types & Automated Tests
 ```bash
 npm run lint    # Run TypeScript type checks (tsc --noEmit)
-npm test        # Run quantitative, correlation, security & route tests
+npm test        # Run all unit & real-app HTTP tests (tests/*.test.ts)
 npm run build   # Build production frontend bundle to dist/
 npm start       # Start full-stack server via tsx server.ts
+```
+
+### 5. Docker & Docker Compose Deployment
+Ensure `.env` defines a strong `JWT_SECRET` (at least 32 characters); Compose refuses to start if `JWT_SECRET` is missing:
+```bash
+# Option A: Docker Compose
+export JWT_SECRET=$(openssl rand -hex 32)
+docker compose up --build
+
+# Option B: Direct Docker Build & Run
+docker build -t alphaquant-ai .
+docker run -p 3000:3000 -e NODE_ENV=production -e JWT_SECRET="$(openssl rand -hex 32)" alphaquant-ai
 ```
 
 ---

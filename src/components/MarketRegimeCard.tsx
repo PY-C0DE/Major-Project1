@@ -1,7 +1,7 @@
 /**
  * USP 2: Market Regime Detection Card
- * Displays active Hidden Markov Model (HMM) state, posterior regime probability,
- * stability score, volatility regime, transition matrix, and regime transition history.
+ * Displays active rule-based trend/volatility regime state, regime score,
+ * stability score, volatility regime, transition matrix, and regime history.
  * Supports dark and light themes.
  */
 
@@ -17,7 +17,7 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
   if (!regime) {
     return (
       <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-5 animate-pulse min-h-[260px] flex items-center justify-center">
-        <span className="text-xs font-mono text-slate-500">Estimating HMM Market Regimes...</span>
+        <span className="text-xs font-mono text-slate-500">Classifying Trend &amp; Volatility Regimes...</span>
       </div>
     );
   }
@@ -36,7 +36,7 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Market Regime Detection</h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              HMM 2-State Latent Model
+              Rule-Based Trend &amp; Volatility Classifier
             </span>
           </div>
         </div>
@@ -66,7 +66,7 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
           )}
           <div>
             <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-400">
-              HMM Market Regime
+              Market Regime State
             </div>
             <div className="text-base font-bold tracking-tight text-slate-900 dark:text-white font-display">
               {displayName}
@@ -106,7 +106,7 @@ export const MarketRegimeCard: React.FC<Props> = ({ regime }) => {
       <div className="p-3 bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/60 rounded-lg">
         <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
           <span>Regime Transition Probability Matrix</span>
-          <span className="text-[10px] text-slate-400">Markov Transition</span>
+          <span className="text-[10px] text-slate-400">Empirical Transitions</span>
         </div>
         <div className="grid grid-cols-2 gap-2 text-center text-xs font-mono">
           <div className="p-2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">

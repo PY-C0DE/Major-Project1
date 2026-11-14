@@ -40,7 +40,7 @@ const CREDIBLE_DOMAINS: Record<string, number> = {
 /**
  * Analyzes headline using keyword sentiment lexicon
  */
-export function analyzeFinBERTTone(headline: string, summary = ''): {
+export function analyzeKeywordSentiment(headline: string, summary = ''): {
   sentiment: 'positive' | 'negative' | 'neutral';
   sentimentScore: number;
   probabilities: { positive: number; neutral: number; negative: number };
@@ -173,7 +173,7 @@ export function getNewsForTicker(ticker: string, companyName: string): NewsItem[
   ];
 
   return templates.map((tmpl, idx) => {
-    const tone = analyzeFinBERTTone(tmpl.title, tmpl.summary);
+    const tone = analyzeKeywordSentiment(tmpl.title, tmpl.summary);
     const verification = verifyNewsItem(tmpl.title, tmpl.source);
 
     return {
@@ -236,7 +236,7 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
   }
 
   const liveNewsItems: NewsItem[] = rawLive.map((item, idx) => {
-    const tone = analyzeFinBERTTone(item.title, item.summary);
+    const tone = analyzeKeywordSentiment(item.title, item.summary);
     const verification = verifyNewsItem(item.title, item.source);
 
     return {

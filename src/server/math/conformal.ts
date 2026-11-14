@@ -15,6 +15,7 @@ import {
 } from './modelEngine';
 import { getClassifiedEventsForTicker } from './nlpEngine';
 import { getCurrencySymbol } from '../../utils/currency';
+import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
 
 export function calculateTargetDate(baseDateStr?: string, horizonDays = 1): { targetDate: string; targetDateFormatted: string } {
   let d: Date;
@@ -57,7 +58,7 @@ export function runConformalPrediction(
   ticker: string,
   sentimentScore = 0.45,
   regimeId = 0,
-  confidenceLevel = 0.90,
+  confidenceLevel = DEFAULT_CONFORMAL_CONFIDENCE,
   horizonDays = 1,
   liveNewsMeta?: LiveNewsMeta,
   liveArticles?: NewsItem[]
@@ -80,7 +81,7 @@ export function runConformalPrediction(
       intervalWidth: Number((fallbackPrice * 0.08).toFixed(2)),
       intervalWidthPercent: 8.0,
       horizonDays: safeHorizon,
-      modelVersion: 'alphaquant-ensemble-v4.0 (Z-Scored Ridge + Huber GBDT + Kalman Regime + Cosine KNN Stacker)',
+      modelVersion: 'AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)',
       predictionTimestamp: new Date().toISOString(),
       topFeatures: [],
       methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,

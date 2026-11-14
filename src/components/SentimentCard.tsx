@@ -85,7 +85,7 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
       <div className="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-lg mb-4">
         <div className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
           <span>Aggregated Sentiment Tone (Live + Baseline Hybrid)</span>
-          <span className="text-slate-400 text-[10px]">FinBERT Lexicon</span>
+          <span className="text-slate-400 text-[10px]">Keyword Financial-Sentiment Lexicon</span>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">

@@ -31,6 +31,7 @@ import {
   ShieldCheck,
   Cpu
 } from 'lucide-react';
+import { DEFAULT_CONFORMAL_COVERAGE_PCT } from '../shared/modelConfig';
 
 interface InsightItem {
   id: string;
@@ -49,7 +50,7 @@ const INSIGHTS: InsightItem[] = [
     category: 'Split-Conformal Prediction Interval',
     ticker: 'NVDA',
     text: 'Split-conformal prediction interval calibrated using non-parametric residuals on historical market prices. The finite-sample interval bounds the forward forecast at calibrated coverage, quantifying downside risk.',
-    metric: '90% Coverage',
+    metric: `${DEFAULT_CONFORMAL_COVERAGE_PCT}% Coverage`,
     delta: '+3.15%',
     confidence: 'Calibrated coverage',
     regime: 'Trending'
@@ -88,7 +89,7 @@ const INSIGHTS: InsightItem[] = [
     id: 'ks-drift-tcs',
     category: 'Two-Sample KS Concept Drift Guard',
     ticker: 'TCS.NS',
-    text: 'Automated Kolmogorov-Smirnov two-sample test (scipy.stats.ks_2samp) evaluated 30-day inference window versus 252-day training distribution. Statistic D=0.084 (p=0.620) confirms distribution stationarity with active automated fail-safes intact.',
+    text: 'Automated two-sample KS drift test evaluated 30-day inference window versus 252-day training distribution. Statistic D=0.084 (p=0.620) confirms distribution stationarity with active automated fail-safes intact.',
     metric: 'D = 0.084 (p=0.620)',
     delta: '+0.95%',
     confidence: 'Distribution Stationarity Confirmed',
@@ -97,7 +98,7 @@ const INSIGHTS: InsightItem[] = [
 ];
 
 const SEARCH_PROMPTS = [
-  'What is NVDA 90% conformal risk bound?',
+  `What is NVDA ${DEFAULT_CONFORMAL_COVERAGE_PCT}% conformal risk bound?`,
   'Analyze market regime for Reliance...',
   'Scan market news for keyword sentiment...',
   'Rebalance portfolio for maximum Sharpe...',
@@ -105,7 +106,7 @@ const SEARCH_PROMPTS = [
 ];
 
 const QUICK_TEMPLATES = [
-  { label: 'Calculate 90% Conformal Bounds', prompt: 'Compute finite-sample 90% confidence envelope for active tickers', target: 0 },
+  { label: `Calculate ${DEFAULT_CONFORMAL_COVERAGE_PCT}% Conformal Bounds`, prompt: `Compute finite-sample ${DEFAULT_CONFORMAL_COVERAGE_PCT}% confidence envelope for active tickers`, target: 0 },
   { label: 'Run Regime State Detection', prompt: 'Identify rule-based market regime and transition probabilities', target: 1 },
   { label: 'Analyze News Sentiment & Claims', prompt: 'Analyze corporate news sentiment and publisher credibility', target: 2 },
   { label: 'Rebalance Markowitz Frontier', prompt: 'Solve quadratic optimization for highest Sharpe ratio allocation', target: 3 },
@@ -240,11 +241,10 @@ export const AnimatedQuantCard: React.FC<Props> = ({ onSelectPrompt, onExploreTi
             </div>
           </div>
 
-          {/* Live Engine Indicator */}
+          {/* Sample Data Indicator */}
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/50 text-[11px] font-mono font-semibold text-emerald-700 dark:text-emerald-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Real-Time v2.1</span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-50 dark:bg-cyan-950/60 border border-cyan-200 dark:border-cyan-800/50 text-[11px] font-mono font-semibold text-cyan-700 dark:text-cyan-300">
+              <span>Illustrative sample data</span>
             </span>
           </div>
         </div>
@@ -263,7 +263,7 @@ export const AnimatedQuantCard: React.FC<Props> = ({ onSelectPrompt, onExploreTi
               >
                 <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 font-mono text-xs font-semibold">
                   <Cpu className="w-4 h-4 animate-spin" />
-                  <span>Computing 90% Conformal Envelope & HMM Regimes...</span>
+                  <span>Computing {DEFAULT_CONFORMAL_COVERAGE_PCT}% Conformal Envelope &amp; Rule-Based Regimes...</span>
                 </div>
                 <div className="w-48 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div className="w-full h-full bg-gradient-to-r from-cyan-500 via-teal-400 to-indigo-500 animate-shimmer" />

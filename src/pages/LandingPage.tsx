@@ -41,6 +41,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { AnimatedQuantCard } from '../components/AnimatedQuantCard';
+import { DEFAULT_CONFORMAL_COVERAGE_PCT, CONFORMAL_COVERAGE_PCT_LEVELS } from '../shared/modelConfig';
 
 interface Props {
   onEnterApp: () => void;
@@ -53,12 +54,12 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
   const { user, isAuthenticated } = useAuth();
   const { theme } = useTheme();
 
-  // Tab switcher in Hero: 'ai-card' (Video 1 & 2 animated copilot) vs 'terminal' (NSE/NASDAQ matrix)
+  // Tab switcher in Hero: 'ai-card' (animated copilot) vs 'terminal' (NSE/NASDAQ matrix)
   const [heroTab, setHeroTab] = useState<'ai-card' | 'terminal'>('ai-card');
 
   // Interactive Simulation Playground Regime & Confidence Level
   const [simRegime, setSimRegime] = useState<'bullish' | 'sideways' | 'crisis'>('bullish');
-  const [confidenceLevel, setConfidenceLevel] = useState<80 | 90 | 95 | 99>(90);
+  const [confidenceLevel, setConfidenceLevel] = useState<number>(DEFAULT_CONFORMAL_COVERAGE_PCT);
 
   // Interactive sample ticker for hero terminal preview
   const [activeHeroTicker, setActiveHeroTicker] = useState<'RELIANCE.NS' | 'NVDA' | 'TCS.NS'>('RELIANCE.NS');
@@ -163,7 +164,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               </h1>
 
               <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-xl leading-relaxed">
-                Stock price prediction is the central motive of <strong>AlphaQuant AI</strong>. Engineered for quantitative traders and institutional desks, the terminal pairs multi-horizon machine learning price forecasting with <strong>Split-Conformal prediction intervals</strong>, <strong>Hidden Markov Model market regimes</strong>, <strong>financial sentiment intelligence</strong>, and <strong>Kolmogorov-Smirnov drift governance</strong>.
+                Stock price prediction is the central motive of <strong>AlphaQuant AI</strong>. The terminal pairs the <strong>AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)</strong> with <strong>split-conformal prediction intervals</strong>, a <strong>rule-based trend/volatility regime classifier</strong>, a <strong>keyword financial-sentiment lexicon with publisher-credibility weighting</strong>, and a <strong>two-sample KS drift test</strong>.
               </p>
 
               {/* Action Buttons */}
@@ -199,20 +200,20 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               <div className="pt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-mono">
                 <span className="flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                  90% Finite Coverage Bounds
+                  {DEFAULT_CONFORMAL_COVERAGE_PCT}% Split-Conformal Bounds
                 </span>
                 <span aria-hidden="true">·</span>
-                <span>Dual-Exchange (NSE / NASDAQ)</span>
+                <span>Global Exchanges (NSE / NASDAQ / KRX / TSE / EU)</span>
                 <span aria-hidden="true">·</span>
                 <span>Seasonality & Calendar Alpha</span>
                 <span aria-hidden="true">·</span>
                 <span>Dividend Yield & Cashflow</span>
                 <span aria-hidden="true">·</span>
-                <span>Two-Sample KS Drift Audit</span>
+                <span>Two-Sample KS Drift Test</span>
               </div>
             </motion.div>
 
-            {/* Right Column: Animated Quant Copilot & Live Matrix Showcase */}
+            {/* Right Column: Animated Quant Copilot & Matrix Showcase */}
             <motion.div
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -231,7 +232,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                     }`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>AI Copilot (Live Motion)</span>
+                    <span>Illustrative Preview (Motion)</span>
                   </button>
                   <button
                     onClick={() => setHeroTab('terminal')}
@@ -242,11 +243,11 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                     }`}
                   >
                     <BarChart3 className="w-3.5 h-3.5" />
-                    <span>Raw Telemetry Matrix</span>
+                    <span>Sample Matrix</span>
                   </button>
                 </div>
                 <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500 hidden sm:inline">
-                  Interactive Preview
+                  Illustrative sample data
                 </span>
               </div>
 
@@ -327,12 +328,12 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                       </div>
                     </div>
 
-                    {/* Conformal 90% Confidence Interval Envelope */}
+                    {/* Conformal Confidence Interval Envelope */}
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-2">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                           <Target className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-                          90% Conformal Forecast
+                          {DEFAULT_CONFORMAL_COVERAGE_PCT}% Split-Conformal Forecast
                         </span>
                         <span className="text-cyan-700 dark:text-cyan-300 font-bold tabular-nums">
                           {currentHeroData.currency}{currentHeroData.predicted.toLocaleString()}
@@ -412,11 +413,11 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
         </div>
       </section>
 
-      {/* CONTINUOUS MARQUEE MARKET TAPE (Illustrative Sample Market Data) */}
+      {/* CONTINUOUS MARQUEE MARKET TAPE (Illustrative Sample Data) */}
       <div className="py-2.5 bg-slate-900 border-b border-slate-800/90 text-white overflow-hidden relative select-none flex items-center">
         <div className="hidden sm:flex items-center gap-1.5 px-3 z-10 bg-slate-900 border-r border-slate-800 shrink-0 text-[10px] font-mono text-cyan-400 uppercase tracking-wider">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-          <span>Sample Quotes:</span>
+          <span>Illustrative sample data:</span>
         </div>
         <div className="animate-marquee flex items-center gap-6 whitespace-nowrap text-xs font-mono">
           {[
@@ -461,13 +462,13 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <span className="text-xs font-mono uppercase tracking-widest text-cyan-600 dark:text-cyan-400">
-              Interactive Mathematical Stress-Test Sandbox
+              Illustrative sample data · Mathematical Stress-Test Sandbox
             </span>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white font-display">
-              Test Live Model Adaptations & Finite Bounds
+              Test Conformal Bounds & Regime Sensitivity
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Select macroeconomic regimes and adjust non-parametric coverage bounds (1 - α) to observe how the <strong>conformal confidence envelope</strong> and <strong>market regime</strong> adapt in real time.
+              Select illustrative market regimes and adjust non-parametric coverage bounds (1 - α) to observe how the <strong>split-conformal prediction interval</strong> and <strong>rule-based regime classifier</strong> respond on sample inputs.
             </p>
           </div>
 
@@ -515,7 +516,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               <span className="px-2.5 py-2 text-slate-400 text-[11px] uppercase tracking-wider flex items-center">
                 Coverage:
               </span>
-              {([80, 90, 95, 99] as const).map(lvl => (
+              {CONFORMAL_COVERAGE_PCT_LEVELS.map(lvl => (
                 <button
                   key={lvl}
                   onClick={() => setConfidenceLevel(lvl)}
@@ -886,7 +887,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                   Take the 16-Step Guided Product Spotlight Tour
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                  Explore every quantitative layer of the terminal in real-time. Our guided spotlight walks you through price prediction candle charts, split-conformal bounds, HMM regimes, news sentiment, KS drift guards, seasonality heatmaps, and dividend cashflows.
+                  Explore every quantitative layer of the terminal. Our guided spotlight walks you through price prediction candle charts, split-conformal prediction intervals, rule-based trend/volatility regimes, keyword financial-sentiment scoring, two-sample KS drift tests, seasonality heatmaps, and dividend cashflows.
                 </p>
                 <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-slate-500 dark:text-slate-400 pt-1">
                   <span className="flex items-center gap-1">
@@ -935,7 +936,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               Four Core Mathematical Differentiators
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-              Why professional quantitative desks rely on conformal prediction intervals, latent Markov state transitions, and distribution drift monitors.
+              Why quantitative workflows pair split-conformal prediction intervals with rule-based market regimes and two-sample distribution drift tests.
             </p>
           </div>
 
@@ -1000,10 +1001,10 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                 <ActivitySquare className="w-5 h-5" />
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white font-display">
-                04. Kolmogorov-Smirnov Concept Drift
+                04. Two-Sample KS Drift Test
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Financial data is non-stationary. The platform continuously runs two-sample KS tests (<code>scipy.stats.ks_2samp</code>) comparing training baseline distributions with live 30-day inference windows, raising automated safety warnings when distribution drift occurs.
+                Financial data is non-stationary. The platform runs a two-sample Kolmogorov-Smirnov (KS) drift test comparing training baseline return distributions with rolling 30-day windows, raising automated warnings when distribution shift occurs.
               </p>
               <div className="p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300">
                 <div className="text-amber-600 dark:text-amber-400 font-semibold mb-1">Distribution Drift Guard:</div>
@@ -1026,18 +1027,18 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               The Quantitative Intelligence Workflow
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Continuous live stream ingestion through non-parametric risk calibration
+              Daily historical OHLCV ingestion through non-parametric risk calibration
             </p>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 relative">
             {[
-              { step: '01', title: 'Market OHLCV', desc: 'Real tick bars from NSE & US exchanges', badge: 'Market Bars' },
-              { step: '02', title: 'Technical Factors', desc: 'SMA, RSI, MACD, Bollinger, ATR', badge: '8 Features' },
-              { step: '03', title: 'Sentiment Lexicon', desc: 'Keyword financial tone scoring', badge: 'NLP Lexicon' },
-              { step: '04', title: 'Regime Filter', desc: 'Rule-based trend & volatility classifier', badge: 'Regime State' },
-              { step: '05', title: 'Ridge Regression', desc: 'Regularized 8-factor linear model', badge: 'Regression' },
-              { step: '06', title: 'Conformal Intervals', desc: 'Calibrated prediction interval', badge: '1-α Coverage' }
+              { step: '01', title: 'Market OHLCV', desc: 'Daily historical bars from global exchanges', badge: 'Market Bars' },
+              { step: '02', title: 'Technical Factors', desc: 'EMA, SMA, RSI, MACD, Bollinger, Donchian, OBV', badge: '24 Features' },
+              { step: '03', title: 'Sentiment Lexicon', desc: 'Keyword financial-sentiment lexicon + credibility', badge: 'Lexicon' },
+              { step: '04', title: 'Regime Classifier', desc: 'Rule-based trend & volatility regime classifier', badge: 'Regime State' },
+              { step: '05', title: 'AlphaQuant Ensemble', desc: 'Ridge + Huber GBDT + Kalman + KNN stacker', badge: 'Ensemble' },
+              { step: '06', title: 'Conformal Intervals', desc: 'Split-conformal prediction intervals', badge: `${DEFAULT_CONFORMAL_COVERAGE_PCT}% Coverage` }
             ].map((w, idx) => (
               <div
                 key={w.step}
@@ -1083,7 +1084,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs">
               <div className="p-3.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
                 <span className="font-semibold text-slate-900 dark:text-white block mb-1">Finite-Sample Bounds</span>
-                <p className="text-[11px] text-slate-600 dark:text-slate-400">90% conformal intervals indicate where prices historically reside under similar variance.</p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400">{DEFAULT_CONFORMAL_COVERAGE_PCT}% split-conformal intervals indicate where prices historically reside under similar variance.</p>
               </div>
               <div className="p-3.5 rounded-lg bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
                 <span className="font-semibold text-slate-900 dark:text-white block mb-1">No Data Leakage</span>

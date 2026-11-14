@@ -8,7 +8,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import crypto from 'crypto';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
@@ -18,6 +18,8 @@ import { GoogleGenAI } from '@google/genai';
 import {
   getStockQuote,
   getHistoricalData,
+  getHistoricalDataWithSource,
+  HistoricalDataResult,
   searchStocks,
   TICKER_CATALOG,
   resolveTickerOrName,
@@ -27,8 +29,14 @@ import {
 import { detectMarketRegime } from './src/server/math/hmmRegime';
 import { runConformalPrediction } from './src/server/math/conformal';
 import { detectConceptDrift } from './src/server/math/driftDetector';
-import { getNewsForTicker, getHybridNewsForTicker, analyzeFinBERTTone, getAllMarketHeadlines, getAllMarketHeadlinesAsync } from './src/server/math/nlpEngine';
-import { runModelEvaluation, computeProjectWideAccuracy, runAggregateModelEvaluation } from './src/server/math/evaluation';
+import { getNewsForTicker, getHybridNewsForTicker, analyzeKeywordSentiment, getAllMarketHeadlines, getAllMarketHeadlinesAsync } from './src/server/math/nlpEngine';
+import { DEFAULT_CONFORMAL_CONFIDENCE, DEFAULT_BACKTEST_STRATEGY } from './src/shared/modelConfig';
+import {
+  runModelEvaluation,
+  computeProjectWideAccuracy,
+  runAggregateModelEvaluation,
+  isModelEvaluationAvailable
+} from './src/server/math/evaluation';
 import { runStrategyBacktest } from './src/server/math/strategySimulator';
 import { runAutomatedBacktest } from './src/server/math/automatedBacktest';
 import { generateOptionsChain, generateVolatilitySurface } from './src/server/math/optionsAnalytics';
@@ -48,22 +56,31 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
 const PORT = 3000;
 
-function getJwtSecret(): string {
-  if (process.env.JWT_SECRET) {
-    return process.env.JWT_SECRET;
-  }
+const KNOWN_PLACEHOLDER_JWT_SECRET = 'super_secret_jwt_alphaquant_key_replace_in_production_32char_min';
+
+export function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET?.trim();
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('FATAL: JWT_SECRET environment variable is required when NODE_ENV=production.');
+    if (!secret) {
+      throw new Error('FATAL: JWT_SECRET environment variable is required when NODE_ENV=production.');
+    }
+    if (secret.length < 32) {
+      throw new Error('FATAL: JWT_SECRET must be at least 32 characters long when NODE_ENV=production.');
+    }
+    if (secret === KNOWN_PLACEHOLDER_JWT_SECRET) {
+      throw new Error('FATAL: JWT_SECRET must not use the old public placeholder value when NODE_ENV=production.');
+    }
+    return secret;
+  }
+  if (secret) {
+    return secret;
   }
   const devSecret = crypto.randomBytes(32).toString('hex');
   console.warn('⚠️ [SECURITY WARNING] JWT_SECRET is unset. Using an ephemeral random secret for development. Sessions will invalidate on server restart.');
   return devSecret;
 }
-
-const JWT_SECRET = getJwtSecret();
 
 // Initialize Gemini Client
 const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -78,43 +95,6 @@ const ai = geminiApiKey
     })
   : null;
 
-app.use(express.json({ limit: '100kb' }));
-
-// Basic in-memory rate limiting for authentication endpoints
-const authRateLimitMap = new Map<string, { count: number; resetTime: number }>();
-function authRateLimiter(req: Request, res: Response, next: NextFunction) {
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute
-  const maxAttempts = 15; // 15 attempts per minute per IP
-
-  const record = authRateLimitMap.get(ip);
-  if (!record || now > record.resetTime) {
-    authRateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
-    return next();
-  }
-
-  if (record.count >= maxAttempts) {
-    return res.status(429).json({ error: 'Too many authentication attempts. Please try again after 1 minute.' });
-  }
-
-  record.count++;
-  next();
-}
-
-app.use('/api/auth', authRateLimiter);
-
-// Request logger for API calls
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) {
-    console.log(`[API] ${req.method} ${req.path}`);
-  }
-  next();
-});
-
-const ALLOW_DEMO_MODE = process.env.ALLOW_DEMO_MODE === 'true';
-
-// Authentication Middleware
 interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
@@ -123,24 +103,58 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+export interface CreateAppOptions {
+  allowDemoMode?: boolean;
+  jwtSecret?: string;
+  fetchHistoryWithSource?: (ticker: string, days: number) => Promise<HistoricalDataResult>;
+}
 
-  if (!token) {
-    if (ALLOW_DEMO_MODE) {
-      req.user = {
-        id: 'user-alphaquant-demo-1',
-        email: 'alex.morgan@alphaquant.ai',
-        name: 'Alex Morgan, CFA'
-      };
+export function createApp(options: CreateAppOptions = {}): express.Express {
+  const app = express();
+  const JWT_SECRET = options.jwtSecret ?? getJwtSecret();
+  const fetchHistoryWithSource = options.fetchHistoryWithSource ?? getHistoricalDataWithSource;
+  const ALLOW_DEMO_MODE = options.allowDemoMode ?? (process.env.ALLOW_DEMO_MODE === 'true');
+
+  app.use(express.json({ limit: '100kb' }));
+
+  // Basic in-memory rate limiting for authentication endpoints (per app instance)
+  const authRateLimitMap = new Map<string, { count: number; resetTime: number }>();
+  function authRateLimiter(req: Request, res: Response, next: NextFunction) {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const windowMs = 60 * 1000; // 1 minute
+    const maxAttempts = (req.path === '/login' || req.path === '/register') ? 5 : 30;
+    const key = `${ip}:${req.path === '/login' || req.path === '/register' ? 'auth_cred' : 'auth_read'}`;
+
+    const record = authRateLimitMap.get(key);
+    if (!record || now > record.resetTime) {
+      authRateLimitMap.set(key, { count: 1, resetTime: now + windowMs });
       return next();
     }
-    return res.status(401).json({ error: 'Authentication required. Missing token.' });
+
+    if (record.count >= maxAttempts) {
+      return res.status(429).json({ error: 'Too many authentication attempts. Please try again after 1 minute.' });
+    }
+
+    record.count++;
+    next();
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded: any) => {
-    if (err) {
+  app.use('/api/auth', authRateLimiter);
+
+  // Request logger for API calls
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api') && process.env.NODE_ENV !== 'test') {
+      console.log(`[API] ${req.method} ${req.path}`);
+    }
+    next();
+  });
+
+  function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
       if (ALLOW_DEMO_MODE) {
         req.user = {
           id: 'user-alphaquant-demo-1',
@@ -149,12 +163,25 @@ function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextF
         };
         return next();
       }
-      return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+      return res.status(401).json({ error: 'Authentication required. Missing token.' });
     }
-    req.user = decoded;
-    next();
-  });
-}
+
+    jwt.verify(token, JWT_SECRET, (err, decoded: any) => {
+      if (err) {
+        if (ALLOW_DEMO_MODE) {
+          req.user = {
+            id: 'user-alphaquant-demo-1',
+            email: 'alex.morgan@alphaquant.ai',
+            name: 'Alex Morgan, CFA'
+          };
+          return next();
+        }
+        return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+      }
+      req.user = decoded;
+      next();
+    });
+  }
 
 function sanitizeUser(user: any) {
   if (!user) return null;
@@ -424,8 +451,9 @@ app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
     const days = parseInt((req.query.days as string) || '250', 10);
-    const history = await getHistoricalData(ticker, days);
-    return res.json(history);
+    const { bars, source } = await fetchHistoryWithSource(ticker, days);
+    res.setHeader('X-Data-Source', source);
+    return res.json(bars.map(b => ({ ...b, source })));
   } catch (error: any) {
     console.error(`Error fetching history for ${req.params.ticker}:`, error);
     return res.status(500).json({ error: 'Failed to retrieve historical data.' });
@@ -510,7 +538,7 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
       liveCount: hybrid.liveCount,
       baselineCount: hybrid.baselineCount,
       isLive: hybrid.liveCount > 0,
-      modelUsed: 'Hybrid Real-Time Live News & Baseline FinBERT Sentiment Engine',
+      modelUsed: 'Hybrid Real-Time News & Keyword Financial-Sentiment Lexicon (Publisher-Credibility Weighted)',
       lastUpdated: new Date().toISOString()
     });
   } catch (error: any) {
@@ -526,9 +554,9 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
 app.get('/api/regime/:ticker', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
-    const history = await getHistoricalData(ticker, 250);
+    const { bars: history, source } = await fetchHistoryWithSource(ticker, 250);
     const regime = detectMarketRegime(history, ticker);
-    return res.json(regime);
+    return res.json({ ...regime, dataSource: source });
   } catch (error: any) {
     console.error(`Error detecting regime for ${req.params.ticker}:`, error);
     return res.status(500).json({ error: 'Failed to compute market regime.' });
@@ -550,8 +578,8 @@ app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
     const horizon = parseInt((req.query.horizon as string) || '1', 10);
-    const confidence = parseFloat((req.query.confidence as string) || '0.90');
-    const history = await getHistoricalData(ticker, 250);
+    const confidence = parseFloat((req.query.confidence as string) || String(DEFAULT_CONFORMAL_CONFIDENCE));
+    const { bars: history, source: historySource } = await fetchHistoryWithSource(ticker, 250);
     const regime = detectMarketRegime(history, ticker);
     const quote = await getStockQuote(ticker);
     const hybrid = await getHybridNewsForTicker(ticker, quote.name);
@@ -580,7 +608,7 @@ app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
       hybrid.news
     );
 
-    return res.json(prediction);
+    return res.json({ ...prediction, dataSource: historySource });
   } catch (error: any) {
     console.error(`Error computing conformal prediction for ${req.params.ticker}:`, error);
     return res.status(500).json({ error: 'Failed to generate conformal prediction.' });
@@ -593,12 +621,12 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
     if (!ticker) return res.status(400).json({ error: 'Ticker symbol is required.' });
 
     const sym = await resolveTickerOrName(ticker);
-    const history = await getHistoricalData(sym, 250);
+    const { bars: history, source: historySource } = await fetchHistoryWithSource(sym, 250);
     const regime = detectMarketRegime(history, sym);
     const quote = await getStockQuote(sym);
     const hybrid = await getHybridNewsForTicker(sym, quote.name);
     const fullUser = req.user?.id ? db.getUserById(req.user.id) : null;
-    const userConf = (fullUser?.confidenceLevel ? fullUser.confidenceLevel / 100 : 0.90);
+    const userConf = (fullUser?.confidenceLevel ? fullUser.confidenceLevel / 100 : DEFAULT_CONFORMAL_CONFIDENCE);
 
     const liveNewsMeta = {
       isLive: hybrid.liveCount > 0,
@@ -639,7 +667,7 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
     };
 
     db.addPrediction(stored);
-    return res.json(pred);
+    return res.json({ ...pred, dataSource: historySource });
   } catch (error: any) {
     console.error('Error saving prediction:', error);
     return res.status(500).json({ error: 'Failed to record prediction.' });
@@ -653,9 +681,9 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
 app.get('/api/drift/:ticker', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
-    const history = await getHistoricalData(ticker, 250);
+    const { bars: history, source } = await fetchHistoryWithSource(ticker, 250);
     const drift = detectConceptDrift(history, ticker);
-    return res.json(drift);
+    return res.json({ ...drift, dataSource: source });
   } catch (error: any) {
     console.error(`Error running drift detection for ${req.params.ticker}:`, error);
     return res.status(500).json({ error: 'Failed to compute drift metrics.' });
@@ -670,12 +698,29 @@ app.get('/api/model/metrics', async (req: Request, res: Response) => {
   try {
     const rawTicker = (req.query.ticker as string) || 'RELIANCE.NS';
     if (rawTicker.trim().toUpperCase() === 'ALL') {
-      const evaluation = await runAggregateModelEvaluation(getHistoricalData, TICKER_CATALOG);
+      const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG);
+      if (!isModelEvaluationAvailable(evaluation)) {
+        return res.status(503).json({
+          available: false,
+          reason: evaluation.reason || 'No live market data',
+          dataSource: evaluation.dataSource || 'none',
+          evaluatedAssetsCount: 0
+        });
+      }
       return res.json(evaluation);
     }
     const ticker = await resolveTickerOrName(rawTicker);
-    const history = await getHistoricalData(ticker, 250);
-    const evaluation = runModelEvaluation(history, ticker);
+    const { bars, source } = await fetchHistoryWithSource(ticker, 730);
+    if (source === 'synthetic') {
+      return res.status(503).json({
+        available: false,
+        reason: 'No live market data',
+        dataSource: 'synthetic',
+        evaluatedAssetsCount: 0,
+        ticker
+      });
+    }
+    const evaluation = runModelEvaluation(bars, ticker, source);
     return res.json(evaluation);
   } catch (error: any) {
     console.error('Error computing evaluation metrics:', error);
@@ -683,11 +728,97 @@ app.get('/api/model/metrics', async (req: Request, res: Response) => {
   }
 });
 
+// Full Catalog Model Audit Endpoint (per-asset table, test window dates, data provenance, Wilson CI, p-value)
+app.get('/api/model/audit', async (req: Request, res: Response) => {
+  try {
+    const rawTicker = (req.query.ticker as string) || 'ALL';
+    if (rawTicker.trim().toUpperCase() !== 'ALL') {
+      const ticker = await resolveTickerOrName(rawTicker);
+      const { bars, source } = await fetchHistoryWithSource(ticker, 730);
+      if (source === 'synthetic') {
+        return res.status(503).json({
+          available: false,
+          reason: 'No live market data',
+          dataSource: 'synthetic',
+          evaluatedAssetsCount: 0
+        });
+      }
+      const evaluation = runModelEvaluation(bars, ticker, source);
+      const meta = TICKER_CATALOG.find(c => c.ticker === ticker);
+      return res.json({
+        available: true,
+        dataSource: evaluation.dataSource || 'live',
+        evaluatedAssetsCount: 1,
+        evaluatedAt: evaluation.evaluatedAt,
+        testWindowStart: evaluation.testWindowStart,
+        testWindowEnd: evaluation.testWindowEnd,
+        totalTestPredictions: evaluation.totalBacktestSamples,
+        summaryStats: evaluation.summaryStats,
+        directionalStats: evaluation.directionalStats,
+        comparison: evaluation.comparison,
+        assets: [
+          {
+            ticker,
+            name: meta?.name || ticker,
+            dataSource: 'live' as const,
+            testWindowStart: evaluation.testWindowStart || '',
+            testWindowEnd: evaluation.testWindowEnd || '',
+            priceAccuracy: Number((evaluation.priceAccuracy ?? (100 - evaluation.mape)).toFixed(2)),
+            mape: Number(evaluation.mape.toFixed(2)),
+            conformalCoverage: Number((evaluation.conformalCoverage ?? 90).toFixed(1)),
+            r2: Number(evaluation.r2.toFixed(2)),
+            directionalAccuracy: Number(evaluation.directionalAccuracy.toFixed(1)),
+            alwaysUpAccuracy: Number((evaluation.alwaysUpAccuracy ?? 0).toFixed(1)),
+            samples: evaluation.totalBacktestSamples,
+            rmse: Number(evaluation.rmse.toFixed(2)),
+            mae: Number(evaluation.mae.toFixed(2))
+          }
+        ]
+      });
+    }
+
+    const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG);
+    if (!isModelEvaluationAvailable(evaluation)) {
+      return res.status(503).json({
+        available: false,
+        reason: evaluation.reason || 'No live market data',
+        dataSource: evaluation.dataSource || 'none',
+        evaluatedAssetsCount: 0
+      });
+    }
+
+    return res.json({
+      available: true,
+      dataSource: evaluation.dataSource || 'live',
+      evaluatedAssetsCount: evaluation.evaluatedAssetsCount || evaluation.assetBreakdown?.length || 0,
+      evaluatedAt: evaluation.evaluatedAt,
+      testWindowStart: evaluation.testWindowStart,
+      testWindowEnd: evaluation.testWindowEnd,
+      totalTestPredictions: evaluation.directionalStats?.totalTestPredictions ?? evaluation.totalBacktestSamples,
+      summaryStats: evaluation.summaryStats,
+      directionalStats: evaluation.directionalStats,
+      comparison: evaluation.comparison,
+      assets: evaluation.assetBreakdown || []
+    });
+  } catch (error: any) {
+    console.error('Error computing model audit:', error);
+    return res.status(500).json({ error: 'Failed to compute model audit.' });
+  }
+});
+
 // Dynamic Project-Wide Price Accuracy Metric (100% - MAPE across catalog assets)
-app.get('/api/metrics/accuracy', async (req: Request, res: Response) => {
+app.get('/api/metrics/accuracy', async (_req: Request, res: Response) => {
   try {
     const tickers = TICKER_CATALOG.map(t => t.ticker);
-    const result = await computeProjectWideAccuracy(getHistoricalData, tickers);
+    const result = await computeProjectWideAccuracy(fetchHistoryWithSource, tickers);
+    if (result.available === false) {
+      return res.status(503).json({
+        available: false,
+        reason: result.reason || 'No live market data',
+        dataSource: result.dataSource || 'none',
+        evaluatedAssetsCount: 0
+      });
+    }
     return res.json(result);
   } catch (error: any) {
     console.error('Error computing project-wide accuracy metric:', error);
@@ -695,36 +826,46 @@ app.get('/api/metrics/accuracy', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/model/health', async (req: Request, res: Response) => {
+app.get('/api/model/health', async (_req: Request, res: Response) => {
   try {
     const sampleTickers = ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL'];
     let driftingCount = 0;
 
     for (const t of sampleTickers) {
-      const history = await getHistoricalData(t, 180);
+      const { bars: history } = await fetchHistoryWithSource(t, 180);
       const drift = detectConceptDrift(history, t);
       if (drift.driftDetected) driftingCount++;
     }
 
     const isSystemHealthy = driftingCount === 0;
 
-    // Evaluate real accuracy metrics dynamically from active benchmark asset
-    const evalData = await getHistoricalData('RELIANCE.NS', 180);
-    const evalMetrics = runModelEvaluation(evalData, 'RELIANCE.NS');
+    // Evaluate real accuracy metrics dynamically from active benchmark asset (only if live)
+    const { bars: evalData, source: evalSource } = await fetchHistoryWithSource('RELIANCE.NS', 180);
+    if (evalSource === 'synthetic') {
+      return res.status(503).json({
+        available: false,
+        reason: 'No live market data',
+        dataSource: 'synthetic',
+        evaluatedAssetsCount: 0
+      });
+    }
+    const evalMetrics = runModelEvaluation(evalData, 'RELIANCE.NS', evalSource);
 
     return res.json({
+      available: true,
+      dataSource: 'live',
       status: isSystemHealthy ? 'Optimal' : 'Caution - Distribution Drift',
       healthy: isSystemHealthy,
       activeModelsCount: 4,
-      conformalCoverageTarget: 0.90,
+      conformalCoverageTarget: DEFAULT_CONFORMAL_CONFIDENCE,
       empiricalCoverageObserved: evalMetrics.backtestSeries.length > 0
         ? Number((evalMetrics.backtestSeries.filter(b => b.actual >= b.lower && b.actual <= b.upper).length / evalMetrics.backtestSeries.length).toFixed(3))
         : Number(((evalMetrics.conformalCoverage ?? 0) / 100).toFixed(3)),
       directionalAccuracy: evalMetrics.directionalAccuracy,
       lastAuditTimestamp: new Date().toISOString(),
-      regimeModel: 'Rule-Based Regime Classifier (Trend & Volatility States)',
-      predictionEngine: 'AlphaQuant Ensemble v4.0 (Z-Scored Ridge + Huber GBDT + Kalman Regime + Cosine KNN Stacker)',
-      driftDetector: 'Two-Sample Kolmogorov-Smirnov (p-threshold: 0.05)'
+      regimeModel: 'Rule-Based Trend/Volatility Regime Classifier',
+      predictionEngine: 'AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)',
+      driftDetector: 'Two-sample KS drift test (p-threshold: 0.05)'
     });
   } catch (error: any) {
     console.error('Error in model health check:', error);
@@ -812,7 +953,7 @@ app.get('/api/options/:ticker/surface', async (req: Request, res: Response) => {
 app.get('/api/backtest/automated', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName((req.query.ticker as string) || 'NVDA');
-    const strategy = (req.query.strategy as any) || 'xgboost_conformal';
+    const strategy = (req.query.strategy as any) || DEFAULT_BACKTEST_STRATEGY;
     const days = parseInt((req.query.days as string) || '90', 10);
     const capital = parseFloat((req.query.capital as string) || '100000');
     const history = await getHistoricalData(ticker, Math.max(120, days + 20));
@@ -1275,7 +1416,7 @@ app.get('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, r
           const drift = detectConceptDrift(history, ticker);
           const news = getNewsForTicker(ticker, quote.name);
           const avgSent = news.reduce((acc, n) => acc + n.sentimentScore, 0) / (news.length || 1);
-          const pred = runConformalPrediction(history, ticker, avgSent, regime.regimeId, 0.90);
+          const pred = runConformalPrediction(history, ticker, avgSent, regime.regimeId, DEFAULT_CONFORMAL_CONFIDENCE);
 
           return {
             id: `watch-${idx}-${ticker}`,
@@ -1613,9 +1754,9 @@ AlphaQuant AI is an institutional-grade, full-stack AI financial stock intellige
 Key product capabilities:
 1. Access & Protection: Public Home page features an institutional overview and quantitative preview widget. Gated features like Dashboard, Watchlist, Portfolio, Deep Analysis, Model Metrics, and Alerts require user registration or login.
 2. Split-Conformal Prediction: Implements split-conformal prediction intervals calculating mathematically grounded finite-sample coverage [lowerBound, upperBound] at nominal confidence (default 90%), avoiding deceptive deterministic single-point forecasts.
-3. Rule-Based Market Regime Detection: Classifies market conditions into Low Volatility / Bullish (State 0) and High Volatility / Bearish (State 1) to identify volatility shifts.
-4. News Sentiment & Credibility Scoring: Combines keyword sentiment analysis with domain publisher credibility weighting to filter noise and unverified rumors.
-5. Kolmogorov-Smirnov Concept Drift Monitor: Evaluates two-sample KS tests (p < 0.05 alert trigger) comparing training baselines against live 30-day inference windows.
+3. Rule-Based Trend/Volatility Regime Classifier: Classifies market conditions into Low Volatility / Bullish (State 0) and High Volatility / Bearish (State 1) to identify volatility shifts.
+4. Keyword Financial-Sentiment Lexicon & Credibility Weighting: Combines financial lexicon polarity scoring with publisher-credibility weighting to filter noise and unverified headlines.
+5. Two-Sample KS Drift Test: Evaluates two-sample Kolmogorov-Smirnov tests (p < 0.05 alert trigger) comparing training baselines against live 30-day inference windows.
 6. Multi-Asset Coverage: Dual-exchange support for Indian NSE equities (RELIANCE.NS, TCS.NS, INFY.NS, etc.) and US NASDAQ/NYSE equities (NVDA, AAPL, MSFT, GOOGL).
 7. Profile & Avatars: Users can customize their identity using 20 Google Play Games-inspired vector avatars or uploading custom pictures.
 8. Disclaimers: All outputs are for quantitative research, backtesting, and educational purposes. Not financial or investment advice.
@@ -1726,16 +1867,20 @@ User Question: "${message}".`
   }
 });
 
-// Ensure any unhandled /api route returns JSON 404, never falling through to Vite HTML
-app.all('/api/*', (req: Request, res: Response) => {
-  return res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
-});
+  // Ensure any unhandled /api route returns JSON 404, never falling through to Vite HTML
+  app.all('/api/*', (req: Request, res: Response) => {
+    return res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
+  });
+
+  return app;
+}
 
 // -------------------------------------------------------------
 // 11. VITE INTEGRATION & SERVER STARTUP
 // -------------------------------------------------------------
 
-async function startServer() {
+export async function startServer() {
+  const app = createApp();
   const isProd = process.env.NODE_ENV === 'production';
 
   if (!isProd) {
@@ -1757,7 +1902,13 @@ async function startServer() {
   });
 }
 
-startServer().catch(err => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+const isEntryPoint =
+  typeof process.argv[1] === 'string' &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+
+if (isEntryPoint) {
+  startServer().catch(err => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}

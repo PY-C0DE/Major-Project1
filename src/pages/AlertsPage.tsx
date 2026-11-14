@@ -1148,7 +1148,7 @@ export const AlertsPage: React.FC = () => {
                       onChange={(e) => setAlertType(e.target.value as any)}
                       className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-purple-500"
                     >
-                      <option value="regime_shift">Market Regime Transition (HMM State Shift)</option>
+                      <option value="regime_shift">Market Regime Transition (Rule-Based State Shift)</option>
                       <option value="drift_detected">Statistical Feature Drift (KS Test P &lt; 0.05)</option>
                       <option value="interval_widening">Uncertainty Envelope Widening (&gt;15% spread)</option>
                     </select>

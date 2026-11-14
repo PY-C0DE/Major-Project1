@@ -1,11 +1,12 @@
 /**
  * Automated Backtesting Framework Engine
- * Simulates quantitative model strategies (e.g. XGBoost + Conformal Quantile,
- * Conformal Volatility Breakout, Regime Adaptive Momentum)
+ * Simulates quantitative model strategies (e.g. AlphaQuant Ensemble + Split-Conformal Quantile,
+ * Conformal Volatility Breakout, Rule-Based Regime Adaptive Momentum)
  * versus standard Buy-and-Hold benchmark over trailing historical trading sessions.
  */
 
 import { ComputedBar } from './indicators';
+import { AutomatedBacktestStrategyId, DEFAULT_BACKTEST_STRATEGY } from '../../shared/modelConfig';
 
 export interface EquityCurvePoint {
   date: string;
@@ -42,7 +43,7 @@ export interface AutomatedBacktestResult {
 export function runAutomatedBacktest(
   bars: ComputedBar[],
   ticker: string,
-  strategy: 'xgboost_conformal' | 'conformal_breakout' | 'regime_adaptive' = 'xgboost_conformal',
+  strategy: AutomatedBacktestStrategyId = DEFAULT_BACKTEST_STRATEGY,
   initialCapital = 100000,
   lookbackDays = 90
 ): AutomatedBacktestResult {
@@ -54,9 +55,9 @@ export function runAutomatedBacktest(
   }
 
   const strategyNames: Record<string, string> = {
-    xgboost_conformal: 'XGBoost + Conformal Quantile Strategy',
-    conformal_breakout: 'Conformal Volatility Envelope Breakout',
-    regime_adaptive: 'HMM Regime-Adaptive Trend Following'
+    ensemble_conformal: 'AlphaQuant Ensemble + Split-Conformal Quantile Strategy',
+    conformal_breakout: 'Split-Conformal Volatility Envelope Breakout',
+    regime_adaptive: 'Rule-Based Regime-Adaptive Trend Following'
   };
 
   let cash = initialCapital;
@@ -86,7 +87,7 @@ export function runAutomatedBacktest(
     let signal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
 
     if (i >= 5) {
-      if (strategy === 'xgboost_conformal') {
+      if (strategy === 'ensemble_conformal') {
         const lowerBound = bar.bbLower ?? (bar.close * 0.97);
         const upperBound = bar.bbUpper ?? (bar.close * 1.03);
         const rsi = bar.rsi14 ?? 50;

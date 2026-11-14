@@ -9,6 +9,28 @@
 
 import { HistoricalBar, PortfolioHolding, PortfolioOptimizationResult, RebalanceSuggestion, EfficientFrontierPoint } from '../../types';
 
+const PORTFOLIO_LOOKBACK_DAYS = 90;
+const COV_SHRINKAGE_INTENSITY = 0.2;
+
+function hashSeed(input: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h || 1;
+}
+
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export function optimizePortfolioHoldings(
   holdings: PortfolioHolding[],
   historicalMap: Record<string, HistoricalBar[]>,
@@ -42,18 +64,20 @@ export function optimizePortfolioHoldings(
       suggestions: [],
       efficientFrontier: [],
       correlationMatrix: { tickers: [], matrix: [] },
+      lookbackDays: PORTFOLIO_LOOKBACK_DAYS,
+      covarianceShrinkage: COV_SHRINKAGE_INTENSITY,
       optimizedAt: new Date().toISOString()
     };
   }
 
-  // 1. Calculate return series for each holding over 90 trading days
+  // 1. Calculate return series for each holding over lookback window (90 trading days)
   const returnSeries: Record<string, number[]> = {};
   const tickers = holdings.map(h => h.ticker);
 
   for (const h of holdings) {
     const bars = historicalMap[h.ticker] || [];
     const returns: number[] = [];
-    const windowBars = bars.slice(-90);
+    const windowBars = bars.slice(-PORTFOLIO_LOOKBACK_DAYS);
     for (let i = 1; i < windowBars.length; i++) {
       const ret = (windowBars[i].close - windowBars[i - 1].close) / windowBars[i - 1].close;
       returns.push(ret);
@@ -133,11 +157,13 @@ export function optimizePortfolioHoldings(
         isOptimal: true
       }],
       correlationMatrix: { tickers: [holding.ticker], matrix: [[1.0]] },
+      lookbackDays: PORTFOLIO_LOOKBACK_DAYS,
+      covarianceShrinkage: COV_SHRINKAGE_INTENSITY,
       optimizedAt: new Date().toISOString()
     };
   }
 
-  // 3. Compute Annualized Covariance Matrix Sigma_ij
+  // 3. Compute Annualized Covariance Matrix Sigma_ij with 0.2 shrinkage toward diagonal
   const covMatrix: number[][] = Array(n).fill(0).map(() => Array(n).fill(0));
   const corrMatrix: number[][] = Array(n).fill(0).map(() => Array(n).fill(1));
 
@@ -158,9 +184,10 @@ export function optimizePortfolioHoldings(
         }
         const dailyCov = c / (len - 1 || 1);
         const annualCov = dailyCov * 252;
-        covMatrix[i][j] = annualCov;
+        const shrunkCov = annualCov * (1 - COV_SHRINKAGE_INTENSITY);
+        covMatrix[i][j] = shrunkCov;
         const denom = sigma[i] * sigma[j];
-        corrMatrix[i][j] = denom > 0 ? Number(Math.max(-1, Math.min(1, annualCov / denom)).toFixed(2)) : 0.4;
+        corrMatrix[i][j] = denom > 0 ? Number(Math.max(-1, Math.min(1, shrunkCov / denom)).toFixed(2)) : 0;
       }
     }
   }
@@ -201,15 +228,23 @@ export function optimizePortfolioHoldings(
   let bestMinVolWeights = [...currentWeights];
   let bestMinVol = currentVolAnnual;
 
-  // Monte Carlo & Dirichlet Random Walk with 6,000 candidate portfolios
+  // Deterministic Monte Carlo Simplex Search with seeded mulberry32 PRNG (6,000 candidates)
   const numIterations = 6000;
   const safeFloor = Math.max(0.01, Math.min(minWeightFloor, 0.95 / n));
   const safeCap = Math.max(safeFloor + 0.05, Math.min(1.0, maxWeightCap));
+  const sortedIndices = tickers
+    .map((ticker, origIdx) => ({ ticker, origIdx }))
+    .sort((a, b) => a.ticker.localeCompare(b.ticker));
+  const seedKey = `${sortedIndices.map(s => s.ticker).join(',')}|${objective}|${riskFreeRate}|${maxWeightCap}|${minWeightFloor}`;
+  const rng = mulberry32(hashSeed(seedKey));
 
   for (let iter = 0; iter < numIterations; iter++) {
-    // Generate random weights
-    let raw = Array(n).fill(0).map(() => Math.random());
-    const rawSum = raw.reduce((a, b) => a + b, 0);
+    // Generate deterministic candidate weights keyed by sorted ticker order
+    const raw = Array(n).fill(0);
+    for (const entry of sortedIndices) {
+      raw[entry.origIdx] = rng();
+    }
+    const rawSum = raw.reduce((a, b) => a + b, 0) || 1;
     let candidate = raw.map(v => v / rawSum);
 
     // Apply diversification bounds
@@ -385,6 +420,8 @@ export function optimizePortfolioHoldings(
       tickers,
       matrix: corrMatrix
     },
+    lookbackDays: PORTFOLIO_LOOKBACK_DAYS,
+    covarianceShrinkage: COV_SHRINKAGE_INTENSITY,
     optimizedAt: new Date().toISOString()
   };
 }

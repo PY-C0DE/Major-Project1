@@ -25,8 +25,13 @@ interface CacheEntry<T> {
   data: T;
   timestamp: number;
 }
+export interface HistoricalDataResult {
+  bars: ComputedBar[];
+  source: 'live' | 'synthetic';
+}
+
 const quoteCache = new Map<string, CacheEntry<StockQuote>>();
-const historyCache = new Map<string, CacheEntry<ComputedBar[]>>();
+const historyCache = new Map<string, CacheEntry<HistoricalDataResult>>();
 const searchCache = new Map<string, CacheEntry<StockSearchResult[]>>();
 const QUOTE_TTL_MS = 2 * 60 * 1000;
 const HISTORY_TTL_MS = 5 * 60 * 1000;
@@ -473,11 +478,12 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
     };
   }
 
-  // 2. If historical bars were cached from Yahoo Finance, anchor to the latest real market close!
+  // 2. If live historical bars were cached from Yahoo Finance, anchor to the latest real market close
   const cachedBars = historyCache.get(`${ticker}_250`) || historyCache.get(`${ticker}_30`);
-  if (cachedBars && cachedBars.data.length > 0) {
-    const lastBar = cachedBars.data[cachedBars.data.length - 1];
-    const prevBar = cachedBars.data.length > 1 ? cachedBars.data[cachedBars.data.length - 2] : null;
+  if (cachedBars && cachedBars.data.source === 'live' && cachedBars.data.bars.length > 0) {
+    const barsList = cachedBars.data.bars;
+    const lastBar = barsList[barsList.length - 1];
+    const prevBar = barsList.length > 1 ? barsList[barsList.length - 2] : null;
     const currentPrice = lastBar.close;
     const prevClose = prevBar ? prevBar.close : lastBar.open;
     const change = Number((currentPrice - prevClose).toFixed(2));
@@ -539,9 +545,10 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
 }
 
 /**
- * Fetches real historical OHLCV bars and computes full technical indicators
+ * Fetches real historical OHLCV bars and computes full technical indicators,
+ * returning explicit provenance (`'live' | 'synthetic'`).
  */
-export async function getHistoricalData(tickerOrName: string, days = 250): Promise<ComputedBar[]> {
+export async function getHistoricalDataWithSource(tickerOrName: string, days = 250): Promise<HistoricalDataResult> {
   const ticker = await resolveTickerOrName(tickerOrName);
   const cacheKey = `${ticker}_${days}`;
   const cached = historyCache.get(cacheKey);
@@ -567,7 +574,8 @@ export async function getHistoricalData(tickerOrName: string, days = 250): Promi
     const range = days <= 30 ? '1mo' : days <= 90 ? '3mo' : days <= 180 ? '6mo' : days <= 365 ? '1y' : days <= 730 ? '2y' : '5y';
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=${range}`;
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      signal: AbortSignal.timeout(5000)
     });
 
     if (res.ok) {
@@ -599,17 +607,30 @@ export async function getHistoricalData(tickerOrName: string, days = 250): Promi
       }
     }
   } catch (err) {
-    // Network fallback
+    // Network fallback handled explicitly below with synthetic provenance
   }
 
+  let source: 'live' | 'synthetic' = 'live';
   if (rawBars.length < 30) {
+    source = 'synthetic';
     const cachedPrice = quoteCache.get(ticker)?.data.price;
     rawBars = generateSyntheticHistory(meta, days, cachedPrice);
   }
 
   const computed = computeAllIndicators(rawBars);
-  historyCache.set(cacheKey, { data: computed, timestamp: Date.now() });
-  return computed;
+  const result: HistoricalDataResult = { bars: computed, source };
+  // Cache synthetic fallback briefly (30s) so live data can recover quickly
+  const cacheTimestamp = source === 'synthetic' ? Date.now() - HISTORY_TTL_MS + 30_000 : Date.now();
+  historyCache.set(cacheKey, { data: result, timestamp: cacheTimestamp });
+  return result;
+}
+
+/**
+ * Thin wrapper preserving ComputedBar[] return type for callers that only need bars.
+ */
+export async function getHistoricalData(tickerOrName: string, days = 250): Promise<ComputedBar[]> {
+  const { bars } = await getHistoricalDataWithSource(tickerOrName, days);
+  return bars;
 }
 
 const indexSymbolCache = new Map<string, { timestamp: number; data: MarketIndexItem }>();
@@ -626,7 +647,8 @@ function buildFallbackIndex(cfg: MacroIndexConfig): MarketIndexItem {
     pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
     up: isUp,
     price: cfg.fallbackPrice,
-    changeValue: cfg.fallbackChange
+    changeValue: cfg.fallbackChange,
+    isLive: false
   };
 }
 
@@ -682,7 +704,8 @@ export async function getMarketIndices(options?: {
               pct: `${isUp ? '+' : ''}${pct.toFixed(2)}%`,
               up: isUp,
               price: Number(price.toFixed(2)),
-              changeValue: Number(diff.toFixed(2))
+              changeValue: Number(diff.toFixed(2)),
+              isLive: true
             };
             indexSymbolCache.set(cfg.symbol, { timestamp: Date.now(), data: item });
             return item;
@@ -732,7 +755,8 @@ export async function getQuickWatchQuotes(): Promise<QuickWatchItem[]> {
           chgPct: q.changePercent,
           up: isUp,
           sector: def.sector,
-          currency: q.currency
+          currency: q.currency,
+          isLive: q.isLive
         } as QuickWatchItem;
       } catch {
         const cat = TICKER_CATALOG.find(t => t.ticker === def.ticker);
@@ -747,7 +771,8 @@ export async function getQuickWatchQuotes(): Promise<QuickWatchItem[]> {
           chgPct: 1.20,
           up: true,
           sector: def.sector,
-          currency: def.currency
+          currency: def.currency,
+          isLive: false
         } as QuickWatchItem;
       }
     })

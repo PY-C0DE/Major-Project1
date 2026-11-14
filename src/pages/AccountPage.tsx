@@ -945,7 +945,7 @@ export const AccountPage: React.FC = () => {
               <div className="pt-2 flex items-center justify-between gap-4">
                 <div>
                   <div className="font-bold text-slate-900 dark:text-white">
-                    HMM Regime Shift Transition Alarms
+                    Rule-Based Regime Shift Transition Alarms
                   </div>
                   <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
                     Receive instantaneous notifications when a tracked asset switches from Low Volatility to High Volatility.

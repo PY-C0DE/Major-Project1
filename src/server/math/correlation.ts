@@ -1,7 +1,7 @@
 /**
  * Cross-Asset Correlation & Macro Regime Matrix Engine
  * Computes Pearson correlation matrix R across assets using log-returns,
- * calculates market Beta, annualized volatility, and active HMM regime tags.
+ * calculates market Beta, annualized volatility, and rule-based trend/volatility regime tags.
  */
 
 import { HistoricalBar, CorrelationMatrixData, CorrelationAsset } from '../../types';

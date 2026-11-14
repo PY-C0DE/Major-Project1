@@ -10,6 +10,7 @@ import { Target, HelpCircle, TrendingUp, TrendingDown, ShieldCheck, ChevronDown,
 import { ConformalPrediction } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { ConvertedPrice } from './ConvertedPrice';
+import { DEFAULT_CONFORMAL_CONFIDENCE, CONFORMAL_CONFIDENCE_LEVELS } from '../shared/modelConfig';
 
 interface Props {
   prediction: ConformalPrediction | null;
@@ -29,7 +30,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
   const [showTooltip, setShowTooltip] = useState(false);
   const [showExplain, setShowExplain] = useState(true);
   const [selectedHorizon, setSelectedHorizon] = useState<number>(prediction?.horizonDays || 1);
-  const [selectedConfidence, setSelectedConfidence] = useState<number>(prediction?.confidenceLevel || 0.90);
+  const [selectedConfidence, setSelectedConfidence] = useState<number>(prediction?.confidenceLevel || DEFAULT_CONFORMAL_CONFIDENCE);
 
   useEffect(() => {
     if (prediction?.confidenceLevel) {
@@ -90,13 +91,18 @@ export const ConformalPredictionCard: React.FC<Props> = ({
               </button>
             </h3>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-${t('conformal.horizon')}`} · Ensemble v4.0 (Z-Scored Ridge + Huber GBDT + Kalman + KNN)
+              {horizonLabels[prediction.horizonDays] || `${prediction.horizonDays}-${t('conformal.horizon')}`} · AlphaQuant Ensemble (ridge + Huber GBDT + Kalman + KNN)
             </span>
           </div>
         </div>
 
         {/* Accuracy, Coverage, and Live News Badges */}
         <div className="flex items-center gap-2 flex-wrap">
+          {prediction.dataSource === 'synthetic' && (
+            <div className="flex items-center gap-1 px-2 py-1 rounded bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 text-[11px] font-mono text-amber-700 dark:text-amber-300">
+              <span>Simulated data</span>
+            </div>
+          )}
           {prediction.liveNewsMeta?.isLive && (
             <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800/80 text-[11px] font-mono text-emerald-700 dark:text-emerald-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -109,7 +115,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
           </div>
           <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-[11px] font-mono text-cyan-700 dark:text-cyan-300">
             <ShieldCheck className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-            <span>Coverage: {prediction.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : `${((prediction.confidenceLevel || 0.90) * 100).toFixed(0)}%`}</span>
+            <span>Coverage: {prediction.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : `${((prediction.confidenceLevel || DEFAULT_CONFORMAL_CONFIDENCE) * 100).toFixed(0)}%`}</span>
           </div>
         </div>
       </div>
@@ -140,7 +146,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] font-mono uppercase text-slate-500 font-semibold">{t('conformal.confidence')} (1-α):</span>
           <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-0.5 rounded border border-slate-200 dark:border-slate-800">
-            {[0.80, 0.90, 0.95, 0.99].map(c => (
+            {CONFORMAL_CONFIDENCE_LEVELS.map(c => (
               <button
                 key={c}
                 onClick={() => handleConfidenceSelect(c)}
@@ -169,7 +175,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
               • <strong>Prediction Price Accuracy ({prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : 'n/a'}):</strong> Evaluated on held-out actual stock prices (100% - MAPE).
             </p>
             <p>
-              • <strong>Finite-Sample Coverage ({prediction.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : `${((prediction.confidenceLevel || 0.90) * 100).toFixed(0)}%`}):</strong> Observed fraction of validation actuals falling inside the conformal prediction interval for the nominal target of {((prediction.confidenceLevel || 0.90) * 100).toFixed(0)}%.
+              • <strong>Finite-Sample Coverage ({prediction.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : `${((prediction.confidenceLevel || DEFAULT_CONFORMAL_CONFIDENCE) * 100).toFixed(0)}%`}):</strong> Observed fraction of validation actuals falling inside the split-conformal prediction interval for the nominal target of {((prediction.confidenceLevel || DEFAULT_CONFORMAL_CONFIDENCE) * 100).toFixed(0)}%.
             </p>
             <p className="text-amber-600 dark:text-amber-400 font-mono text-[10px]">
               ⚠️ Prediction intervals reflect mathematical uncertainty bounds, not guaranteed financial profits.

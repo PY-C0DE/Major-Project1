@@ -42,11 +42,11 @@ import { getCurrencySymbol } from '../utils/currency';
 
 const defaultFeatures: ModelFeatureImportance[] = [
   {
-    feature: 'Real-Time News Tone (FinBERT NLP)',
+    feature: 'Real-Time News Tone (Keyword Sentiment Lexicon)',
     importance: 21.4,
     rawWeight: 0.185,
     category: 'sentiment',
-    description: 'FinBERT scored sentiment of live financial news feeds and regulatory filings',
+    description: 'Keyword financial-sentiment lexicon with publisher-credibility weighting across news feeds and filings',
     direction: 'positive'
   },
   {
@@ -98,11 +98,11 @@ const defaultFeatures: ModelFeatureImportance[] = [
     direction: 'positive'
   },
   {
-    feature: 'Markov Market Regime (Trend & Volatility State)',
+    feature: 'Rule-Based Market Regime (Trend & Volatility State)',
     importance: 5.2,
     rawWeight: 0.016,
     category: 'regime',
-    description: 'Low-volatility drift vs high-volatility turbulence regime conditioning',
+    description: 'Rule-based trend/volatility regime classifier conditioning interval dispersion',
     direction: 'neutral'
   },
   {
@@ -128,7 +128,7 @@ export const ModelPerformancePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'metrics' | 'strategy'>('metrics');
   const [ticker, setTicker] = useState('RELIANCE.NS');
   const [metrics, setMetrics] = useState<ModelEvaluation | null>(null);
-  const [strategyType, setStrategyType] = useState<'conformal_reversion' | 'regime_momentum' | 'finbert_multimodal'>('conformal_reversion');
+  const [strategyType, setStrategyType] = useState<'conformal_reversion' | 'regime_momentum' | 'sentiment_multimodal'>('conformal_reversion');
   const [strategyResult, setStrategyResult] = useState<StrategyPerformanceMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -143,7 +143,11 @@ export const ModelPerformancePage: React.FC = () => {
     setError(null);
     try {
       const data = await api.getModelMetrics(ticker);
-      setMetrics(data);
+      if (data && data.available === false) {
+        setMetrics(data);
+      } else {
+        setMetrics(data);
+      }
     } catch (e: any) {
       console.error(e);
       setError(e?.message || 'Failed to load model evaluation metrics.');
@@ -181,47 +185,80 @@ export const ModelPerformancePage: React.FC = () => {
   const isAll = ticker === 'ALL';
   const currSym = isAll ? '' : getCurrencySymbol(undefined, ticker);
 
-  const handleExportAudit = () => {
+  const formatPValue = (p: number | undefined): string => {
+    if (p === undefined || Number.isNaN(p)) return 'n/a';
+    if (p < 0.0001) return '< 0.0001';
+    return p.toFixed(4);
+  };
+
+  const escapeCsvCell = (val: string | number | undefined | null): string => {
+    const str = val === undefined || val === null ? '' : String(val);
+    if (/[",\n\r]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const handleDownloadAuditCsv = async () => {
     setIsExporting(true);
     try {
-      const exportData = {
-        platform: 'AlphaQuant AI Quantitative Intelligence',
-        exportedAt: new Date().toISOString(),
-        evaluationScope: isAll ? 'Whole Model Cross-Asset Average (All Assets)' : `Single Asset: ${ticker}`,
-        ticker,
-        modelVersion: 'AlphaQuant Ensemble v4.0 (Z-Scored Ridge + Huber GBDT + Kalman Regime + Cosine KNN Stacker)',
-        evaluationType: 'Chronological Out-of-Sample Walk-Forward Backtest',
-        accuracySummary: {
-          directionalAccuracy: metrics?.directionalAccuracy != null ? `${metrics.directionalAccuracy}%` : 'n/a',
-          conformalEmpiricalCoverage: metrics?.conformalCoverage != null ? `${metrics.conformalCoverage}%` : 'n/a',
-          priceAccuracy: metrics?.priceAccuracy != null ? `${metrics.priceAccuracy}%` : 'n/a',
-          mape: metrics?.mape != null ? `${metrics.mape}%` : 'n/a',
-          r2Score: metrics?.r2 != null ? metrics.r2 : 'n/a',
-          rmse: metrics?.rmse != null ? (isAll ? `${metrics.rmse} pts` : `${currSym}${metrics.rmse}`) : 'n/a',
-          mae: metrics?.mae != null ? (isAll ? `${metrics.mae} pts` : `${currSym}${metrics.mae}`) : 'n/a'
-        },
-        calibrationParameters: {
-          methodology: '3-Fold Walk-Forward Split-Conformal Inference with Stein-Shrunk Meta-Stacking',
-          featuresFused: ['24-Factor Alpha Matrix', 'Garman-Klass Volatility', 'Huber GBDT Trees', 'Kalman Regime Filter', 'Cosine Analog KNN']
-        },
-        totalAssetsCount: metrics?.totalAssetsCount || (metrics?.assetBreakdown ? metrics.assetBreakdown.length : 1),
-        assetBreakdown: metrics?.assetBreakdown || [],
-        comparativeBaselines: metrics?.comparison || [],
-        backtestSamplesCount: metrics?.totalBacktestSamples || metrics?.backtestSeries?.length || 0,
-        backtestSeries: metrics?.backtestSeries || []
-      };
+      const audit = await api.getModelAudit(ticker);
+      if (!audit.available || !audit.assets || audit.assets.length === 0) {
+        return;
+      }
 
-      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(exportData, null, 2))}`;
+      const headers = [
+        'ticker',
+        'name',
+        'dataSource',
+        'testWindowStart',
+        'testWindowEnd',
+        'samples',
+        'priceAccuracyPct',
+        'mapePct',
+        'conformalCoveragePct',
+        'directionalAccuracyPct',
+        'alwaysUpAccuracyPct',
+        'mae',
+        'rmse',
+        'r2'
+      ];
+
+      const rows = audit.assets.map((row) => [
+        row.ticker,
+        row.name,
+        row.dataSource,
+        row.testWindowStart,
+        row.testWindowEnd,
+        row.samples,
+        row.priceAccuracy,
+        row.mape,
+        row.conformalCoverage,
+        row.directionalAccuracy,
+        row.alwaysUpAccuracy,
+        row.mae,
+        row.rmse,
+        row.r2
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((r) => r.map(escapeCsvCell).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
       const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute('href', jsonString);
-      downloadAnchor.setAttribute('download', `AlphaQuant_Model_Audit_${ticker}_${new Date().toISOString().split('T')[0]}.json`);
+      downloadAnchor.setAttribute('href', url);
+      downloadAnchor.setAttribute('download', `AlphaQuant_Model_Audit_${ticker}_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.remove();
+      URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
     } finally {
-      setTimeout(() => setIsExporting(false), 1000);
+      setTimeout(() => setIsExporting(false), 600);
     }
   };
 
@@ -365,12 +402,12 @@ export const ModelPerformancePage: React.FC = () => {
           </div>
 
           <button
-            onClick={handleExportAudit}
-            disabled={isExporting || loading || !metrics}
+            onClick={handleDownloadAuditCsv}
+            disabled={isExporting || loading || !metrics || metrics.available === false}
             className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-            <span>{isExporting ? 'Exporting...' : 'Export Audit'}</span>
+            <span>{isExporting ? 'Preparing CSV...' : 'Download audit (CSV)'}</span>
           </button>
         </div>
       </div>
@@ -411,12 +448,19 @@ export const ModelPerformancePage: React.FC = () => {
                 : `Computing out-of-sample backtest metrics for ${ticker}...`}
             </span>
           </div>
-        ) : error || !metrics ? (
-          <div className="p-8 text-center bg-white dark:bg-slate-900/60 rounded-xl border border-rose-200 dark:border-rose-900/30 space-y-3">
-            <AlertTriangle className="w-8 h-8 text-rose-500 mx-auto" />
-            <p className="text-sm text-rose-600 dark:text-rose-400 font-semibold">
-              {error || (isAll ? 'No aggregate model metrics available.' : `No metrics available for ${ticker}.`)}
+        ) : error || !metrics || metrics.available === false ? (
+          <div className="p-8 text-center bg-white dark:bg-slate-900/60 rounded-xl border border-amber-200 dark:border-amber-900/40 space-y-3">
+            <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
+            <p className="text-sm text-slate-800 dark:text-slate-200 font-semibold">
+              {metrics?.available === false
+                ? 'Metrics unavailable: live market data could not be fetched'
+                : error || 'Metrics unavailable: live market data could not be fetched'}
             </p>
+            {metrics?.reason && (
+              <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                Reason: {metrics.reason}
+              </p>
+            )}
             <button
               onClick={loadMetrics}
               className="px-4 py-2 text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer font-medium"
@@ -463,11 +507,11 @@ export const ModelPerformancePage: React.FC = () => {
                 {isAll ? (
                   <span className="flex items-center gap-1.5 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/60 px-2.5 py-1 rounded-md border border-cyan-200 dark:border-cyan-800/60">
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                    Whole Model: {metrics.totalAssetsCount || metrics.assetBreakdown?.length || 15}+ assets ({metrics.totalBacktestSamples} aggregate sessions)
+                    Whole Catalog: {metrics.totalAssetsCount || metrics.assetBreakdown?.length || 0} live assets (n = {metrics.directionalStats?.totalTestPredictions ?? metrics.totalBacktestSamples} test predictions{metrics.testWindowStart && metrics.testWindowEnd ? ` · ${metrics.testWindowStart} to ${metrics.testWindowEnd}` : ''})
                   </span>
                 ) : (
                   <span className="text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800">
-                    Active Ticker: <strong className="text-slate-900 dark:text-white">{ticker}</strong> ({metrics.totalBacktestSamples} sessions)
+                    Active Ticker: <strong className="text-slate-900 dark:text-white">{ticker}</strong> (n = {metrics.totalBacktestSamples} test days{metrics.testWindowStart && metrics.testWindowEnd ? ` · ${metrics.testWindowStart} to ${metrics.testWindowEnd}` : ''})
                   </span>
                 )}
               </div>
@@ -583,16 +627,100 @@ export const ModelPerformancePage: React.FC = () => {
                   <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                     {isAll ? (
                       <>
-                        Across the test partition for all assets, the empirical test coverage strictly matches or exceeds the 90% finite-sample target at <strong>{metrics.conformalCoverage != null ? `${metrics.conformalCoverage}%` : 'n/a'}</strong>. The non-conformity calibration dynamically adapts interval widths to both high-beta tech momentum and low-volatility defensive assets.
+                        Across the test partition for all evaluated live assets, the empirical test coverage is <strong>{metrics.conformalCoverage != null ? `${metrics.conformalCoverage}%` : 'n/a'}</strong> relative to the 90% finite-sample nominal target.
                       </>
                     ) : (
                       <>
-                        Across the test partition, the observed empirical test coverage is <strong>{metrics.conformalCoverage != null ? `${metrics.conformalCoverage}%` : 'n/a'}</strong>. This represents the fraction of actual closing prices falling strictly within the calculated interval bounds.
+                        Across the test partition, the observed empirical test coverage is <strong>{metrics.conformalCoverage != null ? `${metrics.conformalCoverage}%` : 'n/a'}</strong> relative to the 90% finite-sample nominal target.
                       </>
                     )}
                   </p>
                 </div>
               </div>
+
+              {/* Statistical Uncertainty & Power Summary (n, 95% Wilson CI, binomial p-value vs Always-Up, and mean/median/min/max) */}
+              {metrics.directionalStats && (
+                <div className="mt-3 p-3.5 rounded-lg bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono font-semibold text-xs text-slate-800 dark:text-slate-200">
+                      Statistical Power &amp; Directional Hypothesis Test vs. Always-Up
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                      Data source: <strong>{metrics.dataSource || 'live'}</strong>
+                      {metrics.testWindowStart && metrics.testWindowEnd ? ` · Window: ${metrics.testWindowStart} → ${metrics.testWindowEnd}` : ''}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] uppercase text-slate-400 block">Pooled Test Predictions (n)</span>
+                      <span className="text-base font-bold text-slate-900 dark:text-white tabular-nums">
+                        {metrics.directionalStats.totalTestPredictions.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Hits: {metrics.directionalStats.modelHits.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] uppercase text-slate-400 block">Pooled Dir. Acc (95% Wilson CI)</span>
+                      <span className="text-base font-bold text-cyan-600 dark:text-cyan-400 tabular-nums">
+                        {metrics.directionalStats.pooledDirectionalAccuracyPct}%
+                      </span>
+                      <span className="text-[10px] text-slate-500 block tabular-nums">
+                        95% CI: [{metrics.directionalStats.wilson95CI[0]}%, {metrics.directionalStats.wilson95CI[1]}%]
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] uppercase text-slate-400 block">Always-Up Pooled Baseline</span>
+                      <span className="text-base font-bold text-slate-700 dark:text-slate-300 tabular-nums">
+                        {metrics.directionalStats.pooledAlwaysUpAccuracyPct}%
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Up days: {metrics.directionalStats.alwaysUpHits.toLocaleString()} / {metrics.directionalStats.totalTestPredictions.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] uppercase text-slate-400 block">One-Sided Binomial p-value</span>
+                      <span className={`text-base font-bold tabular-nums ${metrics.directionalStats.binomialPValueVsAlwaysUp < 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        p = {formatPValue(metrics.directionalStats.binomialPValueVsAlwaysUp)}
+                      </span>
+                      <span className="text-[10px] text-slate-500 block">
+                        {metrics.directionalStats.binomialPValueVsAlwaysUp < 0.05 ? 'Significant edge (p < 0.05)' : 'Not significant vs Always-Up'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {isAll && metrics.summaryStats && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px] font-mono">
+                      <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <span className="text-slate-500 font-semibold block mb-1">MAPE Across Assets (%)</span>
+                        <span className="text-slate-800 dark:text-slate-200 tabular-nums">
+                          Mean {metrics.summaryStats.mape.mean}% · Median {metrics.summaryStats.mape.median}% · Min {metrics.summaryStats.mape.min}% · Max {metrics.summaryStats.mape.max}%
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <span className="text-slate-500 font-semibold block mb-1">Directional Accuracy Across Assets (%)</span>
+                        <span className="text-slate-800 dark:text-slate-200 tabular-nums">
+                          Mean {metrics.summaryStats.directionalAccuracy.mean}% · Median {metrics.summaryStats.directionalAccuracy.median}% · Min {metrics.summaryStats.directionalAccuracy.min}% · Max {metrics.summaryStats.directionalAccuracy.max}%
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <span className="text-slate-500 font-semibold block mb-1">Conformal Coverage Across Assets (%)</span>
+                        <span className="text-slate-800 dark:text-slate-200 tabular-nums">
+                          Mean {metrics.summaryStats.conformalCoverage.mean}% · Median {metrics.summaryStats.conformalCoverage.median}% · Min {metrics.summaryStats.conformalCoverage.min}% · Max {metrics.summaryStats.conformalCoverage.max}%
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Note: Directional accuracy is only meaningful if it beats Always-Up on the same out-of-sample test window.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Out-of-Sample Backtest Chart: Actual vs Predicted */}
@@ -713,7 +841,7 @@ export const ModelPerformancePage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                      FinBERT NLP Tone & Corporate Consensus
+                      Keyword Sentiment Lexicon &amp; Corporate Consensus
                     </p>
                   </button>
 
@@ -779,7 +907,7 @@ export const ModelPerformancePage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                      Markov Drift vs Volatility Turbulence
+                      Rule-Based Trend &amp; Volatility States
                     </p>
                   </button>
                 </div>
@@ -1059,10 +1187,12 @@ export const ModelPerformancePage: React.FC = () => {
                     <thead>
                       <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[10px] text-slate-500 dark:text-slate-400 uppercase">
                         <th className="py-3 px-4 font-medium font-sans">Asset / Company</th>
+                        <th className="py-3 px-4 font-medium">Source &amp; Window</th>
                         <th className="py-3 px-4 font-medium text-right">Price Accuracy</th>
                         <th className="py-3 px-4 font-medium text-right">MAPE</th>
                         <th className="py-3 px-4 font-medium text-right">Conformal Cov.</th>
                         <th className="py-3 px-4 font-medium text-right">Directional Acc.</th>
+                        <th className="py-3 px-4 font-medium text-right">Always-Up</th>
                         <th className="py-3 px-4 font-medium text-right">R² Score</th>
                         <th className="py-3 px-4 font-medium text-right">Samples</th>
                         <th className="py-3 px-4 font-medium text-center font-sans">Action</th>
@@ -1077,6 +1207,10 @@ export const ModelPerformancePage: React.FC = () => {
                               <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[160px]">{asset.name}</span>
                             </div>
                           </td>
+                          <td className="py-3 px-4 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                            <span className="uppercase text-emerald-600 dark:text-emerald-400 font-semibold mr-1.5">{asset.dataSource}</span>
+                            <span>{asset.testWindowStart} → {asset.testWindowEnd}</span>
+                          </td>
                           <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
                             {asset.priceAccuracy}%
                           </td>
@@ -1088,6 +1222,9 @@ export const ModelPerformancePage: React.FC = () => {
                           </td>
                           <td className="py-3 px-4 text-right text-indigo-600 dark:text-indigo-400 tabular-nums">
                             {asset.directionalAccuracy}%
+                          </td>
+                          <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300 tabular-nums">
+                            {asset.alwaysUpAccuracy}%
                           </td>
                           <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
                             {asset.r2}
@@ -1147,16 +1284,16 @@ export const ModelPerformancePage: React.FC = () => {
                           <span>{m.model}</span>
                         </td>
                         <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          {isAll ? `${m.mae} pts` : `${currSym}${m.mae}`}
+                          {m.mae != null ? (isAll ? `${m.mae} pts` : `${currSym}${m.mae}`) : <span className="text-slate-400">n/a</span>}
                         </td>
                         <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          {isAll ? `${m.rmse} pts` : `${currSym}${m.rmse}`}
+                          {m.rmse != null ? (isAll ? `${m.rmse} pts` : `${currSym}${m.rmse}`) : <span className="text-slate-400">n/a</span>}
                         </td>
                         <td className="py-3 px-4 text-right text-cyan-700 dark:text-cyan-300 font-bold tabular-nums">
-                          {m.r2}
+                          {m.r2 != null ? m.r2 : <span className="text-slate-400 font-normal">n/a</span>}
                         </td>
                         <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
-                          {m.directionalAccuracy}%
+                          {m.directionalAccuracy != null ? `${m.directionalAccuracy}%` : <span className="text-slate-400 font-normal">n/a</span>}
                         </td>
                         <td className="py-3 px-4 text-center">
                           {m.isProduction ? (
@@ -1193,7 +1330,7 @@ export const ModelPerformancePage: React.FC = () => {
               {[
                 { id: 'conformal_reversion', label: 'Conformal Reversion' },
                 { id: 'regime_momentum', label: 'Regime Trend' },
-                { id: 'finbert_multimodal', label: 'Sentiment & Technical' }
+                { id: 'sentiment_multimodal', label: 'Sentiment & Technical' }
               ].map(s => (
                 <button
                   key={s.id}

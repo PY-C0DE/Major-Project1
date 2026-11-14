@@ -4,7 +4,7 @@
  * Features:
  * - Smooth auto-scrolling marquee tape with pause-on-hover & speed adjuster (Normal / Fast / Slow)
  * - Category filters: All, High Impact, NSE India, US Tech, Macro / Central Banks
- * - Real-time FinBERT sentiment indicators & market impact tags (BREAKING, EARNINGS, MACRO, TECH)
+ * - Real-time keyword financial-sentiment indicators & market impact tags (BREAKING, EARNINGS, MACRO, TECH)
  * - Interactive headline click -> Full detail modal with sentiment distribution & direct stock jump
  * - Quick 'View All Wire' expandable panel with real-time headline search
  * - Manual refresh trigger & periodic live polling
@@ -463,7 +463,7 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
                     {cleanTicker}
                   </span>
 
-                  {/* FinBERT Sentiment Indicator Pill */}
+                  {/* Keyword Sentiment Indicator Pill */}
                   <span
                     className={`px-1.5 py-0.2 rounded text-[10px] font-bold flex items-center gap-0.5 ${
                       isPos
@@ -637,7 +637,7 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
             {/* Sentiment Confidence Bars */}
             <div className="space-y-1.5 pt-1">
               <div className="flex justify-between text-xs font-mono">
-                <span className="text-slate-500 dark:text-slate-400">FinBERT NLP Sentiment Distribution</span>
+                <span className="text-slate-500 dark:text-slate-400">Keyword Financial-Sentiment Distribution</span>
                 <span className="text-slate-700 dark:text-slate-300 font-bold">
                   {Math.round((selectedHeadline.confidence || 0.9) * 100)}% Confidence
                 </span>
@@ -738,7 +738,7 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
                     Live Institutional Market Wire
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                    Real-time financial headlines, FinBERT tone scoring, and market catalysts
+                    Real-time financial headlines, keyword sentiment lexicon scoring, and market catalysts
                   </p>
                 </div>
               </div>
@@ -860,7 +860,7 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
             {/* Drawer Footer */}
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between text-xs">
               <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                Updated every 60s • FinBERT Lexicon Scored
+                Updated every 60s • Keyword Sentiment Lexicon &amp; Credibility Weighted
               </span>
               {onNavigate && (
                 <button

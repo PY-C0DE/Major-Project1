@@ -63,7 +63,7 @@ const mockDiscussions: SocialDiscussion[] = [
     author: 'MorganCapitalDesk',
     authorBadge: 'CFA Institute',
     title: 'Reliance Industries: Retail demerger timeline & green energy capex cycle',
-    content: 'O2C margins stabilizing with strong retail EBITDA expansion. HMM regime detector firmly in Regime 0 (Low Volatility / Bullish steady drift). Target revised to ₹3,350.',
+    content: 'O2C margins stabilizing with strong retail EBITDA expansion. Rule-based regime classifier firmly in Regime 0 (Low Volatility / Bullish steady drift). Target revised to ₹3,350.',
     sentiment: 'BULLISH',
     sentimentScore: 0.82,
     upvotes: 890,
@@ -143,7 +143,7 @@ const mockVerifiedTraders: VerifiedTrader[] = [
     sharpeRatio: 2.85,
     maxDrawdownPct: 4.8,
     followersCount: 12400,
-    strategyDescription: 'Multi-asset split-conformal statistical arbitrage with dynamic HMM regime hedging.',
+    strategyDescription: 'Multi-asset split-conformal statistical arbitrage with dynamic rule-based regime hedging.',
     holdings: [
       { ticker: 'NVDA', weightPct: 35 },
       { ticker: 'RELIANCE.NS', weightPct: 25 },
