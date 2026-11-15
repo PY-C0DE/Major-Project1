@@ -21,7 +21,7 @@ interface Props {
   className?: string;
 }
 
-export const HMMRegimeGraphicalIndicator: React.FC<Props> = ({ regime, ticker = '', className = '' }) => {
+export const RegimeGraphicalIndicator: React.FC<Props> = ({ regime, ticker = '', className = '' }) => {
   const { t } = useLanguage();
   const [hoveredBar, setHoveredBar] = useState<HistoricalRegimeItem | null>(null);
 

@@ -7,6 +7,8 @@ import {
   StockQuote,
   HistoricalBar,
   ConformalPrediction,
+  ConformalPredictionResponse,
+  UnavailableConformalPrediction,
   MarketRegime,
   NewsItem,
   ConceptDriftResult,
@@ -218,18 +220,34 @@ export const api = {
   },
 
   // Core USPs
-  async getConformalPrediction(ticker: string, horizon = 1, confidence = DEFAULT_CONFORMAL_CONFIDENCE): Promise<ConformalPrediction> {
+  async getConformalPrediction(ticker: string, horizon = 1, confidence = DEFAULT_CONFORMAL_CONFIDENCE): Promise<ConformalPredictionResponse> {
     const res = await fetch(`${API_BASE}/predictions/${encodeURIComponent(ticker)}?horizon=${horizon}&confidence=${confidence}`);
+    if (res.status === 422 || res.status === 503) {
+      try {
+        const body = await res.json();
+        if (body && body.available === false) {
+          return body as UnavailableConformalPrediction;
+        }
+      } catch {}
+    }
     if (!res.ok) throw new Error('Failed to compute conformal prediction');
     return res.json();
   },
 
-  async recordPrediction(ticker: string): Promise<ConformalPrediction> {
+  async recordPrediction(ticker: string): Promise<ConformalPredictionResponse> {
     const res = await fetch(`${API_BASE}/predictions`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ ticker })
     });
+    if (res.status === 422 || res.status === 503) {
+      try {
+        const body = await res.json();
+        if (body && body.available === false) {
+          return body as UnavailableConformalPrediction;
+        }
+      } catch {}
+    }
     if (!res.ok) throw new Error('Failed to record prediction');
     return res.json();
   },

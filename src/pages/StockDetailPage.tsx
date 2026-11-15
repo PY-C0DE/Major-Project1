@@ -33,7 +33,16 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../shared/modelConfig';
-import { StockQuote, HistoricalBar, ConformalPrediction, MarketRegime, NewsItem, ConceptDriftResult, AlertRule } from '../types';
+import {
+  StockQuote,
+  HistoricalBar,
+  ConformalPredictionResponse,
+  isConformalPredictionAvailable,
+  MarketRegime,
+  NewsItem,
+  ConceptDriftResult,
+  AlertRule
+} from '../types';
 import { InteractiveStockChart } from '../components/InteractiveStockChart';
 import { ConformalPredictionCard } from '../components/ConformalPredictionCard';
 import { MarketRegimeCard } from '../components/MarketRegimeCard';
@@ -46,7 +55,7 @@ import { StockDecisionAndHistoryCard } from '../components/StockDecisionAndHisto
 import { OptionsAnalyticsModal } from '../components/OptionsAnalyticsModal';
 import { OptionsVolatilitySurface } from '../components/OptionsVolatilitySurface';
 import { RegimeIndicator } from '../components/RegimeIndicator';
-import { HMMRegimeGraphicalIndicator } from '../components/HMMRegimeGraphicalIndicator';
+import { RegimeGraphicalIndicator } from '../components/RegimeGraphicalIndicator';
 import { SeasonalityAnalysis } from '../components/SeasonalityAnalysis';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -65,7 +74,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
   const { t } = useLanguage();
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [history, setHistory] = useState<HistoricalBar[]>([]);
-  const [prediction, setPrediction] = useState<ConformalPrediction | null>(null);
+  const [prediction, setPrediction] = useState<ConformalPredictionResponse | null>(null);
   const [regime, setRegime] = useState<MarketRegime | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [drift, setDrift] = useState<ConceptDriftResult | null>(null);
@@ -202,17 +211,22 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
         currentPrice: quote?.price,
         dailyChangePercent: quote?.changePercent,
         generatedAt: new Date().toISOString(),
-        conformalPrediction: {
-          predictedPrice: prediction?.predictedPrice,
-          expectedChangePct: prediction?.predictionChangePercent,
-          lowerBound: prediction?.lowerBound,
-          upperBound: prediction?.upperBound,
-          confidenceLevel: prediction?.confidenceLevel,
-          empiricalCoverage: prediction?.empiricalCoverage ?? prediction?.confidenceLevel ?? null,
-          directionalAccuracy: prediction?.directionalAccuracy ?? null,
-          priceAccuracy: prediction?.priceAccuracy ?? null,
-          topFeatures: prediction?.topFeatures
-        },
+        conformalPrediction: isConformalPredictionAvailable(prediction)
+          ? {
+              predictedPrice: prediction.predictedPrice,
+              expectedChangePct: prediction.predictionChangePercent,
+              lowerBound: prediction.lowerBound,
+              upperBound: prediction.upperBound,
+              confidenceLevel: prediction.confidenceLevel,
+              empiricalCoverage: prediction.empiricalCoverage ?? prediction.confidenceLevel ?? null,
+              directionalAccuracy: prediction.directionalAccuracy ?? null,
+              priceAccuracy: prediction.priceAccuracy ?? null,
+              topFeatures: prediction.topFeatures
+            }
+          : {
+              available: false,
+              reason: prediction?.reason || 'Prediction unavailable: not enough history'
+            },
         marketRegime: {
           currentRegime: regime?.currentRegime,
           probability: regime?.regimeProbability,
@@ -385,7 +399,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
             <QuickAlertPopover
               ticker={ticker}
               quote={quote}
-              prediction={prediction}
+              prediction={isConformalPredictionAvailable(prediction) ? prediction : null}
               alerts={alerts}
               onAlertsChanged={loadAlerts}
             />
@@ -662,7 +676,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
                 {t('stock.mod_events_title')}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                {prediction?.classifiedEvents?.length || 0} {t('stock.mod_events_sub')}
+                {isConformalPredictionAvailable(prediction) ? (prediction.classifiedEvents?.length || 0) : 0} {t('stock.mod_events_sub')}
               </div>
             </div>
           </button>
@@ -798,7 +812,7 @@ export const StockDetailPage: React.FC<Props> = ({ ticker, onOpenAddHolding, onS
                 <X className="w-3 h-3" /> {t('action.hide_option')}
               </button>
             </div>
-            <HMMRegimeGraphicalIndicator regime={regime} ticker={ticker} />
+            <RegimeGraphicalIndicator regime={regime} ticker={ticker} />
             <MarketRegimeCard regime={regime} />
           </div>
         )}

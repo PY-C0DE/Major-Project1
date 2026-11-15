@@ -5,8 +5,9 @@
  * and dynamically anchors an explanatory floating quantitative card with step controls.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { api } from '../services/api';
 import {
   X,
   ChevronRight,
@@ -62,7 +63,7 @@ const TOUR_STEPS: TourStep[] = [
       'AlphaQuant AI is an institutional quantitative intelligence terminal. Engineered for professional traders and portfolio managers, it bridges machine learning price prediction, split-conformal inference, and direct broker execution.',
     highlights: [
       'Split-conformal prediction intervals with distribution-free mathematical guarantees',
-      'Real-time streaming inter-market telemetry across 60+ global assets (NSE, BSE, US)',
+      'Real-time streaming inter-market telemetry across global assets (NSE, BSE, US)',
       'Sub-millisecond data pipelines with client-side state synchronization'
     ],
     formulaOrMetric: 'Terminal Engine: React 19 + TypeScript + Vector Math + Express API',
@@ -97,13 +98,13 @@ const TOUR_STEPS: TourStep[] = [
     targetSelector: '#tour-price-accuracy',
     tab: 'dashboard',
     description:
-      'Evaluates project-wide price forecasting accuracy dynamically across the entire 60-asset universe. Derived rigorously from the Mean Absolute Percentage Error (MAPE) of calibrated models.',
+      'Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate. Evaluated across live catalog assets and compared against the naive last-price baseline.',
     highlights: [
-      'Mathematically formulated as: Price Accuracy = 100% - MAPE across catalog assets',
-      'Evaluated across 60+ equities with split-conformal calibration sets',
-      'Highlights average directional accuracy (>78%) and finite conformal empirical coverage (>90%)'
+      'Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate.',
+      'Compared directly against the naive last-price baseline (MAPE and skill score)',
+      'Reports directional hit rate vs Always-Up and empirical conformal coverage'
     ],
-    formulaOrMetric: 'Price Accuracy = 100% - MAPE (Evaluated across 60 Assets)',
+    formulaOrMetric: 'Price Accuracy = 100% - MAPE',
     actionLabel: 'Next: Active Portfolio',
     actionId: 'next'
   },
@@ -135,7 +136,7 @@ const TOUR_STEPS: TourStep[] = [
     targetSelector: '#tour-company-search',
     tab: 'dashboard',
     description:
-      'Search across 60+ global equities by company name (e.g., Tata, Reliance, Apple, Nvidia) or ticker symbol. Instantly synchronizes live charts, order books, and conformal models.',
+      'Search across global equities by company name (e.g., Tata, Reliance, Apple, Nvidia) or ticker symbol. Instantly synchronizes live charts, order books, and conformal models.',
     highlights: [
       'Instant autocomplete matching company names and ticker symbols',
       'Synchronizes conformal inference models, order book, and charts upon selection',
@@ -373,9 +374,40 @@ export const ProductTourModal: React.FC<Props> = ({
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [targetFound, setTargetFound] = useState(false);
+  const [evaluatedAssetsCount, setEvaluatedAssetsCount] = useState<number | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  const step = TOUR_STEPS[currentStepIdx];
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    api.getProjectWideAccuracy()
+      .then((res) => {
+        if (!active) return;
+        if (res && typeof res.evaluatedAssetsCount === 'number' && res.available !== false) {
+          setEvaluatedAssetsCount(res.evaluatedAssetsCount);
+        } else {
+          setEvaluatedAssetsCount(0);
+        }
+      })
+      .catch(() => {
+        if (active) setEvaluatedAssetsCount(null);
+      });
+    return () => { active = false; };
+  }, [isOpen]);
+
+  const step = useMemo(() => {
+    const raw = TOUR_STEPS[currentStepIdx];
+    if (raw.step === 3) {
+      const countText = evaluatedAssetsCount != null
+        ? `Evaluated across ${evaluatedAssetsCount} Assets`
+        : 'Evaluated across live catalog assets';
+      return {
+        ...raw,
+        formulaOrMetric: `Price Accuracy = 100% - MAPE (${countText})`
+      };
+    }
+    return raw;
+  }, [currentStepIdx, evaluatedAssetsCount]);
   const Icon = step.icon;
   const isFirst = currentStepIdx === 0;
   const isLast = currentStepIdx === TOUR_STEPS.length - 1;

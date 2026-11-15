@@ -98,6 +98,8 @@ export interface LiveNewsMeta {
 }
 
 export interface ConformalPrediction {
+  available?: true;
+  reason?: string;
   ticker: string;
   currentPrice: number;
   predictedPrice: number;
@@ -122,6 +124,21 @@ export interface ConformalPrediction {
   decisionSignal?: DecisionSignal;
   liveNewsMeta?: LiveNewsMeta;
   dataSource?: 'live' | 'synthetic';
+}
+
+export interface UnavailableConformalPrediction {
+  available: false;
+  reason: string;
+  ticker: string;
+  dataSource?: 'live' | 'synthetic';
+}
+
+export type ConformalPredictionResponse = ConformalPrediction | UnavailableConformalPrediction;
+
+export function isConformalPredictionAvailable(
+  pred: ConformalPredictionResponse | null | undefined
+): pred is ConformalPrediction {
+  return Boolean(pred && pred.available !== false);
 }
 
 export interface EquityCurvePoint {
@@ -282,6 +299,10 @@ export interface ModelComparisonItem {
   mae: number | null;
   rmse: number | null;
   r2: number | null;
+  mape?: number | null;
+  priceAccuracy?: number | null;
+  maeSkillVsNaive?: number | null;
+  rmseSkillVsNaive?: number | null;
   directionalAccuracy: number | null;
   trainingTimeSec: number;
   isProduction: boolean;
@@ -303,14 +324,20 @@ export interface AssetBreakdownItem {
   testWindowStart: string;
   testWindowEnd: string;
   priceAccuracy: number;
+  naivePriceAccuracy: number;
   mape: number;
+  naiveMape: number;
+  maeSkillVsNaive: number | null;
+  rmseSkillVsNaive: number | null;
   conformalCoverage: number;
   r2: number;
   directionalAccuracy: number;
   alwaysUpAccuracy: number;
   samples: number;
   rmse: number;
+  naiveRmse: number;
   mae: number;
+  naiveMae: number;
 }
 
 export interface MetricSummaryStats {
@@ -318,6 +345,12 @@ export interface MetricSummaryStats {
   median: number;
   min: number;
   max: number;
+}
+
+export interface DailyHitRecord {
+  date: string;
+  modelHit: boolean;
+  alwaysUpHit: boolean;
 }
 
 export interface PooledDirectionalStats {
@@ -328,6 +361,15 @@ export interface PooledDirectionalStats {
   pooledAlwaysUpAccuracyPct: number;
   wilson95CI: [number, number];
   binomialPValueVsAlwaysUp: number;
+  directionalEdgeVsAlwaysUpPct?: number;
+  directionalEdgeVsAlwaysUp95CI?: [number, number];
+  bootstrapProbEdgePositive?: number;
+  bootstrapResamples?: number;
+  bootstrapSeed?: number;
+  signTestWins?: number;
+  signTestLosses?: number;
+  signTestTies?: number;
+  signTestPValue?: number;
 }
 
 export interface ModelFeatureImportance {
@@ -339,11 +381,30 @@ export interface ModelFeatureImportance {
   direction?: 'positive' | 'negative' | 'neutral';
 }
 
+export interface SkippedTickerRecord {
+  ticker: string;
+  reason: 'synthetic_data' | 'insufficient_history' | 'fetch_error';
+  barsCount?: number;
+}
+
+export interface AuditEvaluationParams {
+  historyDays: number;
+  minBarsRequired: number;
+  testWindowRule: string;
+  retrainIntervalRule: string;
+  calibrationWindowMax: number;
+  conformalCoverageTarget: number;
+  bootstrapResamples: number;
+  bootstrapSeed: number;
+  signTestNullP: number;
+}
+
 export interface ModelEvaluation {
   available?: boolean;
   reason?: string;
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
   evaluatedAssetsCount?: number;
+  skippedTickers?: SkippedTickerRecord[];
   ticker: string;
   modelName: string;
   horizonDays: number;
@@ -351,6 +412,14 @@ export interface ModelEvaluation {
   rmse: number;
   mape: number;
   r2: number;
+  naiveMae?: number;
+  naiveRmse?: number;
+  naiveMape?: number;
+  naivePriceAccuracy?: number;
+  maeSkillVsNaive?: number | null;
+  rmseSkillVsNaive?: number | null;
+  beatNaiveCount?: number;
+  beatNaiveLabel?: string;
   directionalAccuracy: number;
   alwaysUpAccuracy?: number;
   conformalCoverage?: number;
@@ -360,11 +429,17 @@ export interface ModelEvaluation {
   testWindowEnd?: string;
   testWindowDays?: number;
   summaryStats?: {
+    priceAccuracy?: MetricSummaryStats;
+    naivePriceAccuracy?: MetricSummaryStats;
     mape: MetricSummaryStats;
+    naiveMape?: MetricSummaryStats;
+    maeSkillVsNaive?: MetricSummaryStats | null;
+    rmseSkillVsNaive?: MetricSummaryStats | null;
     directionalAccuracy: MetricSummaryStats;
     conformalCoverage: MetricSummaryStats;
   };
   directionalStats?: PooledDirectionalStats;
+  dailyHits?: DailyHitRecord[];
   evaluatedAt: string;
   comparison: ModelComparisonItem[];
   backtestSeries: BacktestDataPoint[];
@@ -379,18 +454,30 @@ export interface UnavailableEvaluation {
   reason: string;
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
   evaluatedAssetsCount: number;
+  skippedTickers?: SkippedTickerRecord[];
   ticker?: string;
 }
 
 export interface ModelAuditResponse {
   available: boolean;
   reason?: string;
+  gitCommit?: string | null;
+  evaluationParams?: AuditEvaluationParams;
   dataSource: 'live' | 'synthetic' | 'mixed' | 'none';
   evaluatedAssetsCount: number;
+  skippedTickers?: SkippedTickerRecord[];
   evaluatedAt?: string;
   testWindowStart?: string;
   testWindowEnd?: string;
   totalTestPredictions?: number;
+  priceAccuracy?: number;
+  naivePriceAccuracy?: number;
+  mape?: number;
+  naiveMape?: number;
+  maeSkillVsNaive?: number | null;
+  rmseSkillVsNaive?: number | null;
+  beatNaiveCount?: number;
+  beatNaiveLabel?: string;
   summaryStats?: ModelEvaluation['summaryStats'];
   directionalStats?: PooledDirectionalStats;
   comparison?: ModelComparisonItem[];
@@ -603,12 +690,26 @@ export interface ProjectWideAccuracyResult {
   reason?: string;
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
   priceAccuracyPct: number;
+  naivePriceAccuracyPct?: number;
   mape: number;
+  naiveMape?: number;
+  maeSkillVsNaive?: number | null;
+  rmseSkillVsNaive?: number | null;
+  beatNaiveCount?: number;
+  beatNaiveLabel?: string;
   evaluatedAssetsCount: number;
   mae: number;
   rmse: number;
   directionalAccuracyPct: number;
   conformalCoveragePct: number;
+  summaryStats?: {
+    priceAccuracy: MetricSummaryStats;
+    naivePriceAccuracy: MetricSummaryStats;
+    mape: MetricSummaryStats;
+    naiveMape: MetricSummaryStats;
+    maeSkillVsNaive: MetricSummaryStats | null;
+    rmseSkillVsNaive: MetricSummaryStats | null;
+  };
   benchmark: string;
   evaluatedAt: string;
 }

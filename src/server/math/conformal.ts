@@ -7,7 +7,14 @@
  */
 
 import { ComputedBar } from './indicators';
-import { ConformalPrediction, FeatureContribution, PreviousDayStats, DecisionSignal, LiveNewsMeta, NewsItem } from '../../types';
+import {
+  ConformalPredictionResponse,
+  FeatureContribution,
+  PreviousDayStats,
+  DecisionSignal,
+  LiveNewsMeta,
+  NewsItem
+} from '../../types';
 import {
   fitEnsembleModel,
   predictEnsembleReturn,
@@ -16,6 +23,8 @@ import {
 import { getClassifiedEventsForTicker } from './nlpEngine';
 import { getCurrencySymbol } from '../../utils/currency';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
+
+export const MIN_CONFORMAL_BARS = 40;
 
 export function calculateTargetDate(baseDateStr?: string, horizonDays = 1): { targetDate: string; targetDateFormatted: string } {
   let d: Date;
@@ -62,35 +71,16 @@ export function runConformalPrediction(
   horizonDays = 1,
   liveNewsMeta?: LiveNewsMeta,
   liveArticles?: NewsItem[]
-): ConformalPrediction {
+): ConformalPredictionResponse {
   const n = bars.length;
   const safeConfidence = Math.min(0.99, Math.max(0.70, confidenceLevel));
   const safeHorizon = Math.max(1, Math.min(30, horizonDays));
 
-  if (n < 5) {
-    const fallbackPrice = bars[n - 1]?.close || 100;
-    const { targetDate, targetDateFormatted } = calculateTargetDate(bars[n - 1]?.date, safeHorizon);
+  if (n < MIN_CONFORMAL_BARS) {
     return {
-      ticker,
-      currentPrice: fallbackPrice,
-      predictedPrice: fallbackPrice,
-      predictionChangePercent: 0,
-      lowerBound: Number((fallbackPrice * 0.96).toFixed(2)),
-      upperBound: Number((fallbackPrice * 1.04).toFixed(2)),
-      confidenceLevel: safeConfidence,
-      intervalWidth: Number((fallbackPrice * 0.08).toFixed(2)),
-      intervalWidthPercent: 8.0,
-      horizonDays: safeHorizon,
-      modelVersion: 'AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)',
-      predictionTimestamp: new Date().toISOString(),
-      topFeatures: [],
-      methodology: `Split-Conformal Prediction Intervals (${(safeConfidence * 100).toFixed(0)}% Nominal)`,
-      targetDate,
-      targetDateFormatted,
-      empiricalCoverage: undefined,
-      directionalAccuracy: undefined,
-      priceAccuracy: undefined,
-      liveNewsMeta
+      available: false,
+      reason: `Insufficient history (need >= ${MIN_CONFORMAL_BARS} bars)`,
+      ticker
     };
   }
 
@@ -190,7 +180,7 @@ export function runConformalPrediction(
 
   // Real Price Prediction Accuracy: 100% - MAPE directly obtained from analyzing model predictions
   const realMape = sumPctErrors / sampleCount;
-  const priceAccuracy = Number(Math.max(0, Math.min(100, 100 - realMape)).toFixed(1));
+  const priceAccuracy = Number((100 - realMape).toFixed(1));
 
   // Directional trajectory accuracy computed on validation bars
   const directionalAccuracy = Number(((dirHits / sampleCount) * 100).toFixed(1));
@@ -392,6 +382,7 @@ export function runConformalPrediction(
   const { targetDate, targetDateFormatted } = calculateTargetDate(latestBar.date, safeHorizon);
 
   return {
+    available: true,
     ticker,
     currentPrice,
     predictedPrice,

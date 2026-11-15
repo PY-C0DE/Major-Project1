@@ -18,12 +18,18 @@ import {
   TrendingDown,
   Info
 } from 'lucide-react';
-import { ConformalPrediction, PreviousDayStats, ClassifiedFinancialEvent, DecisionSignal } from '../types';
+import {
+  ConformalPredictionResponse,
+  isConformalPredictionAvailable,
+  PreviousDayStats,
+  ClassifiedFinancialEvent,
+  DecisionSignal
+} from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { ConvertedPrice } from './ConvertedPrice';
 
 interface Props {
-  prediction: ConformalPrediction | null;
+  prediction: ConformalPredictionResponse | null;
   currency: string;
   ticker: string;
   onOpenInvestorGuide?: () => void;
@@ -49,6 +55,19 @@ export const StockDecisionAndHistoryCard: React.FC<Props> = ({
   }, [viewMode]);
 
   if (!prediction) return null;
+
+  if (!isConformalPredictionAvailable(prediction)) {
+    return (
+      <div className="bg-white dark:bg-slate-900/80 border border-amber-200 dark:border-amber-900/50 rounded-2xl p-5 text-center space-y-1.5">
+        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+          Prediction unavailable: not enough history
+        </p>
+        <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+          {prediction.reason}
+        </p>
+      </div>
+    );
+  }
 
   const prevStats: PreviousDayStats | undefined = prediction.previousDayStats;
   const decision: DecisionSignal | undefined = prediction.decisionSignal;

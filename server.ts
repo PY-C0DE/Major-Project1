@@ -27,15 +27,17 @@ import {
   getQuickWatchQuotes
 } from './src/server/services/stockService';
 import { detectMarketRegime } from './src/server/math/hmmRegime';
-import { runConformalPrediction } from './src/server/math/conformal';
+import { runConformalPrediction, MIN_CONFORMAL_BARS } from './src/server/math/conformal';
 import { detectConceptDrift } from './src/server/math/driftDetector';
 import { getNewsForTicker, getHybridNewsForTicker, analyzeKeywordSentiment, getAllMarketHeadlines, getAllMarketHeadlinesAsync } from './src/server/math/nlpEngine';
 import { DEFAULT_CONFORMAL_CONFIDENCE, DEFAULT_BACKTEST_STRATEGY } from './src/shared/modelConfig';
+import { isConformalPredictionAvailable } from './src/types';
 import {
   runModelEvaluation,
   computeProjectWideAccuracy,
   runAggregateModelEvaluation,
-  isModelEvaluationAvailable
+  isModelEvaluationAvailable,
+  buildModelAuditPayload
 } from './src/server/math/evaluation';
 import { runStrategyBacktest } from './src/server/math/strategySimulator';
 import { runAutomatedBacktest } from './src/server/math/automatedBacktest';
@@ -608,6 +610,16 @@ app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
       hybrid.news
     );
 
+    if (!isConformalPredictionAvailable(prediction)) {
+      const status = history.length === 0 ? 503 : 422;
+      return res.status(status).json({
+        available: false,
+        reason: prediction.reason,
+        ticker,
+        dataSource: historySource
+      });
+    }
+
     return res.json({ ...prediction, dataSource: historySource });
   } catch (error: any) {
     console.error(`Error computing conformal prediction for ${req.params.ticker}:`, error);
@@ -651,6 +663,16 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
       liveNewsMeta,
       hybrid.news
     );
+
+    if (!isConformalPredictionAvailable(pred)) {
+      const status = history.length === 0 ? 503 : 422;
+      return res.status(status).json({
+        available: false,
+        reason: pred.reason,
+        ticker: sym,
+        dataSource: historySource
+      });
+    }
 
     const stored: StoredPrediction = {
       id: `pred-${Date.now()}`,
@@ -720,86 +742,74 @@ app.get('/api/model/metrics', async (req: Request, res: Response) => {
         ticker
       });
     }
-    const evaluation = runModelEvaluation(bars, ticker, source);
-    return res.json(evaluation);
+    const { dailyHits: _dailyHits, ...publicEvaluation } = runModelEvaluation(bars, ticker, source);
+    return res.json(publicEvaluation);
   } catch (error: any) {
     console.error('Error computing evaluation metrics:', error);
     return res.status(500).json({ error: 'Failed to evaluate model performance.' });
   }
 });
 
-// Full Catalog Model Audit Endpoint (per-asset table, test window dates, data provenance, Wilson CI, p-value)
+// Full Catalog Model Audit Endpoint (per-asset table, test window dates, data provenance, Wilson CI, p-value, gitCommit, evaluationParams, skippedTickers)
 app.get('/api/model/audit', async (req: Request, res: Response) => {
   try {
     const rawTicker = (req.query.ticker as string) || 'ALL';
     if (rawTicker.trim().toUpperCase() !== 'ALL') {
       const ticker = await resolveTickerOrName(rawTicker);
-      const { bars, source } = await fetchHistoryWithSource(ticker, 730);
+      let bars: Awaited<ReturnType<typeof fetchHistoryWithSource>>['bars'] = [];
+      let source: 'live' | 'synthetic' = 'live';
+      try {
+        const fetched = await fetchHistoryWithSource(ticker, 730);
+        bars = fetched.bars;
+        source = fetched.source;
+      } catch {
+        return res.status(503).json(
+          buildModelAuditPayload({
+            available: false,
+            reason: 'No live market data',
+            dataSource: 'none',
+            evaluatedAssetsCount: 0,
+            skippedTickers: [{ ticker, reason: 'fetch_error' }],
+            ticker
+          })
+        );
+      }
       if (source === 'synthetic') {
-        return res.status(503).json({
-          available: false,
-          reason: 'No live market data',
-          dataSource: 'synthetic',
-          evaluatedAssetsCount: 0
-        });
+        return res.status(503).json(
+          buildModelAuditPayload({
+            available: false,
+            reason: 'No live market data',
+            dataSource: 'synthetic',
+            evaluatedAssetsCount: 0,
+            skippedTickers: [{ ticker, reason: 'synthetic_data', barsCount: bars.length }],
+            ticker
+          })
+        );
+      }
+      if (bars.length < MIN_CONFORMAL_BARS) {
+        return res.status(422).json(
+          buildModelAuditPayload({
+            available: false,
+            reason: `Insufficient history (need >= ${MIN_CONFORMAL_BARS} bars)`,
+            dataSource: 'live',
+            evaluatedAssetsCount: 0,
+            skippedTickers: [{ ticker, reason: 'insufficient_history', barsCount: bars.length }],
+            ticker
+          })
+        );
       }
       const evaluation = runModelEvaluation(bars, ticker, source);
       const meta = TICKER_CATALOG.find(c => c.ticker === ticker);
-      return res.json({
-        available: true,
-        dataSource: evaluation.dataSource || 'live',
-        evaluatedAssetsCount: 1,
-        evaluatedAt: evaluation.evaluatedAt,
-        testWindowStart: evaluation.testWindowStart,
-        testWindowEnd: evaluation.testWindowEnd,
-        totalTestPredictions: evaluation.totalBacktestSamples,
-        summaryStats: evaluation.summaryStats,
-        directionalStats: evaluation.directionalStats,
-        comparison: evaluation.comparison,
-        assets: [
-          {
-            ticker,
-            name: meta?.name || ticker,
-            dataSource: 'live' as const,
-            testWindowStart: evaluation.testWindowStart || '',
-            testWindowEnd: evaluation.testWindowEnd || '',
-            priceAccuracy: Number((evaluation.priceAccuracy ?? (100 - evaluation.mape)).toFixed(2)),
-            mape: Number(evaluation.mape.toFixed(2)),
-            conformalCoverage: Number((evaluation.conformalCoverage ?? 90).toFixed(1)),
-            r2: Number(evaluation.r2.toFixed(2)),
-            directionalAccuracy: Number(evaluation.directionalAccuracy.toFixed(1)),
-            alwaysUpAccuracy: Number((evaluation.alwaysUpAccuracy ?? 0).toFixed(1)),
-            samples: evaluation.totalBacktestSamples,
-            rmse: Number(evaluation.rmse.toFixed(2)),
-            mae: Number(evaluation.mae.toFixed(2))
-          }
-        ]
-      });
+      return res.json(buildModelAuditPayload(evaluation, meta?.name || ticker));
     }
 
     const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG);
-    if (!isModelEvaluationAvailable(evaluation)) {
-      return res.status(503).json({
-        available: false,
-        reason: evaluation.reason || 'No live market data',
-        dataSource: evaluation.dataSource || 'none',
-        evaluatedAssetsCount: 0
-      });
+    const payload = buildModelAuditPayload(evaluation);
+    if (!payload.available) {
+      return res.status(503).json(payload);
     }
 
-    return res.json({
-      available: true,
-      dataSource: evaluation.dataSource || 'live',
-      evaluatedAssetsCount: evaluation.evaluatedAssetsCount || evaluation.assetBreakdown?.length || 0,
-      evaluatedAt: evaluation.evaluatedAt,
-      testWindowStart: evaluation.testWindowStart,
-      testWindowEnd: evaluation.testWindowEnd,
-      totalTestPredictions: evaluation.directionalStats?.totalTestPredictions ?? evaluation.totalBacktestSamples,
-      summaryStats: evaluation.summaryStats,
-      directionalStats: evaluation.directionalStats,
-      comparison: evaluation.comparison,
-      assets: evaluation.assetBreakdown || []
-    });
+    return res.json(payload);
   } catch (error: any) {
     console.error('Error computing model audit:', error);
     return res.status(500).json({ error: 'Failed to compute model audit.' });
@@ -1417,6 +1427,9 @@ app.get('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, r
           const news = getNewsForTicker(ticker, quote.name);
           const avgSent = news.reduce((acc, n) => acc + n.sentimentScore, 0) / (news.length || 1);
           const pred = runConformalPrediction(history, ticker, avgSent, regime.regimeId, DEFAULT_CONFORMAL_CONFIDENCE);
+          if (!isConformalPredictionAvailable(pred)) {
+            return null;
+          }
 
           return {
             id: `watch-${idx}-${ticker}`,

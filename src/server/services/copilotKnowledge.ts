@@ -83,7 +83,7 @@ Click **Backtest** in the top navigation to test this strategy against Buy-and-H
   return `### AlphaQuant AI Assistant
 
 Welcome to the AlphaQuant AI Terminal! Here are key areas I can assist you with:
-- **Price Accuracy**: View project-wide $100\\% - \\text{MAPE}$ evaluation on the main Dashboard.
+- **Price Accuracy**: Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate. View it alongside the naive last-price baseline on the main Dashboard and Model Performance page.
 - **Options & Greeks**: Analyze real-time Black-Scholes Greeks ($\\Delta, \\Gamma, \\Theta, \\nu$), IV smiles, and strike chains.
 - **Automated Backtesting**: Compare model outperformance against Buy-and-Hold benchmarks with historical equity curves.
 - **Direct Broker Router**: Execute paper orders with stop-loss and profit target ceilings via Alpaca.

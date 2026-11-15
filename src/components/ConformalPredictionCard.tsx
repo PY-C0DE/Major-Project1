@@ -6,14 +6,14 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Target, HelpCircle, TrendingUp, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Award, BarChart2 } from 'lucide-react';
-import { ConformalPrediction } from '../types';
+import { Target, HelpCircle, TrendingUp, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Award, BarChart2, AlertTriangle } from 'lucide-react';
+import { ConformalPredictionResponse, isConformalPredictionAvailable } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 import { ConvertedPrice } from './ConvertedPrice';
 import { DEFAULT_CONFORMAL_CONFIDENCE, CONFORMAL_CONFIDENCE_LEVELS } from '../shared/modelConfig';
 
 interface Props {
-  prediction: ConformalPrediction | null;
+  prediction: ConformalPredictionResponse | null;
   currency: string;
   ticker?: string;
   onRefresh?: () => void;
@@ -29,22 +29,42 @@ export const ConformalPredictionCard: React.FC<Props> = ({
   const { t } = useLanguage();
   const [showTooltip, setShowTooltip] = useState(false);
   const [showExplain, setShowExplain] = useState(true);
-  const [selectedHorizon, setSelectedHorizon] = useState<number>(prediction?.horizonDays || 1);
-  const [selectedConfidence, setSelectedConfidence] = useState<number>(prediction?.confidenceLevel || DEFAULT_CONFORMAL_CONFIDENCE);
+  const [selectedHorizon, setSelectedHorizon] = useState<number>(
+    isConformalPredictionAvailable(prediction) ? prediction.horizonDays : 1
+  );
+  const [selectedConfidence, setSelectedConfidence] = useState<number>(
+    isConformalPredictionAvailable(prediction) ? prediction.confidenceLevel : DEFAULT_CONFORMAL_CONFIDENCE
+  );
 
   useEffect(() => {
-    if (prediction?.confidenceLevel) {
-      setSelectedConfidence(prediction.confidenceLevel);
+    if (isConformalPredictionAvailable(prediction)) {
+      if (prediction.confidenceLevel) {
+        setSelectedConfidence(prediction.confidenceLevel);
+      }
+      if (prediction.horizonDays) {
+        setSelectedHorizon(prediction.horizonDays);
+      }
     }
-    if (prediction?.horizonDays) {
-      setSelectedHorizon(prediction.horizonDays);
-    }
-  }, [prediction?.confidenceLevel, prediction?.horizonDays]);
+  }, [prediction]);
 
   if (!prediction) {
     return (
       <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl p-5 animate-pulse min-h-[260px] flex items-center justify-center">
         <span className="text-xs font-mono text-slate-500">Calculating Conformal Prediction Bounds...</span>
+      </div>
+    );
+  }
+
+  if (!isConformalPredictionAvailable(prediction)) {
+    return (
+      <div className="bg-white dark:bg-slate-900/80 border border-amber-200 dark:border-amber-900/50 rounded-2xl p-6 min-h-[220px] flex flex-col items-center justify-center text-center space-y-2 shadow-xs">
+        <AlertTriangle className="w-7 h-7 text-amber-500" />
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+          Prediction unavailable: not enough history
+        </h3>
+        <p className="text-xs font-mono text-slate-500 dark:text-slate-400">
+          {prediction.reason}
+        </p>
       </div>
     );
   }
@@ -109,9 +129,12 @@ export const ConformalPredictionCard: React.FC<Props> = ({
               <span>Live News: {prediction.liveNewsMeta.liveArticlesCount} Live + {prediction.liveNewsMeta.baselineArticlesCount} Base</span>
             </div>
           )}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-[11px] font-mono text-emerald-700 dark:text-emerald-400">
+          <div
+            className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-[11px] font-mono text-emerald-700 dark:text-emerald-400 cursor-help"
+            title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+          >
             <Award className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-            <span>Acc: {prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : prediction.directionalAccuracy != null ? `${prediction.directionalAccuracy}%` : 'n/a'}</span>
+            <span>Price Acc: {prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : prediction.directionalAccuracy != null ? `${prediction.directionalAccuracy}%` : 'n/a'}</span>
           </div>
           <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-[11px] font-mono text-cyan-700 dark:text-cyan-300">
             <ShieldCheck className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
@@ -172,7 +195,7 @@ export const ConformalPredictionCard: React.FC<Props> = ({
           </div>
           <div className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400 space-y-1">
             <p>
-              • <strong>Prediction Price Accuracy ({prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : 'n/a'}):</strong> Evaluated on held-out actual stock prices (100% - MAPE).
+              • <strong>Price Accuracy ({prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : 'n/a'}):</strong> Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate.
             </p>
             <p>
               • <strong>Finite-Sample Coverage ({prediction.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : `${((prediction.confidenceLevel || DEFAULT_CONFORMAL_CONFIDENCE) * 100).toFixed(0)}%`}):</strong> Observed fraction of validation actuals falling inside the split-conformal prediction interval for the nominal target of {((prediction.confidenceLevel || DEFAULT_CONFORMAL_CONFIDENCE) * 100).toFixed(0)}%.
@@ -197,8 +220,11 @@ export const ConformalPredictionCard: React.FC<Props> = ({
                 </span>
               )}
             </div>
-            <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
-              Model Acc: {prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : prediction.directionalAccuracy != null ? `${prediction.directionalAccuracy}%` : 'Analyzing...'}
+            <span
+              className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 cursor-help"
+              title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+            >
+              Price Accuracy: {prediction.priceAccuracy != null ? `${prediction.priceAccuracy}%` : prediction.directionalAccuracy != null ? `${prediction.directionalAccuracy}%` : 'n/a'}
             </span>
           </div>
           <div className="flex items-baseline gap-2">

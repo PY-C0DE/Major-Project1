@@ -25,7 +25,8 @@ import {
   Globe2,
   MapPin,
   Check,
-  ChevronDown
+  ChevronDown,
+  HelpCircle
 } from 'lucide-react';
 import { api } from '../services/api';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../shared/modelConfig';
@@ -33,7 +34,8 @@ import {
   StockQuote,
   HistoricalBar,
   NewsItem,
-  ConformalPrediction,
+  ConformalPredictionResponse,
+  isConformalPredictionAvailable,
   MarketRegime,
   ConceptDriftResult,
   PortfolioHolding,
@@ -110,7 +112,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
   const [selectedTicker, setSelectedTicker] = useState('RELIANCE.NS');
   const [quote, setQuote] = useState<StockQuote | null>(null);
   const [history, setHistory] = useState<HistoricalBar[]>([]);
-  const [prediction, setPrediction] = useState<ConformalPrediction | null>(null);
+  const [prediction, setPrediction] = useState<ConformalPredictionResponse | null>(null);
   const [regime, setRegime] = useState<MarketRegime | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [sentiment, setSentiment] = useState<SentimentScoreResult | null>(null);
@@ -477,17 +479,24 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
               <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-cyan-400 border border-emerald-200/90 dark:border-cyan-500/20 shrink-0">
                 <ShieldCheck className="w-3.5 h-3.5" />
               </div>
-              <span className="text-xs font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 font-bold truncate">
-                Price Accuracy
+              <span
+                className="text-xs font-mono uppercase tracking-wider text-slate-700 dark:text-slate-300 font-bold truncate inline-flex items-center gap-1"
+                title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+              >
+                <span className="truncate">Price Accuracy</span>
+                <HelpCircle className="w-3 h-3 text-slate-400 shrink-0" aria-label="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate." />
               </span>
             </div>
-            <span className="text-[10px] sm:text-xs font-mono text-cyan-800 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/60 px-2 py-0.5 rounded-md border border-cyan-200 dark:border-cyan-800/40 font-bold shrink-0 whitespace-nowrap">
+            <span
+              title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+              className="text-[10px] sm:text-xs font-mono text-cyan-800 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/60 px-2 py-0.5 rounded-md border border-cyan-200 dark:border-cyan-800/40 font-bold shrink-0 whitespace-nowrap cursor-help"
+            >
               100% − MAPE
             </span>
           </div>
 
           <div className="space-y-1.5 pt-0.5">
-            {accuracy?.available === false && prediction?.priceAccuracy == null ? (
+            {accuracy?.available === false && !(isConformalPredictionAvailable(prediction) && prediction.priceAccuracy != null) ? (
               <>
                 <div className="text-sm font-mono font-semibold text-amber-600 dark:text-amber-400">
                   Unavailable
@@ -500,18 +509,21 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
             ) : (
               <>
                 <div className="flex items-baseline justify-between gap-2 min-w-0">
-                  {(prediction?.priceAccuracy != null || (accuracy?.available !== false && accuracy?.priceAccuracyPct != null)) ? (
+                  {((isConformalPredictionAvailable(prediction) && prediction.priceAccuracy != null) || (accuracy?.available !== false && accuracy?.priceAccuracyPct != null)) ? (
                     <div className="text-xl sm:text-2xl font-black font-mono text-emerald-500 dark:text-cyan-400 tabular-nums tracking-tight">
-                      {(prediction?.priceAccuracy ?? accuracy?.priceAccuracyPct)?.toFixed(1)}%
+                      {((isConformalPredictionAvailable(prediction) ? prediction.priceAccuracy : undefined) ?? accuracy?.priceAccuracyPct)?.toFixed(1)}%
                     </div>
                   ) : (
                     <div className="h-7 w-24 bg-slate-200 dark:bg-slate-800 animate-pulse rounded-md" />
                   )}
-                  {(prediction?.priceAccuracy != null || (accuracy?.available !== false && accuracy?.mape != null)) && (
+                  {((isConformalPredictionAvailable(prediction) && prediction.priceAccuracy != null) || (accuracy?.available !== false && accuracy?.mape != null)) && (
                     <span className="text-[10px] sm:text-xs font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md shrink-0 border border-slate-200/60 dark:border-slate-700/60">
-                      MAPE {prediction?.priceAccuracy != null ? (100 - prediction.priceAccuracy).toFixed(1) : accuracy?.mape?.toFixed(1)}%
+                      MAPE {isConformalPredictionAvailable(prediction) && prediction.priceAccuracy != null ? (100 - prediction.priceAccuracy).toFixed(1) : accuracy?.mape?.toFixed(1)}%
                     </span>
                   )}
+                </div>
+                <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                  Naive baseline: {accuracy?.available !== false && accuracy?.naivePriceAccuracyPct != null ? `${accuracy.naivePriceAccuracyPct.toFixed(2)}%` : 'n/a'} | Skill vs naive: {accuracy?.available !== false && accuracy?.maeSkillVsNaive != null ? `${accuracy.maeSkillVsNaive * 100 >= 0 ? '+' : ''}${(accuracy.maeSkillVsNaive * 100).toFixed(1)}%` : 'n/a'}
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono pt-1.5 border-t border-slate-100 dark:border-slate-800/60 gap-2 min-w-0">
                   <span className="truncate flex items-center gap-1">
@@ -520,12 +532,12 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                         Simulated data
                       </span>
                     )}
-                    {prediction?.priceAccuracy != null
+                    {isConformalPredictionAvailable(prediction) && prediction.priceAccuracy != null
                       ? `Asset: ${selectedTicker.replace('.NS', '')}`
-                      : `Universe: ${accuracy?.evaluatedAssetsCount ?? '0'} models`}
+                      : `Universe: ${accuracy?.evaluatedAssetsCount ?? '0'} models${accuracy?.beatNaiveLabel ? ` · Beat naive: ${accuracy.beatNaiveLabel}` : ''}`}
                   </span>
                   <span className="text-cyan-600 dark:text-cyan-400 font-semibold shrink-0">
-                    Cov {prediction?.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : accuracy?.available !== false && accuracy?.conformalCoveragePct != null ? `${accuracy.conformalCoveragePct.toFixed(1)}%` : 'n/a'}
+                    Cov {isConformalPredictionAvailable(prediction) && prediction.empiricalCoverage != null ? `${(prediction.empiricalCoverage * 100).toFixed(1)}%` : accuracy?.available !== false && accuracy?.conformalCoveragePct != null ? `${accuracy.conformalCoveragePct.toFixed(1)}%` : 'n/a'}
                   </span>
                 </div>
               </>

@@ -49,8 +49,9 @@ AlphaQuant AI evaluates models using strictly out-of-sample forward backtesting 
    - Provides finite-sample validity across changing market regimes.
 
 3. **Evaluation Metrics**:
-   - Evaluated out-of-sample with real MAE, RMSE, MAPE, $R^2$, and directional hit rate.
-   - All baseline comparisons (SMA-20, Plain Linear OLS, Naive Last-Price) are computed on the identical out-of-sample test split.
+   - **Price Accuracy**: Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate.
+   - Evaluated out-of-sample with real MAE, RMSE, MAPE, naive baseline comparison, skill vs naive ($1 - \\text{MAE}/\\text{MAE}_{\\text{naive}}$), $R^2$, and directional hit rate vs Always-Up.
+   - All baseline comparisons (SMA-20, Plain Linear OLS, Naive Last-Price, Always Up, Persistence) are computed on the identical out-of-sample test split.
 
 Visit the **"Model Performance"** tab in the sidebar to review full live backtest evaluations!`;
   }
@@ -253,7 +254,7 @@ Click **"Social & Copy-Trade"** in the top bar to inspect active feeds.`;
 Explore every layer of the AlphaQuant AI terminal:
 1. Terminal Architecture & Core ML
 2. Global Macro Market Tape
-3. Aggregate Price Accuracy Metric (100% - MAPE)
+3. Price Accuracy (100% - MAPE over walk-forward 1D forecasts; not a hit rate)
 4. Split-Conformal Prediction Envelopes
 5. Rule-Based Trend/Volatility Market Regimes
 6. Options Chains & Black-Scholes Greeks

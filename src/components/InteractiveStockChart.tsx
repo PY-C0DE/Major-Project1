@@ -19,14 +19,14 @@ import {
   ReferenceLine
 } from 'recharts';
 import { TrendingUp, TrendingDown, Layers, Activity } from 'lucide-react';
-import { HistoricalBar, ConformalPrediction } from '../types';
+import { HistoricalBar, ConformalPredictionResponse, isConformalPredictionAvailable } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { getCurrencySymbol } from '../utils/currency';
 
 interface Props {
   bars: HistoricalBar[];
-  prediction: ConformalPrediction | null;
+  prediction: ConformalPredictionResponse | null;
   currency: string;
   ticker: string;
 }
@@ -430,7 +430,7 @@ export const InteractiveStockChart: React.FC<Props> = ({ bars, prediction, curre
             />
 
             {/* Conformal 90% Prediction Range Indicator Line */}
-            {prediction && (
+            {isConformalPredictionAvailable(prediction) && (
               <ReferenceLine
                 y={prediction.predictedPrice}
                 stroke="#10b981"

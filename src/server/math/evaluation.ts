@@ -5,6 +5,7 @@
  * without any hardcoded offsets, fake scalars, or synthetic fallback values.
  */
 
+import { execSync } from 'node:child_process';
 import { ComputedBar } from './indicators';
 import {
   ModelEvaluation,
@@ -15,7 +16,11 @@ import {
   ModelFeatureImportance,
   ProjectWideAccuracyResult,
   MetricSummaryStats,
-  PooledDirectionalStats
+  PooledDirectionalStats,
+  DailyHitRecord,
+  SkippedTickerRecord,
+  AuditEvaluationParams,
+  ModelAuditResponse
 } from '../../types';
 import type { HistoricalDataResult } from '../services/stockService';
 import {
@@ -27,6 +32,7 @@ import {
   estimateBarDailyVol,
   FEATURE_COUNT
 } from './modelEngine';
+import { MIN_CONFORMAL_BARS } from './conformal';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
 
 export function computeModelFeatureImportance(
@@ -273,7 +279,7 @@ function normalizeFetchedHistory(
   return fetched;
 }
 
-export function computeSummaryStats(values: number[]): MetricSummaryStats {
+export function computeSummaryStats(values: number[], decimals = 2): MetricSummaryStats {
   if (!values || values.length === 0) {
     return { mean: 0, median: 0, min: 0, max: 0 };
   }
@@ -282,11 +288,12 @@ export function computeSummaryStats(values: number[]): MetricSummaryStats {
   const mean = sorted.reduce((acc, v) => acc + v, 0) / n;
   const mid = Math.floor(n / 2);
   const median = n % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  const round = (x: number) => Number(x.toFixed(decimals));
   return {
-    mean: Number(mean.toFixed(2)),
-    median: Number(median.toFixed(2)),
-    min: Number(sorted[0].toFixed(2)),
-    max: Number(sorted[n - 1].toFixed(2))
+    mean: round(mean),
+    median: round(median),
+    min: round(sorted[0]),
+    max: round(sorted[n - 1])
   };
 }
 
@@ -351,6 +358,133 @@ export function computeBinomialOneSidedPValue(hits: number, total: number, p0: n
   }
 
   return Math.max(0, Math.min(1, sum));
+}
+
+export const BOOTSTRAP_RESAMPLES = 2000;
+export const BOOTSTRAP_SEED = 20261114;
+
+export function mulberry32(seed: number): () => number {
+  let t = seed >>> 0;
+  return () => {
+    t = (t + 0x6d2b79f5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function linearQuantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return 0;
+  if (sorted.length === 1) return sorted[0];
+  const pos = q * (sorted.length - 1);
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  if (lo === hi) return sorted[lo];
+  const weight = pos - lo;
+  return sorted[lo] * (1 - weight) + sorted[hi] * weight;
+}
+
+export function computeDateClusteredBootstrapCI(
+  dailySeriesList: DailyHitRecord[][],
+  seed = BOOTSTRAP_SEED,
+  resamples = BOOTSTRAP_RESAMPLES
+): {
+  pointEdgePct: number;
+  ci95: [number, number];
+  probEdgePositive: number;
+  resamples: number;
+  seed: number;
+} {
+  const clusterMap = new Map<string, { n: number; modelHits: number; alwaysUpHits: number }>();
+  let totalN = 0;
+  let totalModelHits = 0;
+  let totalAlwaysUpHits = 0;
+
+  for (const series of dailySeriesList) {
+    for (const rec of series) {
+      totalN++;
+      const mHit = rec.modelHit ? 1 : 0;
+      const aHit = rec.alwaysUpHit ? 1 : 0;
+      totalModelHits += mHit;
+      totalAlwaysUpHits += aHit;
+      const existing = clusterMap.get(rec.date);
+      if (existing) {
+        existing.n += 1;
+        existing.modelHits += mHit;
+        existing.alwaysUpHits += aHit;
+      } else {
+        clusterMap.set(rec.date, { n: 1, modelHits: mHit, alwaysUpHits: aHit });
+      }
+    }
+  }
+
+  const dates = Array.from(clusterMap.keys()).sort();
+  if (dates.length === 0 || totalN === 0) {
+    return {
+      pointEdgePct: 0,
+      ci95: [0, 0],
+      probEdgePositive: 0,
+      resamples,
+      seed
+    };
+  }
+
+  const clusters = dates.map((d) => clusterMap.get(d)!);
+  const pointEdgePct = Number((((totalModelHits - totalAlwaysUpHits) / totalN) * 100).toFixed(2));
+  const rng = mulberry32(seed);
+  const bootstrapEdges: number[] = new Array(resamples);
+  let positiveCount = 0;
+  const numDates = clusters.length;
+
+  for (let b = 0; b < resamples; b++) {
+    let sampleN = 0;
+    let sampleModel = 0;
+    let sampleAlwaysUp = 0;
+    for (let k = 0; k < numDates; k++) {
+      const idx = Math.floor(rng() * numDates);
+      const c = clusters[idx];
+      sampleN += c.n;
+      sampleModel += c.modelHits;
+      sampleAlwaysUp += c.alwaysUpHits;
+    }
+    const edgePct = sampleN > 0 ? ((sampleModel - sampleAlwaysUp) / sampleN) * 100 : 0;
+    bootstrapEdges[b] = edgePct;
+    if (edgePct > 0) {
+      positiveCount++;
+    }
+  }
+
+  bootstrapEdges.sort((a, b) => a - b);
+  const ciLo = Number(linearQuantile(bootstrapEdges, 0.025).toFixed(2));
+  const ciHi = Number(linearQuantile(bootstrapEdges, 0.975).toFixed(2));
+
+  return {
+    pointEdgePct,
+    ci95: [ciLo, ciHi],
+    probEdgePositive: Number((positiveCount / resamples).toFixed(4)),
+    resamples,
+    seed
+  };
+}
+
+/**
+ * Exact two-sided sign test p-value against p0 = 0.5 (ignoring ties).
+ */
+export function computeTwoSidedSignTestPValue(wins: number, losses: number): number {
+  const n = wins + losses;
+  if (n <= 0) return 1;
+  const k = Math.min(wins, losses);
+  if (k * 2 === n) return 1;
+
+  const logN = logGamma(n + 1);
+  let lowerTail = 0;
+  for (let i = 0; i <= k; i++) {
+    const logPmf = logN - logGamma(i + 1) - logGamma(n - i + 1) - n * Math.LN2;
+    if (logPmf > -745) {
+      lowerTail += Math.exp(logPmf);
+    }
+  }
+  return Math.max(0, Math.min(1, 2 * lowerTail));
 }
 
 export function isModelEvaluationAvailable(
@@ -424,6 +558,7 @@ export function runModelEvaluation(
   const qNorm = calibSize > 0 ? calibScores[quantileIdx] : 1.645;
 
   const backtestSeries: BacktestDataPoint[] = [];
+  const dailyHits: DailyHitRecord[] = [];
 
   let sumAbsError = 0;
   let sumSqError = 0;
@@ -442,9 +577,9 @@ export function runModelEvaluation(
   let residualSumOfSquares = 0;
 
   // Track baseline models for authentic empirical comparison
-  let baselineSmaAbs = 0, baselineSmaSq = 0, baselineSmaDirCount = 0;
-  let baselineLinAbs = 0, baselineLinSq = 0, baselineLinDirCount = 0;
-  let baselineRwAbs = 0, baselineRwSq = 0;
+  let baselineSmaAbs = 0, baselineSmaSq = 0, baselineSmaPct = 0, baselineSmaDirCount = 0;
+  let baselineLinAbs = 0, baselineLinSq = 0, baselineLinPct = 0, baselineLinDirCount = 0;
+  let baselineRwAbs = 0, baselineRwSq = 0, baselineRwPct = 0;
   let baselineAlwaysUpDirCount = 0;
   let baselinePersistDirCount = 0, baselinePersistEligible = 0;
 
@@ -474,7 +609,7 @@ export function runModelEvaluation(
 
     const absErr = Math.abs(actual - predicted);
     const sqErr = absErr * absErr;
-    const pctErr = absErr / actual;
+    const pctErr = actual !== 0 ? absErr / actual : 0;
 
     sumAbsError += absErr;
     sumSqError += sqErr;
@@ -482,7 +617,8 @@ export function runModelEvaluation(
 
     const actualDiff = actual - prevClose;
     const predDiff = predicted - prevClose;
-    if ((actualDiff >= 0 && predDiff >= 0) || (actualDiff < 0 && predDiff < 0)) {
+    const modelHit = (actualDiff >= 0 && predDiff >= 0) || (actualDiff < 0 && predDiff < 0);
+    if (modelHit) {
       prodDirCount++;
     }
 
@@ -504,8 +640,10 @@ export function runModelEvaluation(
     // Baseline 1: SMA (20-day Simple Moving Average)
     const smaPred = prevBar.sma20 ?? prevClose;
     const smaDiff = smaPred - prevClose;
-    baselineSmaAbs += Math.abs(actual - smaPred);
-    baselineSmaSq += Math.pow(actual - smaPred, 2);
+    const smaAbs = Math.abs(actual - smaPred);
+    baselineSmaAbs += smaAbs;
+    baselineSmaSq += smaAbs * smaAbs;
+    baselineSmaPct += actual !== 0 ? smaAbs / actual : 0;
     if ((actualDiff >= 0 && smaDiff >= 0) || (actualDiff < 0 && smaDiff < 0)) {
       baselineSmaDirCount++;
     }
@@ -516,20 +654,31 @@ export function runModelEvaluation(
     const linPredRet = alphaLinear + betaLinear * lagRet;
     const linPred = prevClose * (1 + linPredRet);
     const linDiff = linPred - prevClose;
-    baselineLinAbs += Math.abs(actual - linPred);
-    baselineLinSq += Math.pow(actual - linPred, 2);
+    const linAbs = Math.abs(actual - linPred);
+    baselineLinAbs += linAbs;
+    baselineLinSq += linAbs * linAbs;
+    baselineLinPct += actual !== 0 ? linAbs / actual : 0;
     if ((actualDiff >= 0 && linDiff >= 0) || (actualDiff < 0 && linDiff < 0)) {
       baselineLinDirCount++;
     }
 
-    // Baseline 3: Naive Last-Price (Random walk: pred = prevClose; MAE/RMSE/R² only, directional accuracy is n/a)
-    baselineRwAbs += Math.abs(actual - prevClose);
-    baselineRwSq += Math.pow(actual - prevClose, 2);
+    // Baseline 3: Naive Last-Price (Random walk: pred = prevClose; same MAPE formula & window; directional accuracy is n/a)
+    const rwAbs = Math.abs(actual - prevClose);
+    baselineRwAbs += rwAbs;
+    baselineRwSq += rwAbs * rwAbs;
+    baselineRwPct += actual !== 0 ? rwAbs / actual : 0;
 
     // Baseline 4: Always-Up Directional Baseline (predicts positive move every session)
-    if (actualDiff > 0) {
+    const alwaysUpHit = actualDiff > 0;
+    if (alwaysUpHit) {
       baselineAlwaysUpDirCount++;
     }
+
+    dailyHits.push({
+      date: currBar.date,
+      modelHit,
+      alwaysUpHit
+    });
 
     // Baseline 5: Persistence Directional Baseline (predicts same sign as prior day move)
     if (i >= 2 && bars[i - 2]?.close !== undefined) {
@@ -550,16 +699,31 @@ export function runModelEvaluation(
     });
   }
 
-  // Pure real unscaled metrics derived strictly from actual prices and predictions
-  const mae = Number((sumAbsError / testSize).toFixed(2));
+  // Pure real unscaled & unclamped metrics derived strictly from actual prices and predictions
+  const mae = sumAbsError / testSize;
   const mse = sumSqError / testSize;
-  const rmse = Number(Math.sqrt(mse).toFixed(2));
-  const mape = Number(((sumPctError / testSize) * 100).toFixed(2));
-  const r2Raw = 1 - (residualSumOfSquares / (totalSumOfSquares || 1));
-  const r2 = Number(r2Raw.toFixed(2));
+  const rmse = Math.sqrt(mse);
+  const mape = (sumPctError / testSize) * 100;
+  const r2 = Number((1 - (residualSumOfSquares / (totalSumOfSquares || 1))).toFixed(2));
+  const priceAccuracy = 100 - mape;
 
-  // Real Price Prediction Accuracy: 100% - MAPE
-  const priceAccuracy = Number((100 - mape).toFixed(1));
+  const naiveMae = baselineRwAbs / testSize;
+  const naiveRmse = Math.sqrt(baselineRwSq / testSize);
+  const naiveMape = (baselineRwPct / testSize) * 100;
+  const naivePriceAccuracy = 100 - naiveMape;
+
+  const maeSkillVsNaive = naiveMae > 0 ? 1 - mae / naiveMae : null;
+  const rmseSkillVsNaive = naiveRmse > 0 ? 1 - rmse / naiveRmse : null;
+
+  const smaMae = baselineSmaAbs / testSize;
+  const smaRmse = Math.sqrt(baselineSmaSq / testSize);
+  const smaMape = (baselineSmaPct / testSize) * 100;
+  const smaPriceAccuracy = 100 - smaMape;
+
+  const linMae = baselineLinAbs / testSize;
+  const linRmse = Math.sqrt(baselineLinSq / testSize);
+  const linMape = (baselineLinPct / testSize) * 100;
+  const linPriceAccuracy = 100 - linMape;
 
   // Real Conformal Empirical Coverage
   const conformalCoverage = Number(((inBoundsCount / testSize) * 100).toFixed(1));
@@ -574,33 +738,49 @@ export function runModelEvaluation(
       mae,
       rmse,
       r2,
+      mape,
+      priceAccuracy,
+      maeSkillVsNaive,
+      rmseSkillVsNaive,
       directionalAccuracy,
       trainingTimeSec: 0.09,
       isProduction: true
     },
     {
       model: 'SMA-20 Trend Baseline',
-      mae: Number((baselineSmaAbs / testSize).toFixed(2)),
-      rmse: Number(Math.sqrt(baselineSmaSq / testSize).toFixed(2)),
+      mae: smaMae,
+      rmse: smaRmse,
       r2: Number((1 - (baselineSmaSq / (totalSumOfSquares || 1))).toFixed(2)),
+      mape: smaMape,
+      priceAccuracy: smaPriceAccuracy,
+      maeSkillVsNaive: naiveMae > 0 ? 1 - smaMae / naiveMae : null,
+      rmseSkillVsNaive: naiveRmse > 0 ? 1 - smaRmse / naiveRmse : null,
       directionalAccuracy: Number(((baselineSmaDirCount / testSize) * 100).toFixed(1)),
       trainingTimeSec: 0.01,
       isProduction: false
     },
     {
       model: 'Plain Linear Model (OLS)',
-      mae: Number((baselineLinAbs / testSize).toFixed(2)),
-      rmse: Number(Math.sqrt(baselineLinSq / testSize).toFixed(2)),
+      mae: linMae,
+      rmse: linRmse,
       r2: Number((1 - (baselineLinSq / (totalSumOfSquares || 1))).toFixed(2)),
+      mape: linMape,
+      priceAccuracy: linPriceAccuracy,
+      maeSkillVsNaive: naiveMae > 0 ? 1 - linMae / naiveMae : null,
+      rmseSkillVsNaive: naiveRmse > 0 ? 1 - linRmse / naiveRmse : null,
       directionalAccuracy: Number(((baselineLinDirCount / testSize) * 100).toFixed(1)),
       trainingTimeSec: 0.02,
       isProduction: false
     },
     {
       model: 'Naive Last-Price (Random Walk)',
-      mae: Number((baselineRwAbs / testSize).toFixed(2)),
-      rmse: Number(Math.sqrt(baselineRwSq / testSize).toFixed(2)),
+      mae: naiveMae,
+      rmse: naiveRmse,
       r2: Number((1 - (baselineRwSq / (totalSumOfSquares || 1))).toFixed(2)),
+      mape: naiveMape,
+      priceAccuracy: naivePriceAccuracy,
+      maeSkillVsNaive: naiveMae > 0 ? 0 : null,
+      rmseSkillVsNaive: naiveRmse > 0 ? 0 : null,
       directionalAccuracy: null,
       trainingTimeSec: 0.00,
       isProduction: false
@@ -610,6 +790,10 @@ export function runModelEvaluation(
       mae: null,
       rmse: null,
       r2: null,
+      mape: null,
+      priceAccuracy: null,
+      maeSkillVsNaive: null,
+      rmseSkillVsNaive: null,
       directionalAccuracy: Number(((baselineAlwaysUpDirCount / testSize) * 100).toFixed(1)),
       trainingTimeSec: 0.00,
       isProduction: false
@@ -619,6 +803,10 @@ export function runModelEvaluation(
       mae: null,
       rmse: null,
       r2: null,
+      mape: null,
+      priceAccuracy: null,
+      maeSkillVsNaive: null,
+      rmseSkillVsNaive: null,
       directionalAccuracy: baselinePersistEligible > 0
         ? Number(((baselinePersistDirCount / baselinePersistEligible) * 100).toFixed(1))
         : null,
@@ -632,6 +820,11 @@ export function runModelEvaluation(
   const alwaysUpAccuracy = Number(((baselineAlwaysUpDirCount / testSize) * 100).toFixed(1));
   const testWindowStart = backtestSeries[0]?.date || bars[testStartIndex]?.date || '';
   const testWindowEnd = backtestSeries[backtestSeries.length - 1]?.date || bars[n - 1]?.date || '';
+  const singleBootstrap = computeDateClusteredBootstrapCI([dailyHits]);
+  const singleWin = prodDirCount > baselineAlwaysUpDirCount ? 1 : 0;
+  const singleLoss = prodDirCount < baselineAlwaysUpDirCount ? 1 : 0;
+  const singleTie = prodDirCount === baselineAlwaysUpDirCount ? 1 : 0;
+
   const directionalStats: PooledDirectionalStats = {
     totalTestPredictions: testSize,
     modelHits: prodDirCount,
@@ -643,13 +836,29 @@ export function runModelEvaluation(
       prodDirCount,
       testSize,
       baselineAlwaysUpDirCount / Math.max(1, testSize)
-    )
+    ),
+    directionalEdgeVsAlwaysUpPct: singleBootstrap.pointEdgePct,
+    directionalEdgeVsAlwaysUp95CI: singleBootstrap.ci95,
+    bootstrapProbEdgePositive: singleBootstrap.probEdgePositive,
+    bootstrapResamples: singleBootstrap.resamples,
+    bootstrapSeed: singleBootstrap.seed,
+    signTestWins: singleWin,
+    signTestLosses: singleLoss,
+    signTestTies: singleTie,
+    signTestPValue: computeTwoSidedSignTestPValue(singleWin, singleLoss)
   };
   const summaryStats = {
+    priceAccuracy: computeSummaryStats([priceAccuracy]),
+    naivePriceAccuracy: computeSummaryStats([naivePriceAccuracy]),
     mape: computeSummaryStats([mape]),
+    naiveMape: computeSummaryStats([naiveMape]),
+    maeSkillVsNaive: maeSkillVsNaive !== null ? computeSummaryStats([maeSkillVsNaive], 6) : null,
+    rmseSkillVsNaive: rmseSkillVsNaive !== null ? computeSummaryStats([rmseSkillVsNaive], 6) : null,
     directionalAccuracy: computeSummaryStats([directionalAccuracy]),
     conformalCoverage: computeSummaryStats([conformalCoverage])
   };
+
+  const beatNaiveCount = mae < naiveMae ? 1 : 0;
 
   return {
     available: true,
@@ -662,6 +871,14 @@ export function runModelEvaluation(
     rmse,
     mape,
     r2,
+    naiveMae,
+    naiveRmse,
+    naiveMape,
+    naivePriceAccuracy,
+    maeSkillVsNaive,
+    rmseSkillVsNaive,
+    beatNaiveCount,
+    beatNaiveLabel: `${beatNaiveCount} of 1`,
     directionalAccuracy,
     alwaysUpAccuracy,
     priceAccuracy,
@@ -672,6 +889,7 @@ export function runModelEvaluation(
     testWindowDays: testSize,
     summaryStats,
     directionalStats,
+    dailyHits,
     evaluatedAt: new Date().toISOString(),
     comparison,
     backtestSeries,
@@ -687,7 +905,36 @@ export function clearEvaluationCaches(): void {
   cachedAggregateEvaluation = null;
 }
 
-const EVALUATION_HISTORY_DAYS = 730; // >= 2 years (~500 trading bars) for >= 120-day OOS evaluation
+export const EVALUATION_HISTORY_DAYS = 730; // >= 2 years (~500 trading bars) for >= 120-day OOS evaluation
+
+export function resolveGitCommit(): string | null {
+  const envCommit = process.env.GIT_COMMIT?.trim();
+  if (envCommit) {
+    return envCommit;
+  }
+  try {
+    const hash = execSync('git rev-parse HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+    return hash || null;
+  } catch {
+    return null;
+  }
+}
+
+export function getEvaluationParams(): AuditEvaluationParams {
+  return {
+    historyDays: EVALUATION_HISTORY_DAYS,
+    minBarsRequired: MIN_CONFORMAL_BARS,
+    testWindowRule: 'n >= 260 ? min(max(120, floor(n * 0.3)), n - 100) : min(45, floor(n * 0.3))',
+    retrainIntervalRule: 'testSize >= 120 ? 10 : 5',
+    calibrationWindowMax: 50,
+    conformalCoverageTarget: DEFAULT_CONFORMAL_CONFIDENCE,
+    bootstrapResamples: BOOTSTRAP_RESAMPLES,
+    bootstrapSeed: BOOTSTRAP_SEED,
+    signTestNullP: 0.5
+  };
+}
 
 export async function computeProjectWideAccuracy(
   fetchHistory: HistoryWithSourceFetcher,
@@ -697,11 +944,7 @@ export async function computeProjectWideAccuracy(
     return cachedProjectWideAccuracy.data;
   }
 
-  const evaluatedMapes: number[] = [];
-  const evaluatedMaes: number[] = [];
-  const evaluatedRmses: number[] = [];
-  const evaluatedDirs: number[] = [];
-  const evaluatedCovs: number[] = [];
+  const evaluatedResults: ModelEvaluation[] = [];
 
   // Evaluate ALL live tickers in the catalog in concurrency-limited batches
   const targetUniverse = Array.from(
@@ -730,13 +973,7 @@ export async function computeProjectWideAccuracy(
 
     for (const r of batchResults) {
       if (r) {
-        evaluatedMapes.push(r.mape);
-        evaluatedMaes.push(r.mae);
-        evaluatedRmses.push(r.rmse);
-        evaluatedDirs.push(r.directionalAccuracy);
-        if (r.conformalCoverage !== undefined) {
-          evaluatedCovs.push(r.conformalCoverage);
-        }
+        evaluatedResults.push(r);
       }
     }
 
@@ -745,7 +982,7 @@ export async function computeProjectWideAccuracy(
     }
   }
 
-  if (evaluatedMapes.length === 0) {
+  if (evaluatedResults.length === 0) {
     return {
       available: false,
       reason: 'No live market data',
@@ -754,25 +991,52 @@ export async function computeProjectWideAccuracy(
     };
   }
 
-  const sampleCount = evaluatedMapes.length;
-  const avgMape = evaluatedMapes.reduce((a, b) => a + b, 0) / sampleCount;
-  const avgMae = evaluatedMaes.reduce((a, b) => a + b, 0) / sampleCount;
-  const avgRmse = evaluatedRmses.reduce((a, b) => a + b, 0) / sampleCount;
-  const avgDir = evaluatedDirs.reduce((a, b) => a + b, 0) / sampleCount;
-  const avgCov = evaluatedCovs.length > 0 ? evaluatedCovs.reduce((a, b) => a + b, 0) / evaluatedCovs.length : 0;
+  const sampleCount = evaluatedResults.length;
+  const priceAccs = evaluatedResults.map(r => r.priceAccuracy ?? (100 - r.mape));
+  const naivePriceAccs = evaluatedResults.map(r => r.naivePriceAccuracy ?? (100 - (r.naiveMape ?? r.mape)));
+  const mapes = evaluatedResults.map(r => r.mape);
+  const naiveMapes = evaluatedResults.map(r => r.naiveMape ?? r.mape);
+  const maeSkills = evaluatedResults.map(r => r.maeSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
+  const rmseSkills = evaluatedResults.map(r => r.rmseSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
+  const beatNaiveCount = evaluatedResults.filter(r => r.naiveMae !== undefined && r.mae < r.naiveMae).length;
 
-  const priceAccuracyPct = Number(Math.max(0, Math.min(100, 100 - avgMape)).toFixed(2));
+  const avgMape = mapes.reduce((a, b) => a + b, 0) / sampleCount;
+  const avgNaiveMape = naiveMapes.reduce((a, b) => a + b, 0) / sampleCount;
+  const avgMae = evaluatedResults.reduce((a, b) => a + b.mae, 0) / sampleCount;
+  const avgRmse = evaluatedResults.reduce((a, b) => a + b.rmse, 0) / sampleCount;
+  const avgDir = evaluatedResults.reduce((a, b) => a + b.directionalAccuracy, 0) / sampleCount;
+  const covs = evaluatedResults.map(r => r.conformalCoverage).filter((v): v is number => v !== undefined);
+  const avgCov = covs.length > 0 ? covs.reduce((a, b) => a + b, 0) / covs.length : 0;
+
+  const priceAccuracyPct = 100 - avgMape;
+  const naivePriceAccuracyPct = 100 - avgNaiveMape;
+  const maeSkillVsNaive = maeSkills.length > 0 ? maeSkills.reduce((a, b) => a + b, 0) / maeSkills.length : null;
+  const rmseSkillVsNaive = rmseSkills.length > 0 ? rmseSkills.reduce((a, b) => a + b, 0) / rmseSkills.length : null;
 
   const result: ProjectWideAccuracyResult = {
     available: true,
     dataSource: 'live',
     priceAccuracyPct,
-    mape: Number(avgMape.toFixed(2)),
+    naivePriceAccuracyPct,
+    mape: avgMape,
+    naiveMape: avgNaiveMape,
+    maeSkillVsNaive,
+    rmseSkillVsNaive,
+    beatNaiveCount,
+    beatNaiveLabel: `${beatNaiveCount} of ${sampleCount}`,
     evaluatedAssetsCount: sampleCount,
-    mae: Number(avgMae.toFixed(2)),
-    rmse: Number(avgRmse.toFixed(2)),
+    mae: avgMae,
+    rmse: avgRmse,
     directionalAccuracyPct: Number(avgDir.toFixed(1)),
     conformalCoveragePct: Number(avgCov.toFixed(1)),
+    summaryStats: {
+      priceAccuracy: computeSummaryStats(priceAccs),
+      naivePriceAccuracy: computeSummaryStats(naivePriceAccs),
+      mape: computeSummaryStats(mapes),
+      naiveMape: computeSummaryStats(naiveMapes),
+      maeSkillVsNaive: maeSkills.length > 0 ? computeSummaryStats(maeSkills, 6) : null,
+      rmseSkillVsNaive: rmseSkills.length > 0 ? computeSummaryStats(rmseSkills, 6) : null
+    },
     benchmark: 'AlphaQuant Ensemble + Split-Conformal Calibration',
     evaluatedAt: new Date().toISOString()
   };
@@ -795,25 +1059,31 @@ export async function runAggregateModelEvaluation(
   // Evaluate ALL unique tickers in the catalog using >= 2 years of daily history, concurrency-limited
   const universe = Array.from(new Set(catalog.map(c => c.ticker)));
   const evaluations: ModelEvaluation[] = [];
+  const skippedTickers: SkippedTickerRecord[] = [];
   const batchSize = 5;
 
   for (let i = 0; i < universe.length; i += batchSize) {
     const batch = universe.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
-      batch.map(async (t) => {
+    const batchOutcomes = await Promise.all(
+      batch.map(async (t): Promise<{ evaluation?: ModelEvaluation; skipped?: SkippedTickerRecord }> => {
         try {
           const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
-          if (source === 'synthetic') return null;
-          if (bars && bars.length >= 40) {
-            return runModelEvaluation(bars, t, source);
+          if (source === 'synthetic') {
+            return { skipped: { ticker: t, reason: 'synthetic_data', barsCount: bars?.length ?? 0 } };
           }
-        } catch {}
-        return null;
+          if (!bars || bars.length < MIN_CONFORMAL_BARS) {
+            return { skipped: { ticker: t, reason: 'insufficient_history', barsCount: bars?.length ?? 0 } };
+          }
+          return { evaluation: runModelEvaluation(bars, t, source) };
+        } catch {
+          return { skipped: { ticker: t, reason: 'fetch_error' } };
+        }
       })
     );
 
-    for (const r of batchResults) {
-      if (r) evaluations.push(r);
+    for (const outcome of batchOutcomes) {
+      if (outcome.evaluation) evaluations.push(outcome.evaluation);
+      if (outcome.skipped) skippedTickers.push(outcome.skipped);
     }
 
     if (i + batchSize < universe.length) {
@@ -827,15 +1097,27 @@ export async function runAggregateModelEvaluation(
       reason: 'No live market data',
       dataSource: 'none',
       evaluatedAssetsCount: 0,
+      skippedTickers,
       ticker: 'ALL'
     };
   }
 
   const count = evaluations.length;
 
-  const avgPriceAccuracy = evaluations.reduce((acc, e) => acc + (e.priceAccuracy ?? (100 - e.mape)), 0) / count;
-  const avgConformalCoverage = evaluations.reduce((acc, e) => acc + (e.conformalCoverage ?? 90), 0) / count;
   const avgMape = evaluations.reduce((acc, e) => acc + e.mape, 0) / count;
+  const avgPriceAccuracy = 100 - avgMape;
+  const avgNaiveMape = evaluations.reduce((acc, e) => acc + (e.naiveMape ?? e.mape), 0) / count;
+  const avgNaivePriceAccuracy = 100 - avgNaiveMape;
+  const avgNaiveMae = evaluations.reduce((acc, e) => acc + (e.naiveMae ?? e.mae), 0) / count;
+  const avgNaiveRmse = evaluations.reduce((acc, e) => acc + (e.naiveRmse ?? e.rmse), 0) / count;
+  const maeSkillValues = evaluations.map(e => e.maeSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
+  const rmseSkillValues = evaluations.map(e => e.rmseSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
+  const avgMaeSkillVsNaive = maeSkillValues.length > 0 ? maeSkillValues.reduce((a, b) => a + b, 0) / maeSkillValues.length : null;
+  const avgRmseSkillVsNaive = rmseSkillValues.length > 0 ? rmseSkillValues.reduce((a, b) => a + b, 0) / rmseSkillValues.length : null;
+  const beatNaiveCount = evaluations.filter(e => e.naiveMae !== undefined && e.mae < e.naiveMae).length;
+  const beatNaiveLabel = `${beatNaiveCount} of ${count}`;
+
+  const avgConformalCoverage = evaluations.reduce((acc, e) => acc + (e.conformalCoverage ?? 90), 0) / count;
   const avgR2 = evaluations.reduce((acc, e) => acc + e.r2, 0) / count;
   const avgMae = evaluations.reduce((acc, e) => acc + e.mae, 0) / count;
   const avgRmse = evaluations.reduce((acc, e) => acc + e.rmse, 0) / count;
@@ -844,7 +1126,12 @@ export async function runAggregateModelEvaluation(
 
   // Statistical summary across per-asset evaluations (mean, median, min, max)
   const summaryStats = {
+    priceAccuracy: computeSummaryStats(evaluations.map(e => e.priceAccuracy ?? (100 - e.mape))),
+    naivePriceAccuracy: computeSummaryStats(evaluations.map(e => e.naivePriceAccuracy ?? (100 - (e.naiveMape ?? e.mape)))),
     mape: computeSummaryStats(evaluations.map(e => e.mape)),
+    naiveMape: computeSummaryStats(evaluations.map(e => e.naiveMape ?? e.mape)),
+    maeSkillVsNaive: maeSkillValues.length > 0 ? computeSummaryStats(maeSkillValues, 6) : null,
+    rmseSkillVsNaive: rmseSkillValues.length > 0 ? computeSummaryStats(rmseSkillValues, 6) : null,
     directionalAccuracy: computeSummaryStats(evaluations.map(e => e.directionalAccuracy)),
     conformalCoverage: computeSummaryStats(evaluations.map(e => e.conformalCoverage ?? 0))
   };
@@ -864,6 +1151,27 @@ export async function runAggregateModelEvaluation(
   );
   const pooledDirPct = pooledTotal > 0 ? Number(((pooledModelHits / pooledTotal) * 100).toFixed(2)) : 0;
   const pooledAlwaysUpRate = pooledTotal > 0 ? pooledAlwaysUpHits / pooledTotal : 0.5;
+  const aggBootstrap = computeDateClusteredBootstrapCI(evaluations.map(e => e.dailyHits || []));
+
+  let signTestWins = 0;
+  let signTestLosses = 0;
+  let signTestTies = 0;
+  for (const e of evaluations) {
+    const mHits = e.directionalStats?.modelHits;
+    const aHits = e.directionalStats?.alwaysUpHits;
+    if (mHits !== undefined && aHits !== undefined) {
+      if (mHits > aHits) signTestWins++;
+      else if (mHits < aHits) signTestLosses++;
+      else signTestTies++;
+    } else {
+      const mAcc = e.directionalAccuracy;
+      const aAcc = e.alwaysUpAccuracy ?? 0;
+      if (mAcc > aAcc) signTestWins++;
+      else if (mAcc < aAcc) signTestLosses++;
+      else signTestTies++;
+    }
+  }
+
   const directionalStats: PooledDirectionalStats = {
     totalTestPredictions: pooledTotal,
     modelHits: pooledModelHits,
@@ -871,7 +1179,16 @@ export async function runAggregateModelEvaluation(
     pooledDirectionalAccuracyPct: pooledDirPct,
     pooledAlwaysUpAccuracyPct: Number((pooledAlwaysUpRate * 100).toFixed(2)),
     wilson95CI: computeWilson95Interval(pooledModelHits, pooledTotal),
-    binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(pooledModelHits, pooledTotal, pooledAlwaysUpRate)
+    binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(pooledModelHits, pooledTotal, pooledAlwaysUpRate),
+    directionalEdgeVsAlwaysUpPct: aggBootstrap.pointEdgePct,
+    directionalEdgeVsAlwaysUp95CI: aggBootstrap.ci95,
+    bootstrapProbEdgePositive: aggBootstrap.probEdgePositive,
+    bootstrapResamples: aggBootstrap.resamples,
+    bootstrapSeed: aggBootstrap.seed,
+    signTestWins,
+    signTestLosses,
+    signTestTies,
+    signTestPValue: computeTwoSidedSignTestPValue(signTestWins, signTestLosses)
   };
 
   const windowStarts = evaluations.map(e => e.testWindowStart).filter(Boolean) as string[];
@@ -893,6 +1210,9 @@ export async function runAggregateModelEvaluation(
     let totalMae = 0, maeCount = 0;
     let totalRmse = 0, rmseCount = 0;
     let totalR2 = 0, r2Count = 0;
+    let totalMape = 0, mapeCount = 0;
+    let totalMaeSkill = 0, maeSkillCount = 0;
+    let totalRmseSkill = 0, rmseSkillCount = 0;
     let totalDir = 0, dirCount = 0;
 
     for (const e of evaluations) {
@@ -901,15 +1221,23 @@ export async function runAggregateModelEvaluation(
         if (item.mae != null) { totalMae += item.mae; maeCount++; }
         if (item.rmse != null) { totalRmse += item.rmse; rmseCount++; }
         if (item.r2 != null) { totalR2 += item.r2; r2Count++; }
+        if (item.mape != null) { totalMape += item.mape; mapeCount++; }
+        if (item.maeSkillVsNaive != null) { totalMaeSkill += item.maeSkillVsNaive; maeSkillCount++; }
+        if (item.rmseSkillVsNaive != null) { totalRmseSkill += item.rmseSkillVsNaive; rmseSkillCount++; }
         if (item.directionalAccuracy != null) { totalDir += item.directionalAccuracy; dirCount++; }
       }
     }
 
+    const rowMape = mapeCount > 0 ? totalMape / mapeCount : null;
     return {
       model: modelName,
-      mae: maeCount > 0 ? Number((totalMae / maeCount).toFixed(2)) : null,
-      rmse: rmseCount > 0 ? Number((totalRmse / rmseCount).toFixed(2)) : null,
+      mae: maeCount > 0 ? totalMae / maeCount : null,
+      rmse: rmseCount > 0 ? totalRmse / rmseCount : null,
       r2: r2Count > 0 ? Number((totalR2 / r2Count).toFixed(2)) : null,
+      mape: rowMape,
+      priceAccuracy: rowMape !== null ? 100 - rowMape : null,
+      maeSkillVsNaive: maeSkillCount > 0 ? totalMaeSkill / maeSkillCount : null,
+      rmseSkillVsNaive: rmseSkillCount > 0 ? totalRmseSkill / rmseSkillCount : null,
       directionalAccuracy: dirCount > 0 ? Number((totalDir / dirCount).toFixed(1)) : null,
       trainingTimeSec: modelName.includes('Production') ? 0.12 : 0.01,
       isProduction: modelName.includes('Production')
@@ -952,21 +1280,28 @@ export async function runAggregateModelEvaluation(
 
   const assetBreakdown: AssetBreakdownItem[] = evaluations.map(e => {
     const meta = catalog.find(c => c.ticker === e.ticker);
+    const eNaiveMape = e.naiveMape ?? e.mape;
     return {
       ticker: e.ticker,
       name: meta?.name || e.ticker,
       dataSource: e.dataSource === 'live' ? 'live' : 'synthetic',
       testWindowStart: e.testWindowStart || '',
       testWindowEnd: e.testWindowEnd || '',
-      priceAccuracy: Number((e.priceAccuracy ?? (100 - e.mape)).toFixed(2)),
-      mape: Number(e.mape.toFixed(2)),
+      priceAccuracy: e.priceAccuracy ?? (100 - e.mape),
+      naivePriceAccuracy: e.naivePriceAccuracy ?? (100 - eNaiveMape),
+      mape: e.mape,
+      naiveMape: eNaiveMape,
+      maeSkillVsNaive: e.maeSkillVsNaive ?? null,
+      rmseSkillVsNaive: e.rmseSkillVsNaive ?? null,
       conformalCoverage: Number((e.conformalCoverage ?? 90).toFixed(1)),
       r2: Number(e.r2.toFixed(2)),
       directionalAccuracy: Number(e.directionalAccuracy.toFixed(1)),
       alwaysUpAccuracy: Number((e.alwaysUpAccuracy ?? 0).toFixed(1)),
       samples: e.totalBacktestSamples,
-      rmse: Number(e.rmse.toFixed(2)),
-      mae: Number(e.mae.toFixed(2))
+      rmse: e.rmse,
+      naiveRmse: e.naiveRmse ?? e.rmse,
+      mae: e.mae,
+      naiveMae: e.naiveMae ?? e.mae
     };
   });
 
@@ -1010,16 +1345,25 @@ export async function runAggregateModelEvaluation(
     available: true,
     dataSource: 'live',
     evaluatedAssetsCount: evaluations.length,
+    skippedTickers,
     ticker: 'ALL',
     modelName: 'AlphaQuant Ensemble (Cross-Asset Stacked Aggregate)',
     horizonDays: 1,
-    mae: Number(avgMae.toFixed(2)),
-    rmse: Number(avgRmse.toFixed(2)),
-    mape: Number(avgMape.toFixed(2)),
+    mae: avgMae,
+    rmse: avgRmse,
+    mape: avgMape,
     r2: Number(avgR2.toFixed(2)),
+    naiveMae: avgNaiveMae,
+    naiveRmse: avgNaiveRmse,
+    naiveMape: avgNaiveMape,
+    naivePriceAccuracy: avgNaivePriceAccuracy,
+    maeSkillVsNaive: avgMaeSkillVsNaive,
+    rmseSkillVsNaive: avgRmseSkillVsNaive,
+    beatNaiveCount,
+    beatNaiveLabel,
     directionalAccuracy: Number(avgDir.toFixed(1)),
     alwaysUpAccuracy: directionalStats.pooledAlwaysUpAccuracyPct,
-    priceAccuracy: Number(avgPriceAccuracy.toFixed(2)),
+    priceAccuracy: avgPriceAccuracy,
     conformalCoverage: Number(avgConformalCoverage.toFixed(1)),
     totalBacktestSamples: totalSamples,
     testWindowStart,
@@ -1039,4 +1383,102 @@ export async function runAggregateModelEvaluation(
   cachedAggregateEvaluation = { data: result, timestamp: Date.now() };
   return result;
 }
+
+export function buildModelAuditPayload(
+  evaluation: ModelEvaluation | UnavailableEvaluation,
+  assetName?: string
+): ModelAuditResponse {
+  const gitCommit = resolveGitCommit();
+  const evaluationParams = getEvaluationParams();
+
+  if (!isModelEvaluationAvailable(evaluation)) {
+    return {
+      available: false,
+      reason: evaluation.reason || 'No live market data',
+      gitCommit,
+      evaluationParams,
+      dataSource: evaluation.dataSource || 'none',
+      evaluatedAssetsCount: 0,
+      skippedTickers: evaluation.skippedTickers || [],
+      evaluatedAt: new Date().toISOString()
+    };
+  }
+
+  if (evaluation.isAllAssets || evaluation.ticker === 'ALL') {
+    return {
+      available: true,
+      gitCommit,
+      evaluationParams,
+      dataSource: evaluation.dataSource || 'live',
+      evaluatedAssetsCount: evaluation.evaluatedAssetsCount || evaluation.assetBreakdown?.length || 0,
+      skippedTickers: evaluation.skippedTickers || [],
+      evaluatedAt: evaluation.evaluatedAt,
+      testWindowStart: evaluation.testWindowStart,
+      testWindowEnd: evaluation.testWindowEnd,
+      totalTestPredictions: evaluation.directionalStats?.totalTestPredictions ?? evaluation.totalBacktestSamples,
+      priceAccuracy: evaluation.priceAccuracy ?? (100 - evaluation.mape),
+      naivePriceAccuracy: evaluation.naivePriceAccuracy ?? (100 - (evaluation.naiveMape ?? evaluation.mape)),
+      mape: evaluation.mape,
+      naiveMape: evaluation.naiveMape ?? evaluation.mape,
+      maeSkillVsNaive: evaluation.maeSkillVsNaive ?? null,
+      rmseSkillVsNaive: evaluation.rmseSkillVsNaive ?? null,
+      beatNaiveCount: evaluation.beatNaiveCount,
+      beatNaiveLabel: evaluation.beatNaiveLabel,
+      summaryStats: evaluation.summaryStats,
+      directionalStats: evaluation.directionalStats,
+      comparison: evaluation.comparison,
+      assets: evaluation.assetBreakdown || []
+    };
+  }
+
+  const evalNaiveMape = evaluation.naiveMape ?? evaluation.mape;
+  return {
+    available: true,
+    gitCommit,
+    evaluationParams,
+    dataSource: evaluation.dataSource || 'live',
+    evaluatedAssetsCount: 1,
+    skippedTickers: evaluation.skippedTickers || [],
+    evaluatedAt: evaluation.evaluatedAt,
+    testWindowStart: evaluation.testWindowStart,
+    testWindowEnd: evaluation.testWindowEnd,
+    totalTestPredictions: evaluation.totalBacktestSamples,
+    priceAccuracy: evaluation.priceAccuracy ?? (100 - evaluation.mape),
+    naivePriceAccuracy: evaluation.naivePriceAccuracy ?? (100 - evalNaiveMape),
+    mape: evaluation.mape,
+    naiveMape: evalNaiveMape,
+    maeSkillVsNaive: evaluation.maeSkillVsNaive ?? null,
+    rmseSkillVsNaive: evaluation.rmseSkillVsNaive ?? null,
+    beatNaiveCount: evaluation.beatNaiveCount ?? (evaluation.naiveMae !== undefined && evaluation.mae < evaluation.naiveMae ? 1 : 0),
+    beatNaiveLabel: evaluation.beatNaiveLabel ?? (evaluation.naiveMae !== undefined && evaluation.mae < evaluation.naiveMae ? '1 of 1' : '0 of 1'),
+    summaryStats: evaluation.summaryStats,
+    directionalStats: evaluation.directionalStats,
+    comparison: evaluation.comparison,
+    assets: [
+      {
+        ticker: evaluation.ticker,
+        name: assetName || evaluation.ticker,
+        dataSource: 'live',
+        testWindowStart: evaluation.testWindowStart || '',
+        testWindowEnd: evaluation.testWindowEnd || '',
+        priceAccuracy: evaluation.priceAccuracy ?? (100 - evaluation.mape),
+        naivePriceAccuracy: evaluation.naivePriceAccuracy ?? (100 - evalNaiveMape),
+        mape: evaluation.mape,
+        naiveMape: evalNaiveMape,
+        maeSkillVsNaive: evaluation.maeSkillVsNaive ?? null,
+        rmseSkillVsNaive: evaluation.rmseSkillVsNaive ?? null,
+        conformalCoverage: Number((evaluation.conformalCoverage ?? 90).toFixed(1)),
+        r2: Number(evaluation.r2.toFixed(2)),
+        directionalAccuracy: Number(evaluation.directionalAccuracy.toFixed(1)),
+        alwaysUpAccuracy: Number((evaluation.alwaysUpAccuracy ?? 0).toFixed(1)),
+        samples: evaluation.totalBacktestSamples,
+        rmse: evaluation.rmse,
+        naiveRmse: evaluation.naiveRmse ?? evaluation.rmse,
+        mae: evaluation.mae,
+        naiveMae: evaluation.naiveMae ?? evaluation.mae
+      }
+    ]
+  };
+}
+
 

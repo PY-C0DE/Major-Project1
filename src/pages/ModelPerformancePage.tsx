@@ -18,7 +18,8 @@ import {
   History,
   PieChart,
   HelpCircle,
-  CheckCircle2
+  CheckCircle2,
+  FileJson
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -39,6 +40,7 @@ import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
 import { useTheme } from '../context/ThemeContext';
 import { getCurrencySymbol } from '../utils/currency';
+import { buildAuditCsv } from '../shared/auditExport';
 
 const defaultFeatures: ModelFeatureImportance[] = [
   {
@@ -135,6 +137,7 @@ export const ModelPerformancePage: React.FC = () => {
   const [strategyLoading, setStrategyLoading] = useState(false);
   const [strategyError, setStrategyError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingJson, setIsExportingJson] = useState(false);
   const [featureCategoryFilter, setFeatureCategoryFilter] = useState<'all' | 'sentiment' | 'price_history' | 'technical' | 'regime'>('all');
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null);
 
@@ -191,14 +194,6 @@ export const ModelPerformancePage: React.FC = () => {
     return p.toFixed(4);
   };
 
-  const escapeCsvCell = (val: string | number | undefined | null): string => {
-    const str = val === undefined || val === null ? '' : String(val);
-    if (/[",\n\r]/.test(str)) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
-
   const handleDownloadAuditCsv = async () => {
     setIsExporting(true);
     try {
@@ -207,45 +202,7 @@ export const ModelPerformancePage: React.FC = () => {
         return;
       }
 
-      const headers = [
-        'ticker',
-        'name',
-        'dataSource',
-        'testWindowStart',
-        'testWindowEnd',
-        'samples',
-        'priceAccuracyPct',
-        'mapePct',
-        'conformalCoveragePct',
-        'directionalAccuracyPct',
-        'alwaysUpAccuracyPct',
-        'mae',
-        'rmse',
-        'r2'
-      ];
-
-      const rows = audit.assets.map((row) => [
-        row.ticker,
-        row.name,
-        row.dataSource,
-        row.testWindowStart,
-        row.testWindowEnd,
-        row.samples,
-        row.priceAccuracy,
-        row.mape,
-        row.conformalCoverage,
-        row.directionalAccuracy,
-        row.alwaysUpAccuracy,
-        row.mae,
-        row.rmse,
-        row.r2
-      ]);
-
-      const csvContent = [
-        headers.join(','),
-        ...rows.map((r) => r.map(escapeCsvCell).join(','))
-      ].join('\n');
-
+      const csvContent = buildAuditCsv(audit, ticker);
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const downloadAnchor = document.createElement('a');
@@ -259,6 +216,31 @@ export const ModelPerformancePage: React.FC = () => {
       console.error(e);
     } finally {
       setTimeout(() => setIsExporting(false), 600);
+    }
+  };
+
+  const handleDownloadAuditJson = async () => {
+    setIsExportingJson(true);
+    try {
+      const audit = await api.getModelAudit(ticker);
+      if (!audit.available) {
+        return;
+      }
+
+      const jsonContent = JSON.stringify(audit, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', url);
+      downloadAnchor.setAttribute('download', `AlphaQuant_Model_Audit_${ticker}_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTimeout(() => setIsExportingJson(false), 600);
     }
   };
 
@@ -409,6 +391,15 @@ export const ModelPerformancePage: React.FC = () => {
             <Download className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
             <span>{isExporting ? 'Preparing CSV...' : 'Download audit (CSV)'}</span>
           </button>
+
+          <button
+            onClick={handleDownloadAuditJson}
+            disabled={isExportingJson || loading || !metrics || metrics.available === false}
+            className="px-3.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700 disabled:opacity-50"
+          >
+            <FileJson className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>{isExportingJson ? 'Preparing JSON...' : 'Download audit (JSON)'}</span>
+          </button>
         </div>
       </div>
 
@@ -520,14 +511,18 @@ export const ModelPerformancePage: React.FC = () => {
             {/* Primary Quantitative Performance Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <div className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-xs">
-                <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 block font-semibold">
-                  {isAll ? 'Avg Price Accuracy' : 'Price Accuracy'}
+                <span
+                  className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 font-semibold inline-flex items-center gap-1 cursor-help"
+                  title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+                >
+                  <span>{isAll ? 'Avg Price Accuracy' : 'Price Accuracy'}</span>
+                  <HelpCircle className="w-3 h-3 text-slate-400 shrink-0" />
                 </span>
                 <span className="text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1 block tabular-nums">
-                  {metrics.priceAccuracy != null ? `${metrics.priceAccuracy}%` : 'n/a'}
+                  {metrics.priceAccuracy != null ? `${metrics.priceAccuracy.toFixed(2)}%` : 'n/a'}
                 </span>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block font-mono">
-                  {isAll ? '100% - Avg MAPE' : '100% - MAPE'}
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block font-mono">
+                  Naive baseline: {metrics.naivePriceAccuracy != null ? `${metrics.naivePriceAccuracy.toFixed(2)}%` : 'n/a'} | Skill vs naive: {metrics.maeSkillVsNaive != null ? `${metrics.maeSkillVsNaive * 100 >= 0 ? '+' : ''}${(metrics.maeSkillVsNaive * 100).toFixed(1)}%` : 'n/a'}
                 </span>
               </div>
 
@@ -560,10 +555,10 @@ export const ModelPerformancePage: React.FC = () => {
                   {isAll ? 'Avg RMSE' : 'RMSE (Root Mean Sq)'}
                 </span>
                 <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 block tabular-nums">
-                  {metrics.rmse != null ? (isAll ? `${metrics.rmse} pts` : `${currSym}${metrics.rmse}`) : 'n/a'}
+                  {metrics.rmse != null ? (isAll ? `${metrics.rmse.toFixed(2)} pts` : `${currSym}${metrics.rmse.toFixed(2)}`) : 'n/a'}
                 </span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block font-mono">
-                  {isAll ? 'Normalized mean RMSE' : 'Penalizes spikes'}
+                  RMSE skill: {metrics.rmseSkillVsNaive != null ? `${metrics.rmseSkillVsNaive * 100 >= 0 ? '+' : ''}${(metrics.rmseSkillVsNaive * 100).toFixed(1)}%` : 'n/a'}
                 </span>
               </div>
 
@@ -572,10 +567,10 @@ export const ModelPerformancePage: React.FC = () => {
                   {isAll ? 'Avg MAE' : 'MAE (Mean Abs Error)'}
                 </span>
                 <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 block tabular-nums">
-                  {metrics.mae != null ? (isAll ? `${metrics.mae} pts` : `${currSym}${metrics.mae}`) : 'n/a'}
+                  {metrics.mae != null ? (isAll ? `${metrics.mae.toFixed(2)} pts` : `${currSym}${metrics.mae.toFixed(2)}`) : 'n/a'}
                 </span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block font-mono">
-                  {isAll ? 'Normalized mean MAE' : 'Average price error'}
+                  Naive MAE: {metrics.naiveMae != null ? (isAll ? `${metrics.naiveMae.toFixed(2)} pts` : `${currSym}${metrics.naiveMae.toFixed(2)}`) : 'n/a'}
                 </span>
               </div>
 
@@ -584,10 +579,10 @@ export const ModelPerformancePage: React.FC = () => {
                   {isAll ? 'Avg MAPE (% Error)' : 'MAPE (% Error)'}
                 </span>
                 <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 block tabular-nums">
-                  {metrics.mape != null ? `${metrics.mape}%` : 'n/a'}
+                  {metrics.mape != null ? `${metrics.mape.toFixed(2)}%` : 'n/a'}
                 </span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block font-mono">
-                  {isAll ? 'Mean % error (all assets)' : 'Scale-free error'}
+                  Naive MAPE: {metrics.naiveMape != null ? `${metrics.naiveMape.toFixed(2)}%` : 'n/a'}
                 </span>
               </div>
             </div>
@@ -604,17 +599,20 @@ export const ModelPerformancePage: React.FC = () => {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-700 dark:text-slate-300 text-xs pt-1">
                 <div className="p-3.5 rounded-lg bg-emerald-50/60 dark:bg-slate-950/60 border border-emerald-200/80 dark:border-slate-800/80 space-y-1">
-                  <span className="font-semibold text-emerald-800 dark:text-emerald-400 block font-mono text-xs">
-                    1. {isAll ? 'Whole-Model Price Prediction Accuracy' : 'Price Prediction Accuracy'}: {metrics.priceAccuracy != null ? `${metrics.priceAccuracy}%` : 'n/a'}
+                  <span
+                    className="font-semibold text-emerald-800 dark:text-emerald-400 block font-mono text-xs cursor-help"
+                    title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+                  >
+                    1. {isAll ? 'Whole-Model Price Accuracy' : 'Price Accuracy'}: {metrics.priceAccuracy != null ? `${metrics.priceAccuracy.toFixed(2)}%` : 'n/a'} (Naive: {metrics.naivePriceAccuracy != null ? `${metrics.naivePriceAccuracy.toFixed(2)}%` : 'n/a'})
                   </span>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                     {isAll ? (
                       <>
-                        In out-of-sample forward walk-forward testing across {metrics.totalAssetsCount || 15}+ catalog assets and {metrics.totalBacktestSamples} aggregate trading sessions, the prediction model achieves a mean unscaled MAPE of <strong>{metrics.mape != null ? `${metrics.mape}%` : 'n/a'}</strong>. This confirms that the Ridge multi-factor weights generalize stably across diverse sectors (Tech, Banking, Energy, Auto) without overfitting to any single asset.
+                        In out-of-sample walk-forward testing across {metrics.evaluatedAssetsCount || metrics.totalAssetsCount || metrics.assetBreakdown?.length || 0} catalog assets and {metrics.totalBacktestSamples} aggregate trading sessions, the prediction model achieves a mean unscaled MAPE of <strong>{metrics.mape != null ? `${metrics.mape.toFixed(2)}%` : 'n/a'}</strong> (Naive last-price MAPE: <strong>{metrics.naiveMape != null ? `${metrics.naiveMape.toFixed(2)}%` : 'n/a'}</strong>), beating naive MAE on <strong>{metrics.beatNaiveLabel || 'n/a'}</strong> assets.
                       </>
                     ) : (
                       <>
-                        In out-of-sample forward walk-forward testing across {metrics.totalBacktestSamples} trading sessions, the model achieves an unscaled MAPE of <strong>{metrics.mape != null ? `${metrics.mape}%` : 'n/a'}</strong>. Daily point forecasts track the authentic closing price trajectory without lookahead bias.
+                        In out-of-sample walk-forward testing across {metrics.totalBacktestSamples} trading sessions, the model achieves an unscaled MAPE of <strong>{metrics.mape != null ? `${metrics.mape.toFixed(2)}%` : 'n/a'}</strong> vs naive last-price MAPE of <strong>{metrics.naiveMape != null ? `${metrics.naiveMape.toFixed(2)}%` : 'n/a'}</strong> (MAE skill vs naive: <strong>{metrics.maeSkillVsNaive != null ? `${metrics.maeSkillVsNaive * 100 >= 0 ? '+' : ''}${(metrics.maeSkillVsNaive * 100).toFixed(1)}%` : 'n/a'}</strong>).
                       </>
                     )}
                   </p>
@@ -658,22 +656,22 @@ export const ModelPerformancePage: React.FC = () => {
                         {metrics.directionalStats.totalTestPredictions.toLocaleString()}
                       </span>
                       <span className="text-[10px] text-slate-500 block">
-                        Hits: {metrics.directionalStats.modelHits.toLocaleString()}
+                        Hits: {metrics.directionalStats.modelHits.toLocaleString()} · pooled (assumes independence)
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] uppercase text-slate-400 block">Pooled Dir. Acc (95% Wilson CI)</span>
+                      <span className="text-[10px] uppercase text-slate-400 block">Dir. Acc — pooled (assumes independence)</span>
                       <span className="text-base font-bold text-cyan-600 dark:text-cyan-400 tabular-nums">
                         {metrics.directionalStats.pooledDirectionalAccuracyPct}%
                       </span>
                       <span className="text-[10px] text-slate-500 block tabular-nums">
-                        95% CI: [{metrics.directionalStats.wilson95CI[0]}%, {metrics.directionalStats.wilson95CI[1]}%]
+                        Wilson 95% CI: [{metrics.directionalStats.wilson95CI[0]}%, {metrics.directionalStats.wilson95CI[1]}%]
                       </span>
                     </div>
 
                     <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] uppercase text-slate-400 block">Always-Up Pooled Baseline</span>
+                      <span className="text-[10px] uppercase text-slate-400 block">Always-Up Baseline — pooled (assumes independence)</span>
                       <span className="text-base font-bold text-slate-700 dark:text-slate-300 tabular-nums">
                         {metrics.directionalStats.pooledAlwaysUpAccuracyPct}%
                       </span>
@@ -683,12 +681,41 @@ export const ModelPerformancePage: React.FC = () => {
                     </div>
 
                     <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] uppercase text-slate-400 block">One-Sided Binomial p-value</span>
+                      <span className="text-[10px] uppercase text-slate-400 block">Binomial p — pooled (assumes independence)</span>
                       <span className={`text-base font-bold tabular-nums ${metrics.directionalStats.binomialPValueVsAlwaysUp < 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
                         p = {formatPValue(metrics.directionalStats.binomialPValueVsAlwaysUp)}
                       </span>
                       <span className="text-[10px] text-slate-500 block">
-                        {metrics.directionalStats.binomialPValueVsAlwaysUp < 0.05 ? 'Significant edge (p < 0.05)' : 'Not significant vs Always-Up'}
+                        One-sided test (treats assets as i.i.d.)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Cross-Asset Correlation-Aware Inference: Date-Clustered Bootstrap & Per-Asset Sign Test */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-cyan-300/70 dark:border-cyan-800/70">
+                      <span className="text-[10px] uppercase text-cyan-700 dark:text-cyan-400 font-semibold block">
+                        Date-Clustered Bootstrap 95% CI ({(metrics.directionalStats.bootstrapResamples ?? 2000).toLocaleString()} resamples)
+                      </span>
+                      <span className="text-base font-bold text-slate-900 dark:text-white tabular-nums">
+                        {metrics.directionalStats.directionalEdgeVsAlwaysUp95CI
+                          ? `[${metrics.directionalStats.directionalEdgeVsAlwaysUp95CI[0] >= 0 ? '+' : ''}${metrics.directionalStats.directionalEdgeVsAlwaysUp95CI[0]}pp, ${metrics.directionalStats.directionalEdgeVsAlwaysUp95CI[1] >= 0 ? '+' : ''}${metrics.directionalStats.directionalEdgeVsAlwaysUp95CI[1]}pp]`
+                          : 'n/a'}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block tabular-nums mt-0.5">
+                        Point edge vs Always-Up: {metrics.directionalStats.directionalEdgeVsAlwaysUpPct != null ? `${metrics.directionalStats.directionalEdgeVsAlwaysUpPct >= 0 ? '+' : ''}${metrics.directionalStats.directionalEdgeVsAlwaysUpPct}pp` : 'n/a'} · P(edge &gt; 0): {metrics.directionalStats.bootstrapProbEdgePositive != null ? `${(metrics.directionalStats.bootstrapProbEdgePositive * 100).toFixed(1)}%` : 'n/a'}
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] uppercase text-slate-400 font-semibold block">
+                        Per-Asset Sign Test (vs. Always-Up, p₀ = 0.5)
+                      </span>
+                      <span className={`text-base font-bold tabular-nums ${(metrics.directionalStats.signTestPValue ?? 1) < 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        p = {formatPValue(metrics.directionalStats.signTestPValue)}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block tabular-nums mt-0.5">
+                        {metrics.directionalStats.signTestWins ?? 0} wins · {metrics.directionalStats.signTestLosses ?? 0} losses · {metrics.directionalStats.signTestTies ?? 0} ties (exact two-sided)
                       </span>
                     </div>
                   </div>
@@ -696,28 +723,42 @@ export const ModelPerformancePage: React.FC = () => {
                   {isAll && metrics.summaryStats && (
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px] font-mono">
                       <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <span className="text-slate-500 font-semibold block mb-1">MAPE Across Assets (%)</span>
-                        <span className="text-slate-800 dark:text-slate-200 tabular-nums">
-                          Mean {metrics.summaryStats.mape.mean}% · Median {metrics.summaryStats.mape.median}% · Min {metrics.summaryStats.mape.min}% · Max {metrics.summaryStats.mape.max}%
+                        <span
+                          className="text-slate-500 font-semibold block mb-1 cursor-help"
+                          title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+                        >
+                          Price Accuracy &amp; Naive Across Assets (%)
+                        </span>
+                        <span className="text-slate-800 dark:text-slate-200 tabular-nums block">
+                          Model: Mean {metrics.summaryStats.priceAccuracy?.mean ?? (100 - metrics.summaryStats.mape.mean).toFixed(2)}% · Median {metrics.summaryStats.priceAccuracy?.median ?? (100 - metrics.summaryStats.mape.median).toFixed(2)}%
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400 tabular-nums block">
+                          Naive: Mean {metrics.summaryStats.naivePriceAccuracy?.mean ?? 'n/a'}% · Median {metrics.summaryStats.naivePriceAccuracy?.median ?? 'n/a'}%
                         </span>
                       </div>
                       <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <span className="text-slate-500 font-semibold block mb-1">Directional Accuracy Across Assets (%)</span>
-                        <span className="text-slate-800 dark:text-slate-200 tabular-nums">
-                          Mean {metrics.summaryStats.directionalAccuracy.mean}% · Median {metrics.summaryStats.directionalAccuracy.median}% · Min {metrics.summaryStats.directionalAccuracy.min}% · Max {metrics.summaryStats.directionalAccuracy.max}%
+                        <span className="text-slate-500 font-semibold block mb-1">MAPE &amp; Skill vs Naive Across Assets</span>
+                        <span className="text-slate-800 dark:text-slate-200 tabular-nums block">
+                          MAPE: Mean {metrics.summaryStats.mape.mean}% · Median {metrics.summaryStats.mape.median}% (Naive Mean {metrics.summaryStats.naiveMape?.mean ?? 'n/a'}% · Med {metrics.summaryStats.naiveMape?.median ?? 'n/a'}%)
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400 tabular-nums block">
+                          MAE Skill: Mean {metrics.summaryStats.maeSkillVsNaive ? `${(metrics.summaryStats.maeSkillVsNaive.mean * 100).toFixed(2)}%` : 'n/a'} · Med {metrics.summaryStats.maeSkillVsNaive ? `${(metrics.summaryStats.maeSkillVsNaive.median * 100).toFixed(2)}%` : 'n/a'} · Beat Naive: {metrics.beatNaiveLabel || 'n/a'}
                         </span>
                       </div>
                       <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                        <span className="text-slate-500 font-semibold block mb-1">Conformal Coverage Across Assets (%)</span>
-                        <span className="text-slate-800 dark:text-slate-200 tabular-nums">
-                          Mean {metrics.summaryStats.conformalCoverage.mean}% · Median {metrics.summaryStats.conformalCoverage.median}% · Min {metrics.summaryStats.conformalCoverage.min}% · Max {metrics.summaryStats.conformalCoverage.max}%
+                        <span className="text-slate-500 font-semibold block mb-1">Dir. Acc &amp; Conformal Coverage Across Assets (%)</span>
+                        <span className="text-slate-800 dark:text-slate-200 tabular-nums block">
+                          Dir Acc: Mean {metrics.summaryStats.directionalAccuracy.mean}% · Median {metrics.summaryStats.directionalAccuracy.median}%
+                        </span>
+                        <span className="text-slate-500 dark:text-slate-400 tabular-nums block">
+                          Coverage: Mean {metrics.summaryStats.conformalCoverage.mean}% · Median {metrics.summaryStats.conformalCoverage.median}%
                         </span>
                       </div>
                     </div>
                   )}
 
                   <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                    Note: Directional accuracy is only meaningful if it beats Always-Up on the same out-of-sample test window.
+                    The date-bootstrap interval is the one to cite. Directional accuracy is only meaningful if it beats Always-Up on the same out-of-sample test window.
                   </p>
                 </div>
               )}
@@ -1188,7 +1229,14 @@ export const ModelPerformancePage: React.FC = () => {
                       <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[10px] text-slate-500 dark:text-slate-400 uppercase">
                         <th className="py-3 px-4 font-medium font-sans">Asset / Company</th>
                         <th className="py-3 px-4 font-medium">Source &amp; Window</th>
-                        <th className="py-3 px-4 font-medium text-right">Price Accuracy</th>
+                        <th
+                          className="py-3 px-4 font-medium text-right cursor-help"
+                          title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+                        >
+                          Price Accuracy
+                        </th>
+                        <th className="py-3 px-4 font-medium text-right">Naive Acc.</th>
+                        <th className="py-3 px-4 font-medium text-right">MAE Skill</th>
                         <th className="py-3 px-4 font-medium text-right">MAPE</th>
                         <th className="py-3 px-4 font-medium text-right">Conformal Cov.</th>
                         <th className="py-3 px-4 font-medium text-right">Directional Acc.</th>
@@ -1211,11 +1259,20 @@ export const ModelPerformancePage: React.FC = () => {
                             <span className="uppercase text-emerald-600 dark:text-emerald-400 font-semibold mr-1.5">{asset.dataSource}</span>
                             <span>{asset.testWindowStart} → {asset.testWindowEnd}</span>
                           </td>
-                          <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
-                            {asset.priceAccuracy}%
+                          <td
+                            className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums"
+                            title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+                          >
+                            {asset.priceAccuracy.toFixed(2)}%
+                          </td>
+                          <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-400 tabular-nums">
+                            {asset.naivePriceAccuracy != null ? `${asset.naivePriceAccuracy.toFixed(2)}%` : 'n/a'}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-semibold tabular-nums ${(asset.maeSkillVsNaive ?? 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                            {asset.maeSkillVsNaive != null ? `${asset.maeSkillVsNaive * 100 >= 0 ? '+' : ''}${(asset.maeSkillVsNaive * 100).toFixed(1)}%` : 'n/a'}
                           </td>
                           <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                            {asset.mape}%
+                            {asset.mape.toFixed(2)}%
                           </td>
                           <td className="py-3 px-4 text-right text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">
                             {asset.conformalCoverage}%
@@ -1271,6 +1328,14 @@ export const ModelPerformancePage: React.FC = () => {
                       <th className="py-3 px-4 font-medium font-sans">Model Architecture</th>
                       <th className="py-3 px-4 font-medium text-right">MAE</th>
                       <th className="py-3 px-4 font-medium text-right">RMSE</th>
+                      <th className="py-3 px-4 font-medium text-right">MAPE</th>
+                      <th
+                        className="py-3 px-4 font-medium text-right cursor-help"
+                        title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+                      >
+                        Price Acc.
+                      </th>
+                      <th className="py-3 px-4 font-medium text-right">MAE Skill</th>
                       <th className="py-3 px-4 font-medium text-right">R² Score</th>
                       <th className="py-3 px-4 font-medium text-right">Directional Acc.</th>
                       <th className="py-3 px-4 font-medium text-center">Status</th>
@@ -1284,10 +1349,22 @@ export const ModelPerformancePage: React.FC = () => {
                           <span>{m.model}</span>
                         </td>
                         <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          {m.mae != null ? (isAll ? `${m.mae} pts` : `${currSym}${m.mae}`) : <span className="text-slate-400">n/a</span>}
+                          {m.mae != null ? (isAll ? `${m.mae.toFixed(2)} pts` : `${currSym}${m.mae.toFixed(2)}`) : <span className="text-slate-400">n/a</span>}
                         </td>
                         <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          {m.rmse != null ? (isAll ? `${m.rmse} pts` : `${currSym}${m.rmse}`) : <span className="text-slate-400">n/a</span>}
+                          {m.rmse != null ? (isAll ? `${m.rmse.toFixed(2)} pts` : `${currSym}${m.rmse.toFixed(2)}`) : <span className="text-slate-400">n/a</span>}
+                        </td>
+                        <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
+                          {m.mape != null ? `${m.mape.toFixed(2)}%` : <span className="text-slate-400">n/a</span>}
+                        </td>
+                        <td
+                          className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-semibold tabular-nums"
+                          title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
+                        >
+                          {m.priceAccuracy != null ? `${m.priceAccuracy.toFixed(2)}%` : <span className="text-slate-400 font-normal">n/a</span>}
+                        </td>
+                        <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
+                          {m.maeSkillVsNaive != null ? `${m.maeSkillVsNaive * 100 >= 0 ? '+' : ''}${(m.maeSkillVsNaive * 100).toFixed(1)}%` : <span className="text-slate-400">n/a</span>}
                         </td>
                         <td className="py-3 px-4 text-right text-cyan-700 dark:text-cyan-300 font-bold tabular-nums">
                           {m.r2 != null ? m.r2 : <span className="text-slate-400 font-normal">n/a</span>}
