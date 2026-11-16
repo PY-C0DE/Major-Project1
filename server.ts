@@ -1881,8 +1881,27 @@ User Question: "${message}".`
 });
 
   // Ensure any unhandled /api route returns JSON 404, never falling through to Vite HTML
-  app.all('/api/*', (req: Request, res: Response) => {
+  app.all(['/api', '/api/*'], (req: Request, res: Response) => {
     return res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
+  });
+
+  // Ensure middleware errors (such as malformed JSON body or payload limits) on /api return JSON, never Express HTML
+  app.use('/api', (err: any, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) {
+      return next(err);
+    }
+    const status = typeof err?.status === 'number' && err.status >= 400 && err.status < 600
+      ? err.status
+      : typeof err?.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 600
+        ? err.statusCode
+        : 500;
+    const message =
+      err?.type === 'entity.parse.failed'
+        ? 'Invalid JSON request payload.'
+        : err?.type === 'entity.too.large'
+          ? 'Request payload too large.'
+          : (err?.message || 'Internal server error.');
+    return res.status(status).json({ error: message });
   });
 
   return app;
@@ -1912,6 +1931,14 @@ export async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[AlphaQuant AI] Full-Stack Server running at http://0.0.0.0:${PORT}`);
+    // Non-blocking background warmup so cold aggregate/accuracy endpoints don't exceed proxy timeouts
+    const warmupTimer = setTimeout(() => {
+      const tickers = TICKER_CATALOG.map(t => t.ticker);
+      computeProjectWideAccuracy(getHistoricalDataWithSource, tickers)
+        .then(() => runAggregateModelEvaluation(getHistoricalDataWithSource, TICKER_CATALOG))
+        .catch(() => {});
+    }, 1500);
+    warmupTimer.unref();
   });
 }
 

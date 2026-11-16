@@ -39,4 +39,21 @@ describe('Real Express app route ordering', () => {
       }
     }
   });
+
+  it('always returns JSON errors (never HTML) for /api and malformed JSON payloads', async () => {
+    const app = createApp({ jwtSecret: 'test-jwt-secret-key-at-least-32-characters-long', allowDemoMode: false });
+
+    const bareApiRes = await request(app).get('/api');
+    assert.equal(bareApiRes.status, 404);
+    assert.match(bareApiRes.headers['content-type'] || '', /application\/json/);
+    assert.equal(typeof bareApiRes.body.error, 'string');
+
+    const badJsonRes = await request(app)
+      .post('/api/auth/login')
+      .set('Content-Type', 'application/json')
+      .send('{bad-json');
+    assert.equal(badJsonRes.status, 400);
+    assert.match(badJsonRes.headers['content-type'] || '', /application\/json/);
+    assert.equal(typeof badJsonRes.body.error, 'string');
+  });
 });

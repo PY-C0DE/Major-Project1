@@ -41,6 +41,15 @@ export const PortfolioImportExportModal: React.FC<PortfolioImportExportModalProp
   const [copied, setCopied] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // EXPORT HANDLERS
@@ -221,16 +230,6 @@ export const PortfolioImportExportModal: React.FC<PortfolioImportExportModalProp
     }
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   return typeof document !== 'undefined' ? createPortal(
     <div

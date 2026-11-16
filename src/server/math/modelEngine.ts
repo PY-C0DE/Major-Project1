@@ -69,6 +69,31 @@ export interface EnsembleModel {
   analogTargets: number[];
 }
 
+export interface FeatureVolumeCache {
+  features: (number[] | undefined)[];
+  vols: (number | undefined)[];
+}
+
+function getCachedVol(bars: ComputedBar[], i: number, cache?: FeatureVolumeCache): number {
+  if (!cache) return estimateBarDailyVol(bars, i);
+  let v = cache.vols[i];
+  if (v === undefined) {
+    v = estimateBarDailyVol(bars, i);
+    cache.vols[i] = v;
+  }
+  return v;
+}
+
+function getCachedFeatures(bars: ComputedBar[], i: number, cache?: FeatureVolumeCache): number[] {
+  if (!cache) return extractFeatureVector(bars, i);
+  let f = cache.features[i];
+  if (f === undefined) {
+    f = extractFeatureVector(bars, i);
+    cache.features[i] = f;
+  }
+  return f;
+}
+
 /**
  * Estimates homoskedastic daily return volatility for bar `i`
  * by blending 20-day realized close-to-close volatility with 5-day EWMA Garman-Klass intraday volatility.
@@ -363,18 +388,12 @@ function standardizeRow(row: number[], means: number[], stds: number[]): number[
   return out;
 }
 
-/**
- * Solves Recency-Weighted Huber-Damped Regularized Ridge Regression:
- * (Z^T W Z + lambda I) w = Z^T W y
- */
-export function fitRidgeRegression(
+function buildRidgeNormalEquations(
   X: number[][],
   y: number[],
-  lambda = 12.0,
   decayFactor = 0.985
-): number[] {
+): { baseA: number[][]; b: number[]; k: number } {
   const n = X.length;
-  if (n === 0) return new Array(FEATURE_COUNT).fill(0);
   const k = X[0].length;
 
   // Huber-reweighted recency weights to prevent single earnings gaps from hijacking regression
@@ -390,14 +409,15 @@ export function fitRidgeRegression(
     weights[r] = recency * huberW;
   }
 
-  const A: number[][] = Array.from({ length: k }, () => new Array(k).fill(0));
+  const baseA: number[][] = Array.from({ length: k }, () => new Array(k).fill(0));
   for (let i = 0; i < k; i++) {
-    for (let j = 0; j < k; j++) {
+    for (let j = i; j < k; j++) {
       let sum = 0;
       for (let r = 0; r < n; r++) {
         sum += weights[r] * X[r][i] * X[r][j];
       }
-      A[i][j] = sum + (i === j ? (i === 0 ? Math.max(8.0, lambda * 0.8) : lambda) : 0);
+      baseA[i][j] = sum;
+      baseA[j][i] = sum;
     }
   }
 
@@ -409,6 +429,17 @@ export function fitRidgeRegression(
     }
     b[i] = sum;
   }
+
+  return { baseA, b, k };
+}
+
+function solveRidgeFromNormalEquations(baseA: number[][], baseB: number[], k: number, lambda: number): number[] {
+  const A: number[][] = baseA.map((row, i) => {
+    const copy = row.slice();
+    copy[i] = row[i] + (i === 0 ? Math.max(8.0, lambda * 0.8) : lambda);
+    return copy;
+  });
+  const b = baseB.slice();
 
   // Gaussian elimination with partial pivoting
   for (let i = 0; i < k; i++) {
@@ -437,6 +468,22 @@ export function fitRidgeRegression(
   }
 
   return b;
+}
+
+/**
+ * Solves Recency-Weighted Huber-Damped Regularized Ridge Regression:
+ * (Z^T W Z + lambda I) w = Z^T W y
+ */
+export function fitRidgeRegression(
+  X: number[][],
+  y: number[],
+  lambda = 12.0,
+  decayFactor = 0.985
+): number[] {
+  const n = X.length;
+  if (n === 0) return new Array(FEATURE_COUNT).fill(0);
+  const { baseA, b, k } = buildRidgeNormalEquations(X, y, decayFactor);
+  return solveRidgeFromNormalEquations(baseA, b, k, lambda);
 }
 
 function huberGradient(residual: number, delta: number): number {
@@ -468,31 +515,43 @@ export function fitBoostingTrees(
   const learningRate = 0.11;
   const candidateFeatures = [1, 3, 4, 5, 8, 9, 10, 13, 14, 15, 18, 19, 20, 21, 22, 23];
 
+  const rootThresholdsByFeature = new Map<number, [number, number, number]>();
+  for (const fIdx of candidateFeatures) {
+    if (fIdx >= k) continue;
+    const vals = new Array<number>(n);
+    for (let r = 0; r < n; r++) vals[r] = Z[r][fIdx];
+    vals.sort((a, b) => a - b);
+    rootThresholdsByFeature.set(fIdx, [
+      vals[Math.floor(n * 0.25)] ?? -0.5,
+      vals[Math.floor(n * 0.50)] ?? 0,
+      vals[Math.floor(n * 0.75)] ?? 0.5
+    ]);
+  }
+  const grads = new Array<number>(n);
+
   for (let t = 0; t < numTrees; t++) {
+    for (let r = 0; r < n; r++) {
+      grads[r] = huberGradient(currResiduals[r], delta);
+    }
+
     let bestRootFeature = 1;
     let bestRootThreshold = 0;
     let bestRootLoss = Infinity;
 
     for (const fIdx of candidateFeatures) {
-      if (fIdx >= k) continue;
-      const vals = Z.map((row) => row[fIdx]).sort((a, b) => a - b);
-      const thresholds = [
-        vals[Math.floor(n * 0.25)] ?? -0.5,
-        vals[Math.floor(n * 0.50)] ?? 0,
-        vals[Math.floor(n * 0.75)] ?? 0.5
-      ];
+      const thresholds = rootThresholdsByFeature.get(fIdx);
+      if (!thresholds) continue;
 
       for (const th of thresholds) {
         let leftSum = 0, leftCount = 0;
         let rightSum = 0, rightCount = 0;
 
         for (let r = 0; r < n; r++) {
-          const g = huberGradient(currResiduals[r], delta);
           if (Z[r][fIdx] <= th) {
-            leftSum += g;
+            leftSum += grads[r];
             leftCount++;
           } else {
-            rightSum += g;
+            rightSum += grads[r];
             rightCount++;
           }
         }
@@ -538,12 +597,11 @@ export function fitBoostingTrees(
         let llSum = 0, llCount = 0;
         let lrSum = 0, lrCount = 0;
         for (const idx of leftIndices) {
-          const g = huberGradient(currResiduals[idx], delta);
           if (Z[idx][fIdx] <= th) {
-            llSum += g;
+            llSum += grads[idx];
             llCount++;
           } else {
-            lrSum += g;
+            lrSum += grads[idx];
             lrCount++;
           }
         }
@@ -567,7 +625,7 @@ export function fitBoostingTrees(
       }
     } else {
       let sum = 0;
-      for (const idx of leftIndices) sum += huberGradient(currResiduals[idx], delta);
+      for (const idx of leftIndices) sum += grads[idx];
       leftLL = leftIndices.length > 0 ? sum / (leftIndices.length + leafReg) : 0;
       leftLR = leftLL;
     }
@@ -587,12 +645,11 @@ export function fitBoostingTrees(
         let rlSum = 0, rlCount = 0;
         let rrSum = 0, rrCount = 0;
         for (const idx of rightIndices) {
-          const g = huberGradient(currResiduals[idx], delta);
           if (Z[idx][fIdx] <= th) {
-            rlSum += g;
+            rlSum += grads[idx];
             rlCount++;
           } else {
-            rrSum += g;
+            rrSum += grads[idx];
             rrCount++;
           }
         }
@@ -616,7 +673,7 @@ export function fitBoostingTrees(
       }
     } else {
       let sum = 0;
-      for (const idx of rightIndices) sum += huberGradient(currResiduals[idx], delta);
+      for (const idx of rightIndices) sum += grads[idx];
       rightRL = rightIndices.length > 0 ? sum / (rightIndices.length + leafReg) : 0;
       rightRR = rightRL;
     }
@@ -867,7 +924,8 @@ export function fitEnsembleModel(
   bars: ComputedBar[],
   trainStartIndex = 20,
   trainEndIndex?: number,
-  horizonDays = 1
+  horizonDays = 1,
+  cache?: FeatureVolumeCache
 ): EnsembleModel {
   const n = bars.length;
   const h = Math.max(1, Math.min(30, horizonDays));
@@ -886,10 +944,10 @@ export function fitEnsembleModel(
     if (baseClose <= 0 || targetClose <= 0) continue;
 
     const rawRet = (targetClose - baseClose) / baseClose;
-    const sigma = estimateBarDailyVol(bars, featIdx);
+    const sigma = getCachedVol(bars, featIdx, cache);
     const normalizedTarget = Math.max(-2.6, Math.min(2.6, rawRet / sigma));
 
-    rawX.push(extractFeatureVector(bars, featIdx));
+    rawX.push(getCachedFeatures(bars, featIdx, cache));
     yNorm.push(normalizedTarget);
   }
 
@@ -915,9 +973,11 @@ export function fitEnsembleModel(
     };
   }
 
-  // 1. 3-Fold Expanding Walk-Forward Cross-Validation for Ridge regularization lambda
+  // 1 & 2. Precompute 3-fold expanding walk-forward standardized splits & normal equations once
   const candidateLambdas = [40.0, 120.0, 300.0, 700.0];
   let bestLambda = 120.0;
+  let metaWeights: [number, number, number, number] = [0.35, 0.25, 0.25, 0.15];
+  let shrinkageGain = 0.14;
 
   if (m >= 40) {
     const splitPoints = [
@@ -925,25 +985,42 @@ export function fitEnsembleModel(
       Math.max(22, Math.floor(m * 0.70)),
       Math.max(28, Math.floor(m * 0.85))
     ];
-    let bestCvMse = Infinity;
+    const folds: Array<{
+      trEnd: number;
+      vaEnd: number;
+      subY: number[];
+      subZ: number[][];
+      valZ: number[][];
+      baseA: number[][];
+      baseB: number[];
+      k: number;
+    }> = [];
 
+    for (let f = 0; f < splitPoints.length; f++) {
+      const trEnd = splitPoints[f];
+      const vaEnd = f + 1 < splitPoints.length ? splitPoints[f + 1] : m;
+      if (vaEnd <= trEnd) continue;
+
+      const subX = rawX.slice(0, trEnd);
+      const subY = yNorm.slice(0, trEnd);
+      const { Z: subZ, means: subMeans, stds: subStds } = computeStandardization(subX, decayFactor);
+      const { baseA, b: baseB, k } = buildRidgeNormalEquations(subZ, subY, decayFactor);
+      const valZ: number[][] = new Array(vaEnd - trEnd);
+      for (let r = trEnd; r < vaEnd; r++) {
+        valZ[r - trEnd] = standardizeRow(rawX[r], subMeans, subStds);
+      }
+      folds.push({ trEnd, vaEnd, subY, subZ, valZ, baseA, baseB, k });
+    }
+
+    let bestCvMse = Infinity;
     for (const lam of candidateLambdas) {
       let mseSum = 0;
       let countSum = 0;
 
-      for (let f = 0; f < splitPoints.length; f++) {
-        const trEnd = splitPoints[f];
-        const vaEnd = f + 1 < splitPoints.length ? splitPoints[f + 1] : m;
-        if (vaEnd <= trEnd) continue;
-
-        const subX = rawX.slice(0, trEnd);
-        const subY = yNorm.slice(0, trEnd);
-        const { Z: subZ, means: subMeans, stds: subStds } = computeStandardization(subX, decayFactor);
-        const w = fitRidgeRegression(subZ, subY, lam, decayFactor);
-
-        for (let r = trEnd; r < vaEnd; r++) {
-          const zVal = standardizeRow(rawX[r], subMeans, subStds);
-          const pred = 0.25 * predictReturnFromFeatures(w, zVal);
+      for (const fold of folds) {
+        const w = solveRidgeFromNormalEquations(fold.baseA, fold.baseB, fold.k, lam);
+        for (let r = fold.trEnd; r < fold.vaEnd; r++) {
+          const pred = 0.25 * predictReturnFromFeatures(w, fold.valZ[r - fold.trEnd]);
           const d = yNorm[r] - pred;
           mseSum += d * d;
           countSum++;
@@ -956,46 +1033,25 @@ export function fitEnsembleModel(
         bestLambda = lam;
       }
     }
-  }
 
-  // 2. Collect 3-Fold Expanding Out-of-Sample Expert Predictions for Meta-Stacker & Stein Shrinkage
-  let metaWeights: [number, number, number, number] = [0.35, 0.25, 0.25, 0.15];
-  let shrinkageGain = 0.14;
-
-  if (m >= 40) {
-    const splitPoints = [
-      Math.max(16, Math.floor(m * 0.55)),
-      Math.max(22, Math.floor(m * 0.70)),
-      Math.max(28, Math.floor(m * 0.85))
-    ];
-
+    // 2. Collect 3-Fold Expanding Out-of-Sample Expert Predictions for Meta-Stacker & Stein Shrinkage
     const cvExpertPreds: [number, number, number, number][] = [];
     const cvTargets: number[] = [];
 
-    for (let f = 0; f < splitPoints.length; f++) {
-      const trEnd = splitPoints[f];
-      const vaEnd = f + 1 < splitPoints.length ? splitPoints[f + 1] : m;
-      if (vaEnd <= trEnd) continue;
+    for (const fold of folds) {
+      const subWeights = solveRidgeFromNormalEquations(fold.baseA, fold.baseB, fold.k, bestLambda);
+      const subResiduals = fold.subZ.map((z, idx) => fold.subY[idx] - predictReturnFromFeatures(subWeights, z));
+      const subTrees = fitBoostingTrees(fold.subZ, subResiduals, 5);
+      const libZ = fold.subZ.slice(0, Math.max(0, fold.subZ.length - 1));
+      const libY = fold.subY.slice(0, Math.max(0, fold.subY.length - 1));
 
-      const subX = rawX.slice(0, trEnd);
-      const subY = yNorm.slice(0, trEnd);
-      const { Z: subZ, means: subMeans, stds: subStds } = computeStandardization(subX, decayFactor);
-      const subWeights = fitRidgeRegression(subZ, subY, bestLambda, decayFactor);
-
-      const subResiduals = subZ.map((z, idx) => subY[idx] - predictReturnFromFeatures(subWeights, z));
-      const subTrees = fitBoostingTrees(subZ, subResiduals, 5);
-
-      for (let r = trEnd; r < vaEnd; r++) {
-        const zVal = standardizeRow(rawX[r], subMeans, subStds);
+      for (let r = fold.trEnd; r < fold.vaEnd; r++) {
+        const zVal = fold.valZ[r - fold.trEnd];
         const pRidge = predictReturnFromFeatures(subWeights, zVal);
         let pTree = pRidge;
         for (const tr of subTrees) pTree += evaluateTree(tr, zVal);
         const pKalman = predictKalmanRegimeNorm(rawX[r]);
-        const pKnn = predictAnalogKnnNorm(
-          zVal,
-          subZ.slice(0, Math.max(0, subZ.length - 1)),
-          subY.slice(0, Math.max(0, subY.length - 1))
-        );
+        const pKnn = predictAnalogKnnNorm(zVal, libZ, libY);
         cvExpertPreds.push([pRidge, pTree, pKalman, pKnn]);
         cvTargets.push(yNorm[r]);
       }
@@ -1066,9 +1122,10 @@ export function predictEnsembleReturn(
   model: EnsembleModel,
   bars: ComputedBar[],
   i: number,
-  applyBiasCorrection = true
+  applyBiasCorrection = true,
+  cache?: FeatureVolumeCache
 ): number {
-  const rawFeatures = extractFeatureVector(bars, i);
+  const rawFeatures = getCachedFeatures(bars, i, cache);
   const z = model.featureMeans
     ? standardizeRow(rawFeatures, model.featureMeans, model.featureStds)
     : rawFeatures;
@@ -1110,7 +1167,7 @@ export function predictEnsembleReturn(
   }
 
   const h = model.horizonDays || 1;
-  const dailyVol = estimateBarDailyVol(bars, i);
+  const dailyVol = getCachedVol(bars, i, cache);
 
   if (h <= 1) {
     const raw1d = norm1d * dailyVol;

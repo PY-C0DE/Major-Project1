@@ -30,6 +30,7 @@ import {
   fitEnsembleModel,
   predictEnsembleReturn,
   estimateBarDailyVol,
+  FeatureVolumeCache,
   FEATURE_COUNT
 } from './modelEngine';
 import { MIN_CONFORMAL_BARS } from './conformal';
@@ -508,9 +509,22 @@ export function runModelEvaluation(
     : Math.min(45, Math.floor(n * 0.3));
   const testStartIndex = n - testSize;
 
+  const featureCache: FeatureVolumeCache = {
+    features: new Array(n),
+    vols: new Array(n)
+  };
+  const getVol = (idx: number): number => {
+    let v = featureCache.vols[idx];
+    if (v === undefined) {
+      v = estimateBarDailyVol(bars, idx);
+      featureCache.vols[idx] = v;
+    }
+    return v;
+  };
+
   // 1. Fit initial ensemble prior to test window for baseline & feature importance inspection
   const trainStart = Math.min(25, Math.floor(testStartIndex * 0.2));
-  const ensembleModel = fitEnsembleModel(bars, trainStart, testStartIndex - 1, 1);
+  const ensembleModel = fitEnsembleModel(bars, trainStart, testStartIndex - 1, 1, featureCache);
 
   // Train plain linear model (univariate OLS on lag-1 return) on training set for honest baseline comparison
   let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0, nPairs = 0;
@@ -534,17 +548,17 @@ export function runModelEvaluation(
   const calibWindow = Math.min(50, Math.max(15, testStartIndex - trainStart - 25));
   const calibScores: number[] = [];
   const calibStart = Math.max(trainStart + 25, testStartIndex - calibWindow);
-  let calibBlockModel = fitEnsembleModel(bars, trainStart, Math.max(trainStart + 15, calibStart - 1), 1);
+  let calibBlockModel = fitEnsembleModel(bars, trainStart, Math.max(trainStart + 15, calibStart - 1), 1, featureCache);
 
   for (let i = calibStart; i < testStartIndex; i++) {
     if ((i - calibStart) > 0 && (i - calibStart) % 10 === 0) {
-      calibBlockModel = fitEnsembleModel(bars, trainStart, i - 1, 1);
+      calibBlockModel = fitEnsembleModel(bars, trainStart, i - 1, 1, featureCache);
     }
     const prevClose = bars[i - 1].close;
-    const predRet = predictEnsembleReturn(calibBlockModel, bars, i - 1, true);
+    const predRet = predictEnsembleReturn(calibBlockModel, bars, i - 1, true, featureCache);
     const predPrice = prevClose * (1 + predRet);
     const residual = Math.abs(bars[i].close - predPrice);
-    const blendedVol = estimateBarDailyVol(bars, i - 1);
+    const blendedVol = getVol(i - 1);
     calibScores.push(residual / (prevClose * blendedVol));
   }
   calibScores.sort((a, b) => a - b);
@@ -590,7 +604,7 @@ export function runModelEvaluation(
 
   for (let i = testStartIndex; i < n; i++) {
     if ((i - testStartIndex) > 0 && (i - testStartIndex) % retrainInterval === 0) {
-      activeModel = fitEnsembleModel(bars, trainStart, i - 1, 1);
+      activeModel = fitEnsembleModel(bars, trainStart, i - 1, 1, featureCache);
     }
 
     const prevBar = bars[i - 1];
@@ -599,7 +613,7 @@ export function runModelEvaluation(
     const actual = currBar.close;
 
     // Causal one-step-ahead prediction using active walk-forward model (Stein-calibrated)
-    const basePredReturn = predictEnsembleReturn(activeModel, bars, i - 1, false);
+    const basePredReturn = predictEnsembleReturn(activeModel, bars, i - 1, false, featureCache);
     const predictedReturn = basePredReturn + 0.02 * onlineOosBias;
     const predicted = Number((prevClose * (1 + predictedReturn)).toFixed(2));
 
@@ -623,7 +637,7 @@ export function runModelEvaluation(
     }
 
     // Conformal uncertainty envelope for this backtest bar
-    const blendedVol = estimateBarDailyVol(bars, i - 1);
+    const blendedVol = getVol(i - 1);
     const adaptiveBand = qNorm * prevClose * blendedVol;
     const lower = Number((predicted - adaptiveBand).toFixed(2));
     const upper = Number((predicted + adaptiveBand).toFixed(2));
@@ -897,12 +911,75 @@ export function runModelEvaluation(
   };
 }
 
-let cachedProjectWideAccuracy: { data: ProjectWideAccuracyResult; timestamp: number } | null = null;
+let cachedProjectWideAccuracy: { data: ProjectWideAccuracyResult; timestamp: number; epoch: number } | null = null;
 const ACCURACY_CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
+let cacheEpoch = 0;
+
+type TickerEvalCacheEntry =
+  | { kind: 'ok'; evaluation: ModelEvaluation; timestamp: number; epoch: number }
+  | { kind: 'skipped'; skipped: SkippedTickerRecord; timestamp: number; epoch: number };
+
+const perFetcherEvalCache = new WeakMap<HistoryWithSourceFetcher, Map<string, TickerEvalCacheEntry>>();
+let inFlightProjectWide = new WeakMap<HistoryWithSourceFetcher, { epoch: number; promise: Promise<ProjectWideAccuracyResult | UnavailableEvaluation> }>();
+let inFlightAggregate = new WeakMap<HistoryWithSourceFetcher, { epoch: number; promise: Promise<ModelEvaluation | UnavailableEvaluation> }>();
+
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+async function evaluateCatalogTickerCached(
+  fetchHistory: HistoryWithSourceFetcher,
+  ticker: string,
+  minBars: number
+): Promise<{ evaluation?: ModelEvaluation; skipped?: SkippedTickerRecord }> {
+  const epochAtCall = cacheEpoch;
+  let fetcherMap = perFetcherEvalCache.get(fetchHistory);
+  if (!fetcherMap) {
+    fetcherMap = new Map();
+    perFetcherEvalCache.set(fetchHistory, fetcherMap);
+  }
+  const cacheKey = `${ticker}:${minBars}`;
+  const cached = fetcherMap.get(cacheKey);
+  if (cached && cached.epoch === epochAtCall && Date.now() - cached.timestamp < ACCURACY_CACHE_TTL) {
+    return cached.kind === 'ok'
+      ? { evaluation: cached.evaluation }
+      : { skipped: cached.skipped };
+  }
+
+  try {
+    const { bars, source } = normalizeFetchedHistory(await fetchHistory(ticker, EVALUATION_HISTORY_DAYS));
+    if (source === 'synthetic') {
+      const skipped: SkippedTickerRecord = { ticker, reason: 'synthetic_data', barsCount: bars?.length ?? 0 };
+      if (cacheEpoch === epochAtCall) {
+        fetcherMap.set(cacheKey, { kind: 'skipped', skipped, timestamp: Date.now(), epoch: epochAtCall });
+      }
+      return { skipped };
+    }
+    if (!bars || bars.length < minBars) {
+      const skipped: SkippedTickerRecord = { ticker, reason: 'insufficient_history', barsCount: bars?.length ?? 0 };
+      if (cacheEpoch === epochAtCall) {
+        fetcherMap.set(cacheKey, { kind: 'skipped', skipped, timestamp: Date.now(), epoch: epochAtCall });
+      }
+      return { skipped };
+    }
+    // Yield before synchronous CPU work so concurrent Express requests are never blocked
+    await yieldToEventLoop();
+    const evaluation = runModelEvaluation(bars, ticker, source);
+    if (cacheEpoch === epochAtCall) {
+      fetcherMap.set(cacheKey, { kind: 'ok', evaluation, timestamp: Date.now(), epoch: epochAtCall });
+    }
+    return { evaluation };
+  } catch {
+    return { skipped: { ticker, reason: 'fetch_error' } };
+  }
+}
 
 export function clearEvaluationCaches(): void {
+  cacheEpoch++;
   cachedProjectWideAccuracy = null;
   cachedAggregateEvaluation = null;
+  inFlightProjectWide = new WeakMap();
+  inFlightAggregate = new WeakMap();
 }
 
 export const EVALUATION_HISTORY_DAYS = 730; // >= 2 years (~500 trading bars) for >= 120-day OOS evaluation
@@ -940,156 +1017,234 @@ export async function computeProjectWideAccuracy(
   fetchHistory: HistoryWithSourceFetcher,
   catalogTickers: string[]
 ): Promise<ProjectWideAccuracyResult | UnavailableEvaluation> {
-  if (cachedProjectWideAccuracy && Date.now() - cachedProjectWideAccuracy.timestamp < ACCURACY_CACHE_TTL) {
+  if (
+    cachedProjectWideAccuracy &&
+    cachedProjectWideAccuracy.epoch === cacheEpoch &&
+    Date.now() - cachedProjectWideAccuracy.timestamp < ACCURACY_CACHE_TTL
+  ) {
     return cachedProjectWideAccuracy.data;
   }
 
-  const evaluatedResults: ModelEvaluation[] = [];
+  const existingInFlight = inFlightProjectWide.get(fetchHistory);
+  if (existingInFlight && existingInFlight.epoch === cacheEpoch) {
+    return existingInFlight.promise;
+  }
 
-  // Evaluate ALL live tickers in the catalog in concurrency-limited batches
-  const targetUniverse = Array.from(
-    new Set(
-      catalogTickers && catalogTickers.length > 0
-        ? catalogTickers
-        : ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS', 'MSFT', 'HDFCBANK.NS', 'GOOGL', 'TSLA', 'TMCV.NS']
-    )
-  );
-  const batchSize = 5;
+  const epochAtStart = cacheEpoch;
+  const runPromise = (async (): Promise<ProjectWideAccuracyResult | UnavailableEvaluation> => {
+    const evaluatedResults: ModelEvaluation[] = [];
 
-  for (let i = 0; i < targetUniverse.length; i += batchSize) {
-    const batch = targetUniverse.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
-      batch.map(async (t) => {
-        try {
-          const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
-          if (source === 'synthetic') return null;
-          if (bars && bars.length >= 40) {
-            return runModelEvaluation(bars, t, source);
-          }
-        } catch {}
-        return null;
-      })
+    // Evaluate ALL live tickers in the catalog in concurrency-limited batches (fetching concurrently, evaluating sequentially with event-loop yields)
+    const targetUniverse = Array.from(
+      new Set(
+        catalogTickers && catalogTickers.length > 0
+          ? catalogTickers
+          : ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS', 'MSFT', 'HDFCBANK.NS', 'GOOGL', 'TSLA', 'TMCV.NS']
+      )
     );
+    const batchSize = 5;
 
-    for (const r of batchResults) {
-      if (r) {
-        evaluatedResults.push(r);
+    for (let i = 0; i < targetUniverse.length; i += batchSize) {
+      const batch = targetUniverse.slice(i, i + batchSize);
+      const prefetched = await Promise.all(
+        batch.map(async (t) => {
+          try {
+            const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
+            return { ticker: t, bars, source };
+          } catch {
+            return { ticker: t, bars: [] as ComputedBar[], source: 'live' as const, failed: true };
+          }
+        })
+      );
+
+      for (const item of prefetched) {
+        if ('failed' in item && item.failed) continue;
+        if (item.source === 'synthetic') continue;
+        if (item.bars && item.bars.length >= 40) {
+          let evaluation: ModelEvaluation | undefined;
+          const fetcherMap = perFetcherEvalCache.get(fetchHistory);
+          const cacheKey = `${item.ticker}:40`;
+          const cached = fetcherMap?.get(cacheKey);
+          if (cached && cached.kind === 'ok' && cached.epoch === cacheEpoch && Date.now() - cached.timestamp < ACCURACY_CACHE_TTL) {
+            evaluation = cached.evaluation;
+          } else {
+            await yieldToEventLoop();
+            evaluation = runModelEvaluation(item.bars, item.ticker, item.source);
+            if (cacheEpoch === epochAtStart) {
+              let map = perFetcherEvalCache.get(fetchHistory);
+              if (!map) {
+                map = new Map();
+                perFetcherEvalCache.set(fetchHistory, map);
+              }
+              map.set(cacheKey, { kind: 'ok', evaluation, timestamp: Date.now(), epoch: epochAtStart });
+              if (item.bars.length >= MIN_CONFORMAL_BARS) {
+                map.set(`${item.ticker}:${MIN_CONFORMAL_BARS}`, { kind: 'ok', evaluation, timestamp: Date.now(), epoch: epochAtStart });
+              }
+            }
+          }
+          evaluatedResults.push(evaluation);
+        }
+      }
+
+      if (i + batchSize < targetUniverse.length) {
+        await new Promise(r => setTimeout(r, 15));
       }
     }
 
-    if (i + batchSize < targetUniverse.length) {
-      await new Promise(r => setTimeout(r, 50));
+    if (evaluatedResults.length === 0) {
+      return {
+        available: false,
+        reason: 'No live market data',
+        dataSource: 'none',
+        evaluatedAssetsCount: 0
+      };
+    }
+
+    const sampleCount = evaluatedResults.length;
+    const priceAccs = evaluatedResults.map(r => r.priceAccuracy ?? (100 - r.mape));
+    const naivePriceAccs = evaluatedResults.map(r => r.naivePriceAccuracy ?? (100 - (r.naiveMape ?? r.mape)));
+    const mapes = evaluatedResults.map(r => r.mape);
+    const naiveMapes = evaluatedResults.map(r => r.naiveMape ?? r.mape);
+    const maeSkills = evaluatedResults.map(r => r.maeSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
+    const rmseSkills = evaluatedResults.map(r => r.rmseSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
+    const beatNaiveCount = evaluatedResults.filter(r => r.naiveMae !== undefined && r.mae < r.naiveMae).length;
+
+    const avgMape = mapes.reduce((a, b) => a + b, 0) / sampleCount;
+    const avgNaiveMape = naiveMapes.reduce((a, b) => a + b, 0) / sampleCount;
+    const avgMae = evaluatedResults.reduce((a, b) => a + b.mae, 0) / sampleCount;
+    const avgRmse = evaluatedResults.reduce((a, b) => a + b.rmse, 0) / sampleCount;
+    const avgDir = evaluatedResults.reduce((a, b) => a + b.directionalAccuracy, 0) / sampleCount;
+    const covs = evaluatedResults.map(r => r.conformalCoverage).filter((v): v is number => v !== undefined);
+    const avgCov = covs.length > 0 ? covs.reduce((a, b) => a + b, 0) / covs.length : 0;
+
+    const priceAccuracyPct = 100 - avgMape;
+    const naivePriceAccuracyPct = 100 - avgNaiveMape;
+    const maeSkillVsNaive = maeSkills.length > 0 ? maeSkills.reduce((a, b) => a + b, 0) / maeSkills.length : null;
+    const rmseSkillVsNaive = rmseSkills.length > 0 ? rmseSkills.reduce((a, b) => a + b, 0) / rmseSkills.length : null;
+
+    const result: ProjectWideAccuracyResult = {
+      available: true,
+      dataSource: 'live',
+      priceAccuracyPct,
+      naivePriceAccuracyPct,
+      mape: avgMape,
+      naiveMape: avgNaiveMape,
+      maeSkillVsNaive,
+      rmseSkillVsNaive,
+      beatNaiveCount,
+      beatNaiveLabel: `${beatNaiveCount} of ${sampleCount}`,
+      evaluatedAssetsCount: sampleCount,
+      mae: avgMae,
+      rmse: avgRmse,
+      directionalAccuracyPct: Number(avgDir.toFixed(1)),
+      conformalCoveragePct: Number(avgCov.toFixed(1)),
+      summaryStats: {
+        priceAccuracy: computeSummaryStats(priceAccs),
+        naivePriceAccuracy: computeSummaryStats(naivePriceAccs),
+        mape: computeSummaryStats(mapes),
+        naiveMape: computeSummaryStats(naiveMapes),
+        maeSkillVsNaive: maeSkills.length > 0 ? computeSummaryStats(maeSkills, 6) : null,
+        rmseSkillVsNaive: rmseSkills.length > 0 ? computeSummaryStats(rmseSkills, 6) : null
+      },
+      benchmark: 'AlphaQuant Ensemble + Split-Conformal Calibration',
+      evaluatedAt: new Date().toISOString()
+    };
+
+    if (cacheEpoch === epochAtStart) {
+      cachedProjectWideAccuracy = { data: result, timestamp: Date.now(), epoch: epochAtStart };
+    }
+    return result;
+  })();
+
+  inFlightProjectWide.set(fetchHistory, { epoch: epochAtStart, promise: runPromise });
+  try {
+    return await runPromise;
+  } finally {
+    const cur = inFlightProjectWide.get(fetchHistory);
+    if (cur?.promise === runPromise) {
+      inFlightProjectWide.delete(fetchHistory);
     }
   }
-
-  if (evaluatedResults.length === 0) {
-    return {
-      available: false,
-      reason: 'No live market data',
-      dataSource: 'none',
-      evaluatedAssetsCount: 0
-    };
-  }
-
-  const sampleCount = evaluatedResults.length;
-  const priceAccs = evaluatedResults.map(r => r.priceAccuracy ?? (100 - r.mape));
-  const naivePriceAccs = evaluatedResults.map(r => r.naivePriceAccuracy ?? (100 - (r.naiveMape ?? r.mape)));
-  const mapes = evaluatedResults.map(r => r.mape);
-  const naiveMapes = evaluatedResults.map(r => r.naiveMape ?? r.mape);
-  const maeSkills = evaluatedResults.map(r => r.maeSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
-  const rmseSkills = evaluatedResults.map(r => r.rmseSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
-  const beatNaiveCount = evaluatedResults.filter(r => r.naiveMae !== undefined && r.mae < r.naiveMae).length;
-
-  const avgMape = mapes.reduce((a, b) => a + b, 0) / sampleCount;
-  const avgNaiveMape = naiveMapes.reduce((a, b) => a + b, 0) / sampleCount;
-  const avgMae = evaluatedResults.reduce((a, b) => a + b.mae, 0) / sampleCount;
-  const avgRmse = evaluatedResults.reduce((a, b) => a + b.rmse, 0) / sampleCount;
-  const avgDir = evaluatedResults.reduce((a, b) => a + b.directionalAccuracy, 0) / sampleCount;
-  const covs = evaluatedResults.map(r => r.conformalCoverage).filter((v): v is number => v !== undefined);
-  const avgCov = covs.length > 0 ? covs.reduce((a, b) => a + b, 0) / covs.length : 0;
-
-  const priceAccuracyPct = 100 - avgMape;
-  const naivePriceAccuracyPct = 100 - avgNaiveMape;
-  const maeSkillVsNaive = maeSkills.length > 0 ? maeSkills.reduce((a, b) => a + b, 0) / maeSkills.length : null;
-  const rmseSkillVsNaive = rmseSkills.length > 0 ? rmseSkills.reduce((a, b) => a + b, 0) / rmseSkills.length : null;
-
-  const result: ProjectWideAccuracyResult = {
-    available: true,
-    dataSource: 'live',
-    priceAccuracyPct,
-    naivePriceAccuracyPct,
-    mape: avgMape,
-    naiveMape: avgNaiveMape,
-    maeSkillVsNaive,
-    rmseSkillVsNaive,
-    beatNaiveCount,
-    beatNaiveLabel: `${beatNaiveCount} of ${sampleCount}`,
-    evaluatedAssetsCount: sampleCount,
-    mae: avgMae,
-    rmse: avgRmse,
-    directionalAccuracyPct: Number(avgDir.toFixed(1)),
-    conformalCoveragePct: Number(avgCov.toFixed(1)),
-    summaryStats: {
-      priceAccuracy: computeSummaryStats(priceAccs),
-      naivePriceAccuracy: computeSummaryStats(naivePriceAccs),
-      mape: computeSummaryStats(mapes),
-      naiveMape: computeSummaryStats(naiveMapes),
-      maeSkillVsNaive: maeSkills.length > 0 ? computeSummaryStats(maeSkills, 6) : null,
-      rmseSkillVsNaive: rmseSkills.length > 0 ? computeSummaryStats(rmseSkills, 6) : null
-    },
-    benchmark: 'AlphaQuant Ensemble + Split-Conformal Calibration',
-    evaluatedAt: new Date().toISOString()
-  };
-
-  cachedProjectWideAccuracy = { data: result, timestamp: Date.now() };
-  return result;
 }
 
-let cachedAggregateEvaluation: { data: ModelEvaluation; timestamp: number } | null = null;
+let cachedAggregateEvaluation: { data: ModelEvaluation; timestamp: number; epoch: number } | null = null;
 const AGGREGATE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 export async function runAggregateModelEvaluation(
   fetchHistory: HistoryWithSourceFetcher,
   catalog: Array<{ ticker: string; name: string }>
 ): Promise<ModelEvaluation | UnavailableEvaluation> {
-  if (cachedAggregateEvaluation && Date.now() - cachedAggregateEvaluation.timestamp < AGGREGATE_CACHE_TTL) {
+  if (
+    cachedAggregateEvaluation &&
+    cachedAggregateEvaluation.epoch === cacheEpoch &&
+    Date.now() - cachedAggregateEvaluation.timestamp < AGGREGATE_CACHE_TTL
+  ) {
     return cachedAggregateEvaluation.data;
   }
 
-  // Evaluate ALL unique tickers in the catalog using >= 2 years of daily history, concurrency-limited
-  const universe = Array.from(new Set(catalog.map(c => c.ticker)));
-  const evaluations: ModelEvaluation[] = [];
-  const skippedTickers: SkippedTickerRecord[] = [];
-  const batchSize = 5;
-
-  for (let i = 0; i < universe.length; i += batchSize) {
-    const batch = universe.slice(i, i + batchSize);
-    const batchOutcomes = await Promise.all(
-      batch.map(async (t): Promise<{ evaluation?: ModelEvaluation; skipped?: SkippedTickerRecord }> => {
-        try {
-          const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
-          if (source === 'synthetic') {
-            return { skipped: { ticker: t, reason: 'synthetic_data', barsCount: bars?.length ?? 0 } };
-          }
-          if (!bars || bars.length < MIN_CONFORMAL_BARS) {
-            return { skipped: { ticker: t, reason: 'insufficient_history', barsCount: bars?.length ?? 0 } };
-          }
-          return { evaluation: runModelEvaluation(bars, t, source) };
-        } catch {
-          return { skipped: { ticker: t, reason: 'fetch_error' } };
-        }
-      })
-    );
-
-    for (const outcome of batchOutcomes) {
-      if (outcome.evaluation) evaluations.push(outcome.evaluation);
-      if (outcome.skipped) skippedTickers.push(outcome.skipped);
-    }
-
-    if (i + batchSize < universe.length) {
-      await new Promise(r => setTimeout(r, 50));
-    }
+  const existingInFlight = inFlightAggregate.get(fetchHistory);
+  if (existingInFlight && existingInFlight.epoch === cacheEpoch) {
+    return existingInFlight.promise;
   }
+
+  const epochAtStart = cacheEpoch;
+  const runPromise = (async (): Promise<ModelEvaluation | UnavailableEvaluation> => {
+    // Evaluate ALL unique tickers in the catalog using >= 2 years of daily history, concurrency-limited
+    const universe = Array.from(new Set(catalog.map(c => c.ticker)));
+    const evaluations: ModelEvaluation[] = [];
+    const skippedTickers: SkippedTickerRecord[] = [];
+    const batchSize = 5;
+
+    for (let i = 0; i < universe.length; i += batchSize) {
+      const batch = universe.slice(i, i + batchSize);
+      const batchFetched = await Promise.all(
+        batch.map(async (t) => {
+          const fetcherMap = perFetcherEvalCache.get(fetchHistory);
+          const cached = fetcherMap?.get(`${t}:${MIN_CONFORMAL_BARS}`);
+          if (cached && cached.epoch === cacheEpoch && Date.now() - cached.timestamp < ACCURACY_CACHE_TTL) {
+            return cached.kind === 'ok'
+              ? { ticker: t, evaluation: cached.evaluation }
+              : { ticker: t, skipped: cached.skipped };
+          }
+          try {
+            const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
+            if (source === 'synthetic') {
+              return { ticker: t, skipped: { ticker: t, reason: 'synthetic_data' as const, barsCount: bars?.length ?? 0 } };
+            }
+            if (!bars || bars.length < MIN_CONFORMAL_BARS) {
+              return { ticker: t, skipped: { ticker: t, reason: 'insufficient_history' as const, barsCount: bars?.length ?? 0 } };
+            }
+            return { ticker: t, bars, source };
+          } catch {
+            return { ticker: t, skipped: { ticker: t, reason: 'fetch_error' as const } };
+          }
+        })
+      );
+
+      for (const item of batchFetched) {
+        if ('evaluation' in item && item.evaluation) {
+          evaluations.push(item.evaluation);
+        } else if ('skipped' in item && item.skipped) {
+          skippedTickers.push(item.skipped);
+        } else if ('bars' in item && item.bars) {
+          await yieldToEventLoop();
+          const evaluation = runModelEvaluation(item.bars, item.ticker, item.source);
+          evaluations.push(evaluation);
+          if (cacheEpoch === epochAtStart) {
+            let map = perFetcherEvalCache.get(fetchHistory);
+            if (!map) {
+              map = new Map();
+              perFetcherEvalCache.set(fetchHistory, map);
+            }
+            map.set(`${item.ticker}:${MIN_CONFORMAL_BARS}`, { kind: 'ok', evaluation, timestamp: Date.now(), epoch: epochAtStart });
+          }
+        }
+      }
+
+      if (i + batchSize < universe.length) {
+        await new Promise(r => setTimeout(r, 15));
+      }
+    }
 
   if (evaluations.length === 0) {
     return {
@@ -1380,8 +1535,21 @@ export async function runAggregateModelEvaluation(
     featureImportance: aggregatedFeatureImportance
   };
 
-  cachedAggregateEvaluation = { data: result, timestamp: Date.now() };
-  return result;
+    if (cacheEpoch === epochAtStart) {
+      cachedAggregateEvaluation = { data: result, timestamp: Date.now(), epoch: epochAtStart };
+    }
+    return result;
+  })();
+
+  inFlightAggregate.set(fetchHistory, { epoch: epochAtStart, promise: runPromise });
+  try {
+    return await runPromise;
+  } finally {
+    const cur = inFlightAggregate.get(fetchHistory);
+    if (cur?.promise === runPromise) {
+      inFlightAggregate.delete(fetchHistory);
+    }
+  }
 }
 
 export function buildModelAuditPayload(

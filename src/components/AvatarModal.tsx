@@ -72,6 +72,16 @@ export const AvatarModal: React.FC<AvatarModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Lock body scroll only while modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Filtered avatars
@@ -162,14 +172,6 @@ export const AvatarModal: React.FC<AvatarModalProps> = ({
     onSaveAvatar(undefined);
     onClose();
   };
-
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
 
   return typeof document !== 'undefined' ? createPortal(
     <div

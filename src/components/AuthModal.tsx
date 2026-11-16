@@ -31,6 +31,15 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, defaultMode = 'log
     }
   }, [defaultMode, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,16 +74,6 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, defaultMode = 'log
     }
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   return typeof document !== 'undefined' ? createPortal(
     <div

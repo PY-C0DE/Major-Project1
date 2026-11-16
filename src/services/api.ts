@@ -85,11 +85,57 @@ export function searchLocalCatalog(query: string): StockSearchResult[] {
   return results;
 }
 
+function isLikelyHtmlPayload(text: string, contentType: string): boolean {
+  const trimmed = text.trimStart().toLowerCase();
+  return (
+    contentType.includes('text/html') ||
+    trimmed.startsWith('<!doctype') ||
+    trimmed.startsWith('<html') ||
+    trimmed.startsWith('<')
+  );
+}
+
+async function parseJsonTextSafe<T>(res: Response): Promise<{ ok: true; data: T } | { ok: false; isHtml: boolean; rawText: string }> {
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  const text = await res.text();
+  if (!text || !text.trim()) {
+    return { ok: false, isHtml: false, rawText: '' };
+  }
+  if (isLikelyHtmlPayload(text, contentType)) {
+    return { ok: false, isHtml: true, rawText: text };
+  }
+  try {
+    return { ok: true, data: JSON.parse(text) as T };
+  } catch {
+    return { ok: false, isHtml: false, rawText: text };
+  }
+}
+
+async function parseApiResponse<T>(res: Response, fallbackError: string): Promise<T> {
+  const parsed = await parseJsonTextSafe<T & { error?: string }>(res);
+  if (!res.ok) {
+    if (parsed.ok && parsed.data && typeof parsed.data === 'object' && typeof parsed.data.error === 'string' && parsed.data.error) {
+      throw new Error(parsed.data.error);
+    }
+    if (!parsed.ok && parsed.isHtml) {
+      throw new Error(`${fallbackError} (server returned HTML status ${res.status})`);
+    }
+    throw new Error(fallbackError);
+  }
+  if (!parsed.ok) {
+    if (parsed.isHtml) {
+      throw new Error(`${fallbackError} (server is warming up or returned HTML instead of JSON)`);
+    }
+    throw new Error(`${fallbackError} (invalid JSON response)`);
+  }
+  return parsed.data;
+}
+
 async function safeParseJson<T>(res: Response, fallbackValue: T): Promise<T> {
   try {
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      return (await res.json()) as T;
+    const parsed = await parseJsonTextSafe<T>(res);
+    if (parsed.ok) {
+      return parsed.data;
     }
   } catch {
     // ignore parse error and use fallback
@@ -116,11 +162,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, password })
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to register');
-    }
-    return res.json();
+    return parseApiResponse<{ user: UserProfile; token: string }>(res, 'Failed to register');
   },
 
   async login(email: string, password: string): Promise<{ user: UserProfile; token: string }> {
@@ -129,19 +171,14 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Invalid email or password');
-    }
-    return res.json();
+    return parseApiResponse<{ user: UserProfile; token: string }>(res, 'Invalid email or password');
   },
 
   async getCurrentUser(): Promise<UserProfile> {
     const res = await fetch(`${API_BASE}/auth/me`, {
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Unauthenticated');
-    return res.json();
+    return parseApiResponse<UserProfile>(res, 'Unauthenticated');
   },
 
   async updateProfile(updates: Partial<UserProfile>): Promise<UserProfile> {
@@ -150,11 +187,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(updates)
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to update profile');
-    }
-    return res.json();
+    return parseApiResponse<UserProfile>(res, 'Failed to update profile');
   },
 
   async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
@@ -163,22 +196,17 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ currentPassword, newPassword })
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to change password');
-    }
-    return res.json();
+    return parseApiResponse<{ success: boolean; message: string }>(res, 'Failed to change password');
   },
 
   // Stocks & History
   async searchStocks(query: string): Promise<StockSearchResult[]> {
     try {
       const res = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(query)}`);
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          return data;
+      if (res.ok) {
+        const parsed = await parseJsonTextSafe<StockSearchResult[]>(res);
+        if (parsed.ok && Array.isArray(parsed.data) && parsed.data.length > 0) {
+          return parsed.data;
         }
       }
     } catch {
@@ -189,22 +217,19 @@ export const api = {
 
   async getQuote(ticker: string): Promise<StockQuote> {
     const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(ticker)}`);
-    if (!res.ok) throw new Error(`Failed to fetch quote for ${ticker}`);
-    return res.json();
+    return parseApiResponse<StockQuote>(res, `Failed to fetch quote for ${ticker}`);
   },
 
   async getHistory(ticker: string, days = 250): Promise<HistoricalBar[]> {
     const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(ticker)}/history?days=${days}`);
-    if (!res.ok) throw new Error(`Failed to fetch history for ${ticker}`);
-    return res.json();
+    return parseApiResponse<HistoricalBar[]>(res, `Failed to fetch history for ${ticker}`);
   },
 
   async getSeasonality(ticker: string, days = 1250, month?: number): Promise<SeasonalityReport> {
     const query = new URLSearchParams({ days: days.toString() });
     if (month !== undefined) query.set('month', month.toString());
     const res = await fetch(`${API_BASE}/stocks/${encodeURIComponent(ticker)}/seasonality?${query.toString()}`);
-    if (!res.ok) throw new Error(`Failed to fetch seasonality report for ${ticker}`);
-    return res.json();
+    return parseApiResponse<SeasonalityReport>(res, `Failed to fetch seasonality report for ${ticker}`);
   },
 
   async getFxRates(): Promise<{
@@ -215,23 +240,30 @@ export const api = {
     source: string;
   }> {
     const res = await fetch(`${API_BASE}/fx/rates`);
-    if (!res.ok) throw new Error('Failed to fetch live FX rates');
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch live FX rates');
   },
 
   // Core USPs
   async getConformalPrediction(ticker: string, horizon = 1, confidence = DEFAULT_CONFORMAL_CONFIDENCE): Promise<ConformalPredictionResponse> {
     const res = await fetch(`${API_BASE}/predictions/${encodeURIComponent(ticker)}?horizon=${horizon}&confidence=${confidence}`);
-    if (res.status === 422 || res.status === 503) {
-      try {
-        const body = await res.json();
-        if (body && body.available === false) {
-          return body as UnavailableConformalPrediction;
-        }
-      } catch {}
+    const parsed = await parseJsonTextSafe<ConformalPredictionResponse & { error?: string }>(res);
+    if (!parsed.ok) {
+      if (parsed.isHtml || res.status === 422 || res.status === 503) {
+        return {
+          available: false,
+          reason: 'Live prediction service temporarily unavailable or warming up',
+          ticker
+        };
+      }
+      throw new Error('Failed to compute conformal prediction');
     }
-    if (!res.ok) throw new Error('Failed to compute conformal prediction');
-    return res.json();
+    if ((res.status === 422 || res.status === 503) && parsed.data && (parsed.data as any).available === false) {
+      return parsed.data as UnavailableConformalPrediction;
+    }
+    if (!res.ok) {
+      throw new Error((parsed.data as any)?.error || 'Failed to compute conformal prediction');
+    }
+    return parsed.data;
   },
 
   async recordPrediction(ticker: string): Promise<ConformalPredictionResponse> {
@@ -240,53 +272,55 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ ticker })
     });
-    if (res.status === 422 || res.status === 503) {
-      try {
-        const body = await res.json();
-        if (body && body.available === false) {
-          return body as UnavailableConformalPrediction;
-        }
-      } catch {}
+    const parsed = await parseJsonTextSafe<ConformalPredictionResponse & { error?: string }>(res);
+    if (!parsed.ok) {
+      if (parsed.isHtml && (res.status === 502 || res.status === 503 || res.status === 504)) {
+        return {
+          available: false,
+          reason: 'Live prediction service temporarily unavailable',
+          ticker
+        };
+      }
+      throw new Error('Failed to record prediction');
     }
-    if (!res.ok) throw new Error('Failed to record prediction');
-    return res.json();
+    if ((res.status === 422 || res.status === 503) && parsed.data && (parsed.data as any).available === false) {
+      return parsed.data as UnavailableConformalPrediction;
+    }
+    if (!res.ok) {
+      throw new Error((parsed.data as any)?.error || 'Failed to record prediction');
+    }
+    return parsed.data;
   },
 
   async getStrategyBacktest(ticker = 'RELIANCE.NS', strategy = 'sentiment_multimodal'): Promise<StrategyPerformanceMetrics> {
     const res = await fetch(`${API_BASE}/strategy/backtest?ticker=${encodeURIComponent(ticker)}&strategy=${encodeURIComponent(strategy)}`);
-    if (!res.ok) throw new Error('Failed to run strategy backtest');
-    return res.json();
+    return parseApiResponse<StrategyPerformanceMetrics>(res, 'Failed to run strategy backtest');
   },
 
   async getMarketCorrelation(): Promise<CorrelationMatrixData> {
     const res = await fetch(`${API_BASE}/markets/correlation`);
-    if (!res.ok) throw new Error('Failed to load market correlation matrix');
-    return res.json();
+    return parseApiResponse<CorrelationMatrixData>(res, 'Failed to load market correlation matrix');
   },
 
-  async getPredictionHistory(ticker?: string) {
+  async getPredictionHistory(ticker?: string): Promise<any[]> {
     const url = ticker ? `${API_BASE}/predictions/history?ticker=${encodeURIComponent(ticker)}` : `${API_BASE}/predictions/history`;
     const res = await fetch(url, { headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Failed to get prediction history');
-    return res.json();
+    return parseApiResponse<any[]>(res, 'Failed to get prediction history');
   },
 
   async getMarketRegime(ticker: string): Promise<MarketRegime> {
     const res = await fetch(`${API_BASE}/regime/${encodeURIComponent(ticker)}`);
-    if (!res.ok) throw new Error('Failed to compute market regime');
-    return res.json();
+    return parseApiResponse<MarketRegime>(res, 'Failed to compute market regime');
   },
 
   async getConceptDrift(ticker: string): Promise<ConceptDriftResult> {
     const res = await fetch(`${API_BASE}/drift/${encodeURIComponent(ticker)}`);
-    if (!res.ok) throw new Error('Failed to run drift detection');
-    return res.json();
+    return parseApiResponse<ConceptDriftResult>(res, 'Failed to run drift detection');
   },
 
   async getMarketHeadlines(): Promise<NewsItem[]> {
     const res = await fetch(`${API_BASE}/news`);
-    if (!res.ok) throw new Error('Failed to fetch market headlines');
-    return res.json();
+    return parseApiResponse<NewsItem[]>(res, 'Failed to fetch market headlines');
   },
 
   async getMarketIndices(options?: { markets?: string[]; symbols?: string[] }): Promise<MarketIndexItem[]> {
@@ -299,32 +333,40 @@ export const api = {
     }
     const qs = params.toString();
     const res = await fetch(`${API_BASE}/markets/indices${qs ? `?${qs}` : ''}`);
-    if (!res.ok) throw new Error('Failed to fetch market indices');
-    return res.json();
+    return parseApiResponse<MarketIndexItem[]>(res, 'Failed to fetch market indices');
   },
 
   async getQuickWatch(): Promise<QuickWatchItem[]> {
     const res = await fetch(`${API_BASE}/stocks/quick-watch`);
-    if (!res.ok) throw new Error('Failed to fetch quick watch stocks');
-    return res.json();
+    return parseApiResponse<QuickWatchItem[]>(res, 'Failed to fetch quick watch stocks');
   },
 
   async getNews(ticker: string): Promise<NewsItem[]> {
     const res = await fetch(`${API_BASE}/news/${encodeURIComponent(ticker)}`);
-    if (!res.ok) throw new Error('Failed to fetch news');
-    return res.json();
+    return parseApiResponse<NewsItem[]>(res, 'Failed to fetch news');
   },
 
   async getSentiment(ticker: string): Promise<SentimentScoreResult> {
     const res = await fetch(`${API_BASE}/sentiment/${encodeURIComponent(ticker)}`);
-    if (!res.ok) throw new Error('Failed to compute sentiment');
-    return res.json();
+    return parseApiResponse<SentimentScoreResult>(res, 'Failed to compute sentiment');
   },
 
   async getModelMetrics(ticker = 'RELIANCE.NS'): Promise<ModelEvaluation> {
     const res = await fetch(`${API_BASE}/model/metrics?ticker=${encodeURIComponent(ticker)}`);
+    const parsed = await parseJsonTextSafe<ModelEvaluation & { reason?: string; dataSource?: string; error?: string }>(res);
+    if (!parsed.ok) {
+      if (parsed.isHtml || res.status === 503 || res.status === 504 || res.status === 502) {
+        return {
+          available: false,
+          reason: 'Evaluation service warming up or no live market data available',
+          dataSource: 'none',
+          evaluatedAssetsCount: 0
+        } as ModelEvaluation;
+      }
+      throw new Error('Failed to fetch model metrics');
+    }
     if (res.status === 503) {
-      const errBody = await res.json().catch(() => ({}));
+      const errBody = parsed.data || {};
       return {
         available: false,
         reason: errBody.reason || 'No live market data',
@@ -332,14 +374,26 @@ export const api = {
         evaluatedAssetsCount: 0
       } as ModelEvaluation;
     }
-    if (!res.ok) throw new Error('Failed to fetch model metrics');
-    return res.json();
+    if (!res.ok) throw new Error(parsed.data?.error || 'Failed to fetch model metrics');
+    return parsed.data;
   },
 
   async getModelAudit(ticker = 'ALL'): Promise<ModelAuditResponse> {
     const res = await fetch(`${API_BASE}/model/audit?ticker=${encodeURIComponent(ticker)}`);
+    const parsed = await parseJsonTextSafe<ModelAuditResponse & { reason?: string; dataSource?: string; error?: string }>(res);
+    if (!parsed.ok) {
+      if (parsed.isHtml || res.status === 503 || res.status === 504 || res.status === 502) {
+        return {
+          available: false,
+          reason: 'Evaluation service warming up or no live market data available',
+          dataSource: 'none',
+          evaluatedAssetsCount: 0
+        };
+      }
+      throw new Error('Failed to fetch model audit');
+    }
     if (res.status === 503) {
-      const errBody = await res.json().catch(() => ({}));
+      const errBody = parsed.data || {};
       return {
         available: false,
         reason: errBody.reason || 'No live market data',
@@ -347,21 +401,19 @@ export const api = {
         evaluatedAssetsCount: 0
       };
     }
-    if (!res.ok) throw new Error('Failed to fetch model audit');
-    return res.json();
+    if (!res.ok) throw new Error(parsed.data?.error || 'Failed to fetch model audit');
+    return parsed.data;
   },
 
   async getModelHealth() {
     const res = await fetch(`${API_BASE}/model/health`);
-    if (!res.ok) throw new Error('Failed to fetch model health');
-    return res.json();
+    return parseApiResponse(res, 'Failed to fetch model health');
   },
 
   // Portfolio CRUD
   async getPortfolio(): Promise<PortfolioHolding[]> {
     const res = await fetch(`${API_BASE}/portfolio`, { headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Failed to get portfolio');
-    return res.json();
+    return parseApiResponse<PortfolioHolding[]>(res, 'Failed to get portfolio');
   },
 
   async addHolding(data: { ticker: string; quantity: number; avgBuyPrice: number; purchaseDate?: string; notes?: string }): Promise<PortfolioHolding> {
@@ -370,8 +422,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Failed to add holding');
-    return res.json();
+    return parseApiResponse<PortfolioHolding>(res, 'Failed to add holding');
   },
 
   async importPortfolioBatch(payload: Array<{ ticker: string; quantity: number; avgBuyPrice: number; purchaseDate?: string; notes?: string }> | { holdings: any[]; mode?: string }): Promise<{ success: boolean; importedCount: number; holdings: PortfolioHolding[] }> {
@@ -381,8 +432,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(bodyData)
     });
-    if (!res.ok) throw new Error('Failed to import portfolio batch');
-    return res.json();
+    return parseApiResponse<{ success: boolean; importedCount: number; holdings: PortfolioHolding[] }>(res, 'Failed to import portfolio batch');
   },
 
   async deleteHolding(id: string) {
@@ -390,8 +440,7 @@ export const api = {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Failed to delete holding');
-    return res.json();
+    return parseApiResponse(res, 'Failed to delete holding');
   },
 
   async optimizePortfolio(
@@ -410,8 +459,7 @@ export const api = {
         minWeightFloor: options?.minWeightFloor
       })
     });
-    if (!res.ok) throw new Error('Failed to compute portfolio optimization');
-    return res.json();
+    return parseApiResponse<PortfolioOptimizationResult>(res, 'Failed to compute portfolio optimization');
   },
 
   async getPortfolioCorrelation(
@@ -423,8 +471,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ holdings, lookbackDays })
     });
-    if (!res.ok) throw new Error('Failed to compute portfolio correlation matrix');
-    return res.json();
+    return parseApiResponse(res, 'Failed to compute portfolio correlation matrix');
   },
 
   async applyRebalance(suggestions: RebalanceSuggestion[]): Promise<{ success: boolean; message: string; holdings: PortfolioHolding[] }> {
@@ -433,21 +480,18 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ suggestions })
     });
-    if (!res.ok) throw new Error('Failed to apply portfolio rebalancing');
-    return res.json();
+    return parseApiResponse<{ success: boolean; message: string; holdings: PortfolioHolding[] }>(res, 'Failed to apply portfolio rebalancing');
   },
 
   // Watchlist CRUD
   async getWatchlist(): Promise<WatchlistItem[]> {
     const res = await fetch(`${API_BASE}/watchlist`, { headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Failed to get watchlist');
-    return res.json();
+    return parseApiResponse<WatchlistItem[]>(res, 'Failed to get watchlist');
   },
 
   async getWatchlistPulse(): Promise<WatchlistPulseResponse> {
     const res = await fetch(`${API_BASE}/watchlist/pulse`, { headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Failed to get watchlist pulse');
-    return res.json();
+    return parseApiResponse<WatchlistPulseResponse>(res, 'Failed to get watchlist pulse');
   },
 
   async addToWatchlist(ticker: string) {
@@ -456,8 +500,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ ticker })
     });
-    if (!res.ok) throw new Error('Failed to add to watchlist');
-    return res.json();
+    return parseApiResponse(res, 'Failed to add to watchlist');
   },
 
   async removeFromWatchlist(ticker: string) {
@@ -465,8 +508,7 @@ export const api = {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Failed to remove from watchlist');
-    return res.json();
+    return parseApiResponse(res, 'Failed to remove from watchlist');
   },
 
   // Earnings Calendar & Surprise Patterns
@@ -474,15 +516,13 @@ export const api = {
     const res = await fetch(`${API_BASE}/earnings/calendar?watchlistOnly=${watchlistOnly}`, {
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Failed to fetch earnings calendar data');
-    return res.json();
+    return parseApiResponse<EarningsCalendarItem[]>(res, 'Failed to fetch earnings calendar data');
   },
 
   // Alerts CRUD
   async getAlerts(): Promise<AlertRule[]> {
     const res = await fetch(`${API_BASE}/alerts`, { headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Failed to get alerts');
-    return res.json();
+    return parseApiResponse<AlertRule[]>(res, 'Failed to get alerts');
   },
 
   async createAlert(data: Partial<AlertRule> & {
@@ -495,8 +535,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error('Failed to create alert');
-    return res.json();
+    return parseApiResponse<AlertRule>(res, 'Failed to create alert');
   },
 
   async toggleAlert(id: string, enabled: boolean): Promise<AlertRule> {
@@ -505,8 +544,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ enabled })
     });
-    if (!res.ok) throw new Error('Failed to update alert');
-    return res.json();
+    return parseApiResponse<AlertRule>(res, 'Failed to update alert');
   },
 
   async deleteAlert(id: string) {
@@ -514,8 +552,7 @@ export const api = {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Failed to delete alert');
-    return res.json();
+    return parseApiResponse(res, 'Failed to delete alert');
   },
 
   // Customer Support Chatbot
@@ -544,17 +581,12 @@ export const api = {
         return localFallback;
       }
 
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        return localFallback;
-      }
-
-      const data = await res.json();
+      const data = await safeParseJson<{ reply?: string; suggestedActions?: Array<{ label: string; action: string }> } | null>(res, null);
       if (!data || typeof data.reply !== 'string') {
         return localFallback;
       }
 
-      return data;
+      return { reply: data.reply, suggestedActions: data.suggestedActions };
     } catch {
       // Return instant local domain knowledge response if network fails
       return localFallback;
@@ -564,8 +596,28 @@ export const api = {
   // Project-Wide Price Accuracy Metric obtained by analyzing model predictions
   async getProjectWideAccuracy(): Promise<ProjectWideAccuracyResult> {
     const res = await fetch(`${API_BASE}/metrics/accuracy`);
+    const parsed = await parseJsonTextSafe<ProjectWideAccuracyResult & { reason?: string; dataSource?: string; error?: string }>(res);
+    if (!parsed.ok) {
+      if (parsed.isHtml || res.status === 503 || res.status === 504 || res.status === 502) {
+        return {
+          available: false,
+          reason: 'Evaluation service warming up or temporarily unavailable',
+          dataSource: 'none',
+          evaluatedAssetsCount: 0,
+          priceAccuracyPct: 0,
+          mape: 0,
+          mae: 0,
+          rmse: 0,
+          directionalAccuracyPct: 0,
+          conformalCoveragePct: 0,
+          benchmark: '',
+          evaluatedAt: new Date().toISOString()
+        };
+      }
+      throw new Error('Failed to load project-wide accuracy metrics');
+    }
     if (res.status === 503) {
-      const errBody = await res.json().catch(() => ({}));
+      const errBody = parsed.data || {};
       return {
         available: false,
         reason: errBody.reason || 'No live market data',
@@ -581,25 +633,19 @@ export const api = {
         evaluatedAt: new Date().toISOString()
       };
     }
-    if (!res.ok) throw new Error('Failed to load project-wide accuracy metrics');
-    return res.json();
+    if (!res.ok) throw new Error(parsed.data?.error || 'Failed to load project-wide accuracy metrics');
+    return parsed.data;
   },
 
   // Options Chains & Greeks Analytics
   async getOptionsChain(ticker: string, days = 30): Promise<OptionsChainResponse> {
     const res = await fetch(`${API_BASE}/options/${encodeURIComponent(ticker)}?days=${days}`);
-    if (!res.ok) {
-      throw new Error(`Failed to load options analytics for ${ticker}`);
-    }
-    return res.json();
+    return parseApiResponse<OptionsChainResponse>(res, `Failed to load options analytics for ${ticker}`);
   },
 
   async getOptionsSurface(ticker: string): Promise<VolatilitySurfaceData> {
     const res = await fetch(`${API_BASE}/options/${encodeURIComponent(ticker)}/surface`);
-    if (!res.ok) {
-      throw new Error(`Failed to load volatility surface for ${ticker}`);
-    }
-    return res.json();
+    return parseApiResponse<VolatilitySurfaceData>(res, `Failed to load volatility surface for ${ticker}`);
   },
 
 
@@ -613,10 +659,7 @@ export const api = {
     const res = await fetch(
       `${API_BASE}/backtest/automated?ticker=${encodeURIComponent(ticker)}&strategy=${strategy}&days=${days}&capital=${capital}`
     );
-    if (!res.ok) {
-      throw new Error(`Failed to run automated backtest for ${ticker}`);
-    }
-    return res.json();
+    return parseApiResponse<AutomatedBacktestResult>(res, `Failed to run automated backtest for ${ticker}`);
   },
 
   // Direct Broker Router (Alpaca Paper Gateway)
@@ -624,24 +667,21 @@ export const api = {
     const res = await fetch(`${API_BASE}/broker/account`, {
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Failed to fetch broker account.');
-    return res.json();
+    return parseApiResponse<BrokerAccount>(res, 'Failed to fetch broker account.');
   },
 
   async getBrokerOrders(): Promise<BrokerOrder[]> {
     const res = await fetch(`${API_BASE}/broker/orders`, {
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Failed to fetch broker orders.');
-    return res.json();
+    return parseApiResponse<BrokerOrder[]>(res, 'Failed to fetch broker orders.');
   },
 
   async getBrokerTrades(): Promise<BrokerTrade[]> {
     const res = await fetch(`${API_BASE}/broker/trades`, {
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Failed to fetch broker trades.');
-    return res.json();
+    return parseApiResponse<BrokerTrade[]>(res, 'Failed to fetch broker trades.');
   },
 
   async placeBrokerOrder(orderParams: {
@@ -659,11 +699,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(orderParams)
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to execute broker order.');
-    }
-    return res.json();
+    return parseApiResponse<BrokerOrder>(res, 'Failed to execute broker order.');
   },
 
   async cancelBrokerOrder(orderId: string): Promise<{ success: boolean; message: string }> {
@@ -671,8 +707,7 @@ export const api = {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
-    if (!res.ok) throw new Error('Failed to cancel order.');
-    return res.json();
+    return parseApiResponse<{ success: boolean; message: string }>(res, 'Failed to cancel order.');
   },
 
   // Social Sentiment & Copy-Trade Feeds
@@ -680,13 +715,13 @@ export const api = {
     const url = ticker ? `${API_BASE}/social/feed?ticker=${encodeURIComponent(ticker)}` : `${API_BASE}/social/feed`;
     const res = await fetch(url);
     if (!res.ok) return [];
-    return res.json();
+    return safeParseJson<SocialDiscussion[]>(res, []);
   },
 
   async getVerifiedTraders(): Promise<VerifiedTrader[]> {
     const res = await fetch(`${API_BASE}/social/traders`);
     if (!res.ok) return [];
-    return res.json();
+    return safeParseJson<VerifiedTrader[]>(res, []);
   },
 
   async copyTraderPortfolio(traderId: string): Promise<{ success: boolean; message: string; trader: VerifiedTrader }> {
@@ -695,11 +730,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ traderId })
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to copy trader portfolio.');
-    }
-    return res.json();
+    return parseApiResponse<{ success: boolean; message: string; trader: VerifiedTrader }>(res, 'Failed to copy trader portfolio.');
   },
 
   // Floating AlphaBot Copilot
@@ -713,7 +744,11 @@ export const api = {
       if (!res.ok) {
         return { reply: 'Unable to reach AlphaBot Copilot service right now.' };
       }
-      return res.json();
+      const parsed = await parseJsonTextSafe<{ reply?: string }>(res);
+      if (!parsed.ok || typeof parsed.data?.reply !== 'string') {
+        return { reply: 'Unable to reach AlphaBot Copilot service right now.' };
+      }
+      return { reply: parsed.data.reply };
     } catch {
       return { reply: 'AlphaBot Copilot offline. Please verify network connection.' };
     }

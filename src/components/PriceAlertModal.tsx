@@ -81,6 +81,15 @@ export const PriceAlertModal: React.FC<Props> = ({
     }
   }, [isOpen, ticker, currentPrice]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleCreateAlert = async (e: React.FormEvent) => {
@@ -151,16 +160,6 @@ export const PriceAlertModal: React.FC<Props> = ({
     ? (((targetNum - currentPrice) / currentPrice) * 100).toFixed(1)
     : null;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   return typeof document !== 'undefined' ? createPortal(
     <div
