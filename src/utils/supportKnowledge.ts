@@ -93,13 +93,13 @@ Financial time-series data is non-stationary—patterns that worked in historica
   }
 
   if (p.includes('sentiment') || p.includes('news') || p.includes('credibility') || p.includes('fact')) {
-    return `### Keyword Sentiment Lexicon & Domain Credibility 📰
+    return `### FinBERT Transformer Sentiment (with Lexicon Fallback) & Domain Credibility 📰
 
 AlphaQuant AI combines price analysis with structured news intelligence:
 
-1. **Keyword Sentiment Lexicon**: Scans financial headlines and summaries for positive and negative market-specific keywords to produce a normalized tone polarity.
-2. **Domain Credibility Engine**: Weights reporting from established institutional publishers (Reuters, Bloomberg, WSJ, Financial Times, Economic Times) higher than unverified social sources.
-3. **Signal Integration**: Sentiment indicators provide supplemental context alongside quantitative technical factors.`;
+1. **FinBERT Transformer Model**: Live headlines are scored asynchronously in Node using \`@xenova/transformers\` (\`Xenova/finbert\`), outputting calibrated positive, neutral, and negative probabilities plus net polarity \`p_pos - p_neg\`.
+2. **Keyword Lexicon Fallback**: If FinBERT fails to load or times out, headlines automatically fall back to the curated financial keyword lexicon (\`sentimentSource: "lexicon"\`).
+3. **Domain Credibility Engine**: Weights reporting from established institutional publishers (Reuters, Bloomberg, WSJ, Financial Times, Economic Times) higher than unverified social sources.`;
   }
 
   if (p.includes('watchlist') || p.includes('wishlist') || p.includes('favorite') || p.includes('add stock')) {

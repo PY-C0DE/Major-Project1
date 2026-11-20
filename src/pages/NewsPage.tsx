@@ -59,7 +59,7 @@ export const NewsPage: React.FC<{ onSelectTicker: (ticker: string) => void }> = 
             Financial News Intelligence & Fact Verification
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Real-time corporate disclosures analyzed via keyword sentiment lexicon with credibility grading.
+            Real-time corporate disclosures scored via FinBERT Transformer with keyword lexicon fallback &amp; credibility grading.
           </p>
         </div>
 
@@ -179,6 +179,16 @@ export const NewsPage: React.FC<{ onSelectTicker: (ticker: string) => void }> = 
                 <span className="px-2 py-0.5 rounded bg-cyan-50 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/40 flex items-center gap-1 font-sans font-medium">
                   <CheckCircle2 className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
                   <span>{item.factCheckStatus}</span>
+                </span>
+
+                <span
+                  className={`px-2 py-0.5 rounded font-bold border ${
+                    item.sentimentSource === 'finbert'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  {item.sentimentSource === 'finbert' ? 'FINBERT' : 'LEXICON'}
                 </span>
 
                 <span className="text-slate-400 dark:text-slate-500 ml-auto">

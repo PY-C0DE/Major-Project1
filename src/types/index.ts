@@ -84,6 +84,8 @@ export interface FeatureContribution {
   description: string;
 }
 
+export type SentimentSource = 'finbert' | 'lexicon';
+
 export interface LiveNewsMeta {
   isLive: boolean;
   liveArticlesCount: number;
@@ -91,6 +93,7 @@ export interface LiveNewsMeta {
   liveSentimentScore: number;
   baselineSentimentScore: number;
   blendedSentimentScore: number;
+  sentimentSource?: SentimentSource | 'mixed';
   topLiveHeadline?: string;
   topLiveSource?: string;
   newsDriftImpactPct: number;
@@ -225,6 +228,7 @@ export interface NewsItem {
   verificationScore: number; // 0 to 1
   sourceCredibility: number; // 0 to 1
   isLive?: boolean;
+  sentimentSource?: SentimentSource;
 }
 
 export interface MarketIndexItem {
@@ -269,7 +273,106 @@ export interface SentimentScoreResult {
   topLiveHeadline?: string;
   topLiveSource?: string;
   modelUsed: string;
+  sentimentSource?: SentimentSource | 'mixed';
   lastUpdated: string;
+}
+
+export interface DailySentimentRecord {
+  ticker: string;
+  date: string; // YYYY-MM-DD (UTC)
+  credibilityWeightedNetScore: number; // [-1, 1]
+  articleCount: number; // strictly > 0; zero-article days are omitted (missing)
+  sentimentSource: SentimentSource | 'mixed';
+  updatedAt: string;
+}
+
+export interface LagCorrelationPoint {
+  lag: number; // k in -5..+5 (sentiment at t vs return at t+k)
+  n: number;
+  nDates?: number;
+  pearsonR: number | null;
+  pearsonPValue: number | null;
+  pearsonCI95: [number, number] | null;
+  spearmanRho: number | null;
+  spearmanPValue: number | null;
+  spearmanCI95: [number, number] | null;
+  bonferroniPValue: number | null;
+  bhQValue: number | null;
+  significant: boolean;
+}
+
+export interface LagAnalysisResult {
+  available: boolean;
+  reason?: string;
+  ticker: string;
+  scope: 'single' | 'pooled';
+  totalStoredSentimentDays: number;
+  maxPairedDays: number;
+  minRequiredPairs: number;
+  bootstrapResamples: number;
+  bootstrapSeed: number;
+  multipleTestingMethod: 'benjamini-hochberg-and-bonferroni';
+  alpha: number;
+  lags: LagCorrelationPoint[];
+  bestLag: {
+    lag: number;
+    spearmanRho: number | null;
+    pearsonR: number | null;
+    bhQValue: number | null;
+    bonferroniPValue: number | null;
+    significant: boolean;
+  } | null;
+  hasSignificantLag: boolean;
+  interpretationNote: string;
+  evaluatedTickersCount?: number;
+  totalObservationsAcrossLags?: number;
+  computedAt: string;
+}
+
+export interface SentimentAblationArmMetrics {
+  name: 'Price-Only (24 Factors)' | 'Price + Causal Sentiment (28 Factors)';
+  samples: number;
+  distinctDates: number;
+  assetsCount: number;
+  mae: number;
+  rmse: number;
+  mape: number;
+  priceAccuracy: number;
+  naiveMape: number;
+  naivePriceAccuracy: number;
+  maeSkillVsNaive: number | null;
+  rmseSkillVsNaive: number | null;
+  directionalAccuracy: number;
+  alwaysUpAccuracy: number;
+  directionalEdgeVsAlwaysUpPct: number;
+  directionalEdgeVsAlwaysUp95CI: [number, number];
+  conformalCoverage: number;
+}
+
+export interface SentimentAblationResult {
+  available: boolean;
+  reason?: string;
+  minRequiredSamples: number;
+  minRequiredDates: number;
+  matchedSamples: number;
+  matchedDates: number;
+  matchedAssetsCount: number;
+  bootstrapResamples: number;
+  bootstrapSeed: number;
+  priceOnly?: SentimentAblationArmMetrics;
+  pricePlusSentiment?: SentimentAblationArmMetrics;
+  pairedDiff?: {
+    priceAccuracyDiffPct: number; // plusSentiment - priceOnly
+    maeSkillDiff: number;
+    maeDiff: number; // plusSentiment - priceOnly (negative means lower error)
+    maeDiffCI95: [number, number];
+    directionalAccuracyDiffPp: number;
+    directionalAccuracyDiffCI95: [number, number];
+    conformalCoverageDiffPp: number;
+    statisticallySignificantImprovement: boolean;
+  };
+  interpretationNote: string;
+  evaluatedAt: string;
 }
 
 export interface FeatureDriftItem {
@@ -447,6 +550,7 @@ export interface ModelEvaluation {
   totalAssetsCount?: number;
   isAllAssets?: boolean;
   featureImportance?: ModelFeatureImportance[];
+  sentimentAblation?: SentimentAblationResult;
 }
 
 export interface UnavailableEvaluation {
@@ -482,6 +586,7 @@ export interface ModelAuditResponse {
   directionalStats?: PooledDirectionalStats;
   comparison?: ModelComparisonItem[];
   assets?: AssetBreakdownItem[];
+  sentimentAblation?: SentimentAblationResult;
 }
 
 export interface PortfolioHolding {
@@ -595,6 +700,7 @@ export interface WatchlistPulseItem {
   sentimentScore: number;
   confidence: number;
   isLive: boolean;
+  sentimentSource?: SentimentSource;
   price?: number;
   changePercent?: number;
 }

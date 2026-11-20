@@ -20,7 +20,10 @@ import {
   DailyHitRecord,
   SkippedTickerRecord,
   AuditEvaluationParams,
-  ModelAuditResponse
+  ModelAuditResponse,
+  DailySentimentRecord,
+  SentimentAblationResult,
+  SentimentAblationArmMetrics
 } from '../../types';
 import type { HistoricalDataResult } from '../services/stockService';
 import {
@@ -31,7 +34,8 @@ import {
   predictEnsembleReturn,
   estimateBarDailyVol,
   FeatureVolumeCache,
-  FEATURE_COUNT
+  FEATURE_COUNT,
+  buildCausalSentimentFeatureMatrix
 } from './modelEngine';
 import { MIN_CONFORMAL_BARS } from './conformal';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
@@ -1167,16 +1171,431 @@ export async function computeProjectWideAccuracy(
   }
 }
 
-let cachedAggregateEvaluation: { data: ModelEvaluation; timestamp: number; epoch: number } | null = null;
+export const ABLATION_MIN_MATCHED_SAMPLES = 30;
+export const ABLATION_MIN_MATCHED_DATES = 10;
+export const ABLATION_BOOTSTRAP_RESAMPLES = BOOTSTRAP_RESAMPLES;
+export const ABLATION_BOOTSTRAP_SEED = BOOTSTRAP_SEED + 73;
+
+interface MatchedAblationObs {
+  ticker: string;
+  date: string;
+  actual: number;
+  prevClose: number;
+  predA: number;
+  lowerA: number;
+  upperA: number;
+  predB: number;
+  lowerB: number;
+  upperB: number;
+}
+
+function summarizeAblationArm(
+  name: SentimentAblationArmMetrics['name'],
+  obs: MatchedAblationObs[],
+  seed: number,
+  resamples: number
+): SentimentAblationArmMetrics {
+  const n = obs.length;
+  const distinctDates = new Set(obs.map((o) => o.date)).size;
+  const assetsCount = new Set(obs.map((o) => o.ticker)).size;
+  const isArmB = name === 'Price + Causal Sentiment (28 Factors)';
+
+  let sumAbs = 0;
+  let sumSq = 0;
+  let sumPct = 0;
+  let sumNaiveAbs = 0;
+  let sumNaiveSq = 0;
+  let sumNaivePct = 0;
+  let dirHits = 0;
+  let alwaysUpHits = 0;
+  let inBounds = 0;
+
+  const seriesByTicker = new Map<string, DailyHitRecord[]>();
+
+  for (const o of obs) {
+    const pred = isArmB ? o.predB : o.predA;
+    const lo = isArmB ? o.lowerB : o.lowerA;
+    const hi = isArmB ? o.upperB : o.upperA;
+
+    const absErr = Math.abs(o.actual - pred);
+    sumAbs += absErr;
+    sumSq += absErr * absErr;
+    sumPct += o.actual !== 0 ? absErr / o.actual : 0;
+
+    const nAbs = Math.abs(o.actual - o.prevClose);
+    sumNaiveAbs += nAbs;
+    sumNaiveSq += nAbs * nAbs;
+    sumNaivePct += o.actual !== 0 ? nAbs / o.actual : 0;
+
+    const actualDiff = o.actual - o.prevClose;
+    const predDiff = pred - o.prevClose;
+    const modelHit = (actualDiff >= 0 && predDiff >= 0) || (actualDiff < 0 && predDiff < 0);
+    const upHit = actualDiff > 0;
+    if (modelHit) dirHits++;
+    if (upHit) alwaysUpHits++;
+    if (o.actual >= lo && o.actual <= hi) inBounds++;
+
+    const list = seriesByTicker.get(o.ticker) || [];
+    list.push({ date: o.date, modelHit, alwaysUpHit: upHit });
+    seriesByTicker.set(o.ticker, list);
+  }
+
+  const mae = sumAbs / n;
+  const rmse = Math.sqrt(sumSq / n);
+  const mape = (sumPct / n) * 100;
+  const priceAccuracy = 100 - mape;
+  const naiveMae = sumNaiveAbs / n;
+  const naiveRmse = Math.sqrt(sumNaiveSq / n);
+  const naiveMape = (sumNaivePct / n) * 100;
+  const naivePriceAccuracy = 100 - naiveMape;
+  const maeSkillVsNaive = naiveMae > 0 ? 1 - mae / naiveMae : null;
+  const rmseSkillVsNaive = naiveRmse > 0 ? 1 - rmse / naiveRmse : null;
+  const directionalAccuracy = Number(((dirHits / n) * 100).toFixed(1));
+  const alwaysUpAccuracy = Number(((alwaysUpHits / n) * 100).toFixed(1));
+  const conformalCoverage = Number(((inBounds / n) * 100).toFixed(1));
+
+  const boot = computeDateClusteredBootstrapCI(Array.from(seriesByTicker.values()), seed, resamples);
+
+  return {
+    name,
+    samples: n,
+    distinctDates,
+    assetsCount,
+    mae: Number(mae.toFixed(4)),
+    rmse: Number(rmse.toFixed(4)),
+    mape: Number(mape.toFixed(4)),
+    priceAccuracy: Number(priceAccuracy.toFixed(4)),
+    naiveMape: Number(naiveMape.toFixed(4)),
+    naivePriceAccuracy: Number(naivePriceAccuracy.toFixed(4)),
+    maeSkillVsNaive: maeSkillVsNaive !== null ? Number(maeSkillVsNaive.toFixed(6)) : null,
+    rmseSkillVsNaive: rmseSkillVsNaive !== null ? Number(rmseSkillVsNaive.toFixed(6)) : null,
+    directionalAccuracy,
+    alwaysUpAccuracy,
+    directionalEdgeVsAlwaysUpPct: boot.pointEdgePct,
+    directionalEdgeVsAlwaysUp95CI: boot.ci95,
+    conformalCoverage
+  };
+}
+
+/**
+ * Paired Walk-Forward Ablation Evaluator (Task 4):
+ * Compares Arm (a) Price-Only (24 factors) vs Arm (b) Price + Causal Sentiment (28 factors)
+ * on the identical out-of-sample subset where strictly causal sentiment (date < predictionDate) exists.
+ */
+export function evaluateSentimentAblationOnSeries(
+  assets: Array<{
+    ticker: string;
+    bars: ComputedBar[];
+    sentimentRecords: DailySentimentRecord[];
+  }>,
+  options?: {
+    minMatchedSamples?: number;
+    minMatchedDates?: number;
+    resamples?: number;
+    seed?: number;
+  }
+): SentimentAblationResult {
+  const minRequiredSamples = options?.minMatchedSamples ?? ABLATION_MIN_MATCHED_SAMPLES;
+  const minRequiredDates = options?.minMatchedDates ?? ABLATION_MIN_MATCHED_DATES;
+  const resamples = options?.resamples ?? ABLATION_BOOTSTRAP_RESAMPLES;
+  const seed = options?.seed ?? ABLATION_BOOTSTRAP_SEED;
+  const nowIso = new Date().toISOString();
+
+  const matchedObs: MatchedAblationObs[] = [];
+
+  for (const asset of assets) {
+    const bars = asset.bars;
+    const records = asset.sentimentRecords;
+    if (!bars || bars.length < MIN_CONFORMAL_BARS || !records || records.length === 0) continue;
+
+    const n = bars.length;
+    const testSize = n >= 260
+      ? Math.min(Math.max(120, Math.floor(n * 0.3)), n - 100)
+      : Math.min(45, Math.floor(n * 0.3));
+    const testStartIndex = n - testSize;
+    if (testStartIndex < 25) continue;
+
+    const sentimentMatrix = buildCausalSentimentFeatureMatrix(bars, records);
+    let hasMatchedTestBar = false;
+    for (let i = testStartIndex; i < n; i++) {
+      if (sentimentMatrix[i - 1]?.[3] === 0) {
+        hasMatchedTestBar = true;
+        break;
+      }
+    }
+    if (!hasMatchedTestBar) continue;
+
+    const featureCache: FeatureVolumeCache = {
+      features: new Array(n),
+      vols: new Array(n)
+    };
+    const getVol = (idx: number): number => {
+      let v = featureCache.vols[idx];
+      if (v === undefined) {
+        v = estimateBarDailyVol(bars, idx);
+        featureCache.vols[idx] = v;
+      }
+      return v;
+    };
+
+    const trainStart = Math.min(25, Math.floor(testStartIndex * 0.2));
+    const calibWindow = Math.min(50, Math.max(15, testStartIndex - trainStart - 25));
+    const calibStart = Math.max(trainStart + 25, testStartIndex - calibWindow);
+
+    // Calibrate conformal quantiles independently for Arm A (price-only) and Arm B (price + causal sentiment)
+    let calibModelA = fitEnsembleModel(bars, trainStart, Math.max(trainStart + 15, calibStart - 1), 1, featureCache);
+    let calibModelB = fitEnsembleModel(
+      bars,
+      trainStart,
+      Math.max(trainStart + 15, calibStart - 1),
+      1,
+      featureCache,
+      sentimentMatrix
+    );
+    const calibScoresA: number[] = [];
+    const calibScoresB: number[] = [];
+
+    for (let i = calibStart; i < testStartIndex; i++) {
+      if ((i - calibStart) > 0 && (i - calibStart) % 10 === 0) {
+        calibModelA = fitEnsembleModel(bars, trainStart, i - 1, 1, featureCache);
+        calibModelB = fitEnsembleModel(bars, trainStart, i - 1, 1, featureCache, sentimentMatrix);
+      }
+      const prevClose = bars[i - 1].close;
+      const blendedVol = getVol(i - 1);
+      const retA = predictEnsembleReturn(calibModelA, bars, i - 1, true, featureCache);
+      const retB = predictEnsembleReturn(calibModelB, bars, i - 1, true, featureCache, sentimentMatrix[i - 1]);
+      calibScoresA.push(Math.abs(bars[i].close - prevClose * (1 + retA)) / (prevClose * blendedVol));
+      calibScoresB.push(Math.abs(bars[i].close - prevClose * (1 + retB)) / (prevClose * blendedVol));
+    }
+
+    calibScoresA.sort((a, b) => a - b);
+    calibScoresB.sort((a, b) => a - b);
+    const alpha = 1 - DEFAULT_CONFORMAL_CONFIDENCE;
+    const qIdxA = calibScoresA.length > 0
+      ? Math.min(calibScoresA.length - 1, Math.max(0, Math.ceil((calibScoresA.length + 1) * (1 - alpha)) - 1))
+      : 0;
+    const qIdxB = calibScoresB.length > 0
+      ? Math.min(calibScoresB.length - 1, Math.max(0, Math.ceil((calibScoresB.length + 1) * (1 - alpha)) - 1))
+      : 0;
+    const qNormA = calibScoresA.length > 0 ? calibScoresA[qIdxA] : 1.645;
+    const qNormB = calibScoresB.length > 0 ? calibScoresB[qIdxB] : 1.645;
+
+    let activeModelA = fitEnsembleModel(bars, trainStart, testStartIndex - 1, 1, featureCache);
+    let activeModelB = fitEnsembleModel(bars, trainStart, testStartIndex - 1, 1, featureCache, sentimentMatrix);
+    let onlineBiasA = 0;
+    let onlineBiasB = 0;
+    const retrainInterval = testSize >= 120 ? 10 : 5;
+
+    for (let i = testStartIndex; i < n; i++) {
+      if ((i - testStartIndex) > 0 && (i - testStartIndex) % retrainInterval === 0) {
+        activeModelA = fitEnsembleModel(bars, trainStart, i - 1, 1, featureCache);
+        activeModelB = fitEnsembleModel(bars, trainStart, i - 1, 1, featureCache, sentimentMatrix);
+      }
+
+      const prevClose = bars[i - 1].close;
+      const actual = bars[i].close;
+      const realizedReturn = prevClose > 0 ? (actual - prevClose) / prevClose : 0;
+
+      const baseRetA = predictEnsembleReturn(activeModelA, bars, i - 1, false, featureCache);
+      const predA = Number((prevClose * (1 + baseRetA + 0.02 * onlineBiasA)).toFixed(2));
+      onlineBiasA = Math.max(-0.008, Math.min(0.008, 0.85 * onlineBiasA + 0.15 * (realizedReturn - baseRetA)));
+
+      const baseRetB = predictEnsembleReturn(activeModelB, bars, i - 1, false, featureCache, sentimentMatrix[i - 1]);
+      const predB = Number((prevClose * (1 + baseRetB + 0.02 * onlineBiasB)).toFixed(2));
+      onlineBiasB = Math.max(-0.008, Math.min(0.008, 0.85 * onlineBiasB + 0.15 * (realizedReturn - baseRetB)));
+
+      // Strictly evaluate only bars where causal prior-day sentiment was non-missing (missingIndicator === 0)
+      if (sentimentMatrix[i - 1]?.[3] === 0) {
+        const blendedVol = getVol(i - 1);
+        const bandA = qNormA * prevClose * blendedVol;
+        const bandB = qNormB * prevClose * blendedVol;
+        matchedObs.push({
+          ticker: asset.ticker,
+          date: bars[i].date,
+          actual,
+          prevClose,
+          predA,
+          lowerA: Number((predA - bandA).toFixed(2)),
+          upperA: Number((predA + bandA).toFixed(2)),
+          predB,
+          lowerB: Number((predB - bandB).toFixed(2)),
+          upperB: Number((predB + bandB).toFixed(2))
+        });
+      }
+    }
+  }
+
+  const matchedSamples = matchedObs.length;
+  const distinctDateSet = new Set(matchedObs.map((o) => o.date));
+  const matchedDates = distinctDateSet.size;
+  const matchedAssetsCount = new Set(matchedObs.map((o) => o.ticker)).size;
+
+  if (matchedSamples < minRequiredSamples || matchedDates < minRequiredDates) {
+    const reason =
+      `Insufficient historical daily sentiment overlapping out-of-sample test bars: collected ${matchedSamples} matched observation(s) across ${matchedDates} trading date(s) and ${matchedAssetsCount} asset(s); minimum ${minRequiredSamples} samples across ${minRequiredDates} dates required for paired ablation.`;
+    return {
+      available: false,
+      reason,
+      minRequiredSamples,
+      minRequiredDates,
+      matchedSamples,
+      matchedDates,
+      matchedAssetsCount,
+      bootstrapResamples: resamples,
+      bootstrapSeed: seed,
+      interpretationNote: reason,
+      evaluatedAt: nowIso
+    };
+  }
+
+  const priceOnly = summarizeAblationArm('Price-Only (24 Factors)', matchedObs, seed, resamples);
+  const pricePlusSentiment = summarizeAblationArm('Price + Causal Sentiment (28 Factors)', matchedObs, seed, resamples);
+
+  // Paired date-clustered bootstrap for (Arm B - Arm A) differences
+  const clusterMap = new Map<
+    string,
+    { n: number; sumAbsDiff: number; sumDirDiff: number }
+  >();
+  for (const o of matchedObs) {
+    const errA = Math.abs(o.actual - o.predA);
+    const errB = Math.abs(o.actual - o.predB);
+    const actualDiff = o.actual - o.prevClose;
+    const hitA = (actualDiff >= 0 && o.predA - o.prevClose >= 0) || (actualDiff < 0 && o.predA - o.prevClose < 0) ? 1 : 0;
+    const hitB = (actualDiff >= 0 && o.predB - o.prevClose >= 0) || (actualDiff < 0 && o.predB - o.prevClose < 0) ? 1 : 0;
+
+    const existing = clusterMap.get(o.date) || { n: 0, sumAbsDiff: 0, sumDirDiff: 0 };
+    existing.n += 1;
+    existing.sumAbsDiff += errB - errA;
+    existing.sumDirDiff += hitB - hitA;
+    clusterMap.set(o.date, existing);
+  }
+
+  const clusterDates = Array.from(clusterMap.keys()).sort();
+  const clusters = clusterDates.map((d) => clusterMap.get(d)!);
+  const rng = mulberry32(seed + 19);
+  const bootMaeDiffs: number[] = new Array(resamples);
+  const bootDirDiffs: number[] = new Array(resamples);
+
+  for (let r = 0; r < resamples; r++) {
+    let sN = 0;
+    let sMaeDiff = 0;
+    let sDirDiff = 0;
+    for (let k = 0; k < clusters.length; k++) {
+      const c = clusters[Math.floor(rng() * clusters.length)];
+      sN += c.n;
+      sMaeDiff += c.sumAbsDiff;
+      sDirDiff += c.sumDirDiff;
+    }
+    bootMaeDiffs[r] = sN > 0 ? sMaeDiff / sN : 0;
+    bootDirDiffs[r] = sN > 0 ? (sDirDiff / sN) * 100 : 0;
+  }
+  bootMaeDiffs.sort((a, b) => a - b);
+  bootDirDiffs.sort((a, b) => a - b);
+
+  const maeDiffCI95: [number, number] = [
+    Number(linearQuantile(bootMaeDiffs, 0.025).toFixed(4)),
+    Number(linearQuantile(bootMaeDiffs, 0.975).toFixed(4))
+  ];
+  const directionalAccuracyDiffCI95: [number, number] = [
+    Number(linearQuantile(bootDirDiffs, 0.025).toFixed(2)),
+    Number(linearQuantile(bootDirDiffs, 0.975).toFixed(2))
+  ];
+
+  const maeDiff = Number((pricePlusSentiment.mae - priceOnly.mae).toFixed(4));
+  const priceAccuracyDiffPct = Number((pricePlusSentiment.priceAccuracy - priceOnly.priceAccuracy).toFixed(4));
+  const maeSkillDiff = Number(
+    ((pricePlusSentiment.maeSkillVsNaive ?? 0) - (priceOnly.maeSkillVsNaive ?? 0)).toFixed(6)
+  );
+  const directionalAccuracyDiffPp = Number(
+    (pricePlusSentiment.directionalAccuracy - priceOnly.directionalAccuracy).toFixed(2)
+  );
+  const conformalCoverageDiffPp = Number(
+    (pricePlusSentiment.conformalCoverage - priceOnly.conformalCoverage).toFixed(2)
+  );
+
+  // Only claim statistical improvement when paired 95% CI strictly excludes 0 in the favorable direction
+  const maeImprovedSignificantly = maeDiffCI95[1] < 0;
+  const dirImprovedSignificantly = directionalAccuracyDiffCI95[0] > 0;
+  const statisticallySignificantImprovement = maeImprovedSignificantly || dirImprovedSignificantly;
+
+  const interpretationNote = statisticallySignificantImprovement
+    ? `Adding strictly causal FinBERT/lexicon daily sentiment yielded a statistically significant improvement (paired 95% CI excludes 0: ΔMAE [${maeDiffCI95[0]}, ${maeDiffCI95[1]}], ΔDirAcc [${directionalAccuracyDiffCI95[0]}, ${directionalAccuracyDiffCI95[1]}]pp across ${matchedSamples} matched observations).`
+    : `No statistically significant improvement over price-only baseline: paired 95% bootstrap confidence intervals cross zero (ΔMAE 95% CI [${maeDiffCI95[0]}, ${maeDiffCI95[1]}], ΔDirAcc 95% CI [${directionalAccuracyDiffCI95[0]}, ${directionalAccuracyDiffCI95[1]}]pp across ${matchedSamples} matched observations).`;
+
+  return {
+    available: true,
+    minRequiredSamples,
+    minRequiredDates,
+    matchedSamples,
+    matchedDates,
+    matchedAssetsCount,
+    bootstrapResamples: resamples,
+    bootstrapSeed: seed,
+    priceOnly,
+    pricePlusSentiment,
+    pairedDiff: {
+      priceAccuracyDiffPct,
+      maeSkillDiff,
+      maeDiff,
+      maeDiffCI95,
+      directionalAccuracyDiffPp,
+      directionalAccuracyDiffCI95,
+      conformalCoverageDiffPp,
+      statisticallySignificantImprovement
+    },
+    interpretationNote,
+    evaluatedAt: nowIso
+  };
+}
+
+export async function runSentimentAblationEvaluation(
+  fetchHistory: HistoryWithSourceFetcher,
+  catalog: Array<{ ticker: string; name: string }>,
+  sentimentByTicker: Map<string, DailySentimentRecord[]>,
+  options?: { minMatchedSamples?: number; minMatchedDates?: number; resamples?: number; seed?: number }
+): Promise<SentimentAblationResult> {
+  const candidates = catalog
+    .map((c) => c.ticker)
+    .filter((t) => (sentimentByTicker.get(t.toUpperCase())?.length ?? 0) > 0);
+
+  const assetInputs: Array<{ ticker: string; bars: ComputedBar[]; sentimentRecords: DailySentimentRecord[] }> = [];
+  for (const t of candidates) {
+    try {
+      const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
+      if (source === 'synthetic' || !bars || bars.length < MIN_CONFORMAL_BARS) continue;
+      assetInputs.push({
+        ticker: t,
+        bars,
+        sentimentRecords: sentimentByTicker.get(t.toUpperCase()) || []
+      });
+      await yieldToEventLoop();
+    } catch {
+      // skip ticker on fetch error
+    }
+  }
+
+  return evaluateSentimentAblationOnSeries(assetInputs, options);
+}
+
+let cachedAggregateEvaluation: { data: ModelEvaluation; sentimentSig: string; timestamp: number; epoch: number } | null = null;
 const AGGREGATE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 export async function runAggregateModelEvaluation(
   fetchHistory: HistoryWithSourceFetcher,
-  catalog: Array<{ ticker: string; name: string }>
+  catalog: Array<{ ticker: string; name: string }>,
+  options?: { sentimentByTicker?: Map<string, DailySentimentRecord[]> }
 ): Promise<ModelEvaluation | UnavailableEvaluation> {
+  const sentimentSig = options?.sentimentByTicker
+    ? Array.from(options.sentimentByTicker.entries())
+        .map(([k, v]) => `${k}:${v.length}:${v[v.length - 1]?.date || ''}`)
+        .sort()
+        .join('|')
+    : '';
+
   if (
     cachedAggregateEvaluation &&
     cachedAggregateEvaluation.epoch === cacheEpoch &&
+    cachedAggregateEvaluation.sentimentSig === sentimentSig &&
     Date.now() - cachedAggregateEvaluation.timestamp < AGGREGATE_CACHE_TTL
   ) {
     return cachedAggregateEvaluation.data;
@@ -1193,6 +1612,7 @@ export async function runAggregateModelEvaluation(
     const universe = Array.from(new Set(catalog.map(c => c.ticker)));
     const evaluations: ModelEvaluation[] = [];
     const skippedTickers: SkippedTickerRecord[] = [];
+    const barsByTicker = new Map<string, ComputedBar[]>();
     const batchSize = 5;
 
     for (let i = 0; i < universe.length; i += batchSize) {
@@ -1227,6 +1647,7 @@ export async function runAggregateModelEvaluation(
         } else if ('skipped' in item && item.skipped) {
           skippedTickers.push(item.skipped);
         } else if ('bars' in item && item.bars) {
+          barsByTicker.set(item.ticker, item.bars);
           await yieldToEventLoop();
           const evaluation = runModelEvaluation(item.bars, item.ticker, item.source);
           evaluations.push(evaluation);
@@ -1496,6 +1917,31 @@ export async function runAggregateModelEvaluation(
   });
   aggregatedFeatureImportance.sort((a, b) => b.importance - a.importance);
 
+  let sentimentAblation: SentimentAblationResult | undefined;
+  if (options?.sentimentByTicker) {
+    const ablationInputs: Array<{ ticker: string; bars: ComputedBar[]; sentimentRecords: DailySentimentRecord[] }> = [];
+    for (const e of evaluations) {
+      const sentRecs = options.sentimentByTicker.get(e.ticker.toUpperCase()) || [];
+      if (sentRecs.length === 0) continue;
+      let bars = barsByTicker.get(e.ticker);
+      if (!bars) {
+        try {
+          const fetched = normalizeFetchedHistory(await fetchHistory(e.ticker, EVALUATION_HISTORY_DAYS));
+          if (fetched.source !== 'synthetic' && fetched.bars.length >= MIN_CONFORMAL_BARS) {
+            bars = fetched.bars;
+          }
+        } catch {
+          bars = undefined;
+        }
+      }
+      if (bars) {
+        ablationInputs.push({ ticker: e.ticker, bars, sentimentRecords: sentRecs });
+        await yieldToEventLoop();
+      }
+    }
+    sentimentAblation = evaluateSentimentAblationOnSeries(ablationInputs);
+  }
+
   const result: ModelEvaluation = {
     available: true,
     dataSource: 'live',
@@ -1532,11 +1978,12 @@ export async function runAggregateModelEvaluation(
     comparison: aggregatedComparison,
     backtestSeries: compositeBacktestSeries,
     assetBreakdown,
-    featureImportance: aggregatedFeatureImportance
+    featureImportance: aggregatedFeatureImportance,
+    ...(sentimentAblation ? { sentimentAblation } : {})
   };
 
     if (cacheEpoch === epochAtStart) {
-      cachedAggregateEvaluation = { data: result, timestamp: Date.now(), epoch: epochAtStart };
+      cachedAggregateEvaluation = { data: result, sentimentSig, timestamp: Date.now(), epoch: epochAtStart };
     }
     return result;
   })();
@@ -1595,7 +2042,8 @@ export function buildModelAuditPayload(
       summaryStats: evaluation.summaryStats,
       directionalStats: evaluation.directionalStats,
       comparison: evaluation.comparison,
-      assets: evaluation.assetBreakdown || []
+      assets: evaluation.assetBreakdown || [],
+      ...(evaluation.sentimentAblation ? { sentimentAblation: evaluation.sentimentAblation } : {})
     };
   }
 

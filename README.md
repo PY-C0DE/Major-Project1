@@ -8,7 +8,7 @@ A full-stack quantitative financial intelligence platform engineered for **globa
 
 ## 1. Primary Motive: Auditable Global Stock Price Prediction
 
-Conventional forecasting systems output single deterministic price targets that hide volatility regimes and tail risk. **AlphaQuant AI** pairs the **AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)** with **split-conformal prediction intervals**, a **rule-based trend/volatility regime classifier**, a **keyword financial-sentiment lexicon with publisher-credibility weighting**, and a **two-sample KS drift test** across global equity exchanges.
+Conventional forecasting systems output single deterministic price targets that hide volatility regimes and tail risk. **AlphaQuant AI** pairs the **AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)** with **split-conformal prediction intervals**, a **rule-based trend/volatility regime classifier**, **FinBERT transformer sentiment with keyword lexicon fallback and publisher-credibility weighting**, **sentiment-price lag analysis**, and a **two-sample KS drift test** across global equity exchanges.
 
 ### AlphaQuant Ensemble (`src/server/math/modelEngine.ts`)
 Every forecast prevents lookahead bias by fitting scalers, trees, regression weights, and meta-stacking coefficients exclusively on historical training bars prior to the target index:
@@ -35,17 +35,18 @@ $$\hat{C}(X_{n+1}) = [\hat{y}_{n+1} - \hat{q}_{1-\alpha}, \; \hat{y}_{n+1} + \ha
 - **Rule-Based Classification**: Classifies sessions using rolling 20-day return trend vs. 10/30-day realized volatility thresholds into Bullish/Bearish Low-Volatility and High-Volatility regimes.
 - **Empirical Transition Matrix & Persistence**: Tracks observed historical state transitions $P(S_t = j \mid S_{t-1} = i)$ and persistence durations, surfaced via header `RegimeIndicator` badges and regime visualizers.
 
-### USP 3 — Keyword Financial-Sentiment Lexicon & Publisher-Credibility Weighting (`nlpEngine.ts`)
-- **Keyword Financial-Sentiment Lexicon**: Scores global news headlines for bullish, neutral, and bearish polarity using a curated financial keyword lexicon (`analyzeKeywordSentiment`).
-- **Publisher-Credibility Weighting**: Weights articles by verified financial publisher credibility (Reuters, Bloomberg, WSJ, Financial Times, Economic Times, Nikkei, etc.).
-- **Classified Event Feed**: Categorizes catalysts (Earnings, Macro/Central Bank, M&A/Product, Analyst Actions, Regulatory) in a dedicated analytical module.
+### USP 3 — FinBERT Transformer Sentiment, Lexicon Fallback & Daily Lag/Ablation (`finbertSentiment.ts`, `nlpEngine.ts`, `lagAnalysis.ts`)
+- **FinBERT Transformer (`Xenova/finbert` via `@xenova/transformers`)**: Lazily loads ONNX FinBERT in the Node runtime, hashes `(headline, publisher)` with SHA-256 for inference caching, batches headlines asynchronously, and outputs normalized `{positive, neutral, negative}` probabilities and `netScore = p_pos - p_neg` in `[-1, 1]`.
+- **Automatic Lexicon Fallback & Transparency**: Falls back transparently to the deterministic keyword financial-sentiment lexicon (`analyzeKeywordSentiment`) on timeout or load failure and tags every response with `sentimentSource` (`finbert` | `lexicon` | `mixed`).
+- **Publisher-Credibility Weighting & Daily Store (`db.ts`)**: Weights articles by publisher credibility and persists daily non-zero per-ticker aggregates (`date`, `credibilityWeightedNetScore`, `articleCount`, `sentimentSource`) without overwriting past dates or zero-filling missing days.
+- **Sentiment-Price Lag Analysis & Causal Ablation**: Evaluates Pearson & Spearman cross-correlations across `k = -5..+5` with seeded date-block/date-clustered bootstrap 95% CIs and Benjamini-Hochberg / Bonferroni corrections (`lagAnalysis.ts`), alongside a paired walk-forward ablation comparing the 24-factor price-only ensemble against a strictly causal (`date < predictionDate`) 28-factor price + sentiment variant (`evaluation.ts`).
 
 ### USP 4 — Two-Sample KS Drift Test (`driftDetector.ts`)
 - Compares baseline training return distributions against rolling live inference windows:
 
 $$D_{n,m} = \sup_x |F_{1,n}(x) - F_{2,m}(x)|$$
 
-- Raises automated alerts when distributional drift crosses significance ($p < 0.05$) and widens conformal uncertainty bands to safeguard empirical coverage during structural market breaks.
+- Raises informational diagnostic alerts when distributional drift crosses significance ($p < 0.05$). Conformal uncertainty intervals continue to derive directly from split-conformal validation residuals rather than being automatically widened on drift warnings.
 
 ---
 
@@ -128,9 +129,13 @@ GET    /api/predictions/:ticker?h=N&c=N   # AlphaQuant Ensemble forecast + split
 POST   /api/predictions                   # Log forecast audit snapshot for authenticated user
 GET    /api/predictions/history           # User's saved forecast tracking history
 GET    /api/regime/:ticker                # Rule-based trend/volatility regime state, probabilities & transition matrix
-GET    /api/sentiment/:ticker             # Keyword financial-sentiment lexicon score, publisher credibility & classified events
-GET    /api/drift/:ticker                 # Two-sample KS drift test statistics & p-value
-GET    /api/model/metrics                 # Out-of-sample walk-forward accuracy & benchmark comparison
+GET    /api/sentiment/daily-stats         # Stored daily sentiment coverage statistics across tickers
+GET    /api/sentiment/lag-analysis        # Pooled cross-ticker sentiment-price lag analysis (k = -5..+5, date-clustered bootstrap)
+GET    /api/sentiment/lag-analysis/:ticker # Per-ticker sentiment-price lag analysis with BH/Bonferroni multiple-testing control
+GET    /api/sentiment/:ticker             # FinBERT/lexicon sentiment score, sentimentSource, credibility & classified events
+GET    /api/drift/:ticker                 # Two-sample KS drift test statistics & p-value (diagnostic)
+GET    /api/model/metrics                 # Out-of-sample walk-forward accuracy, benchmark comparison & causal sentiment ablation
+GET    /api/model/audit                   # Reproducible JSON audit report (parameters, skill scores, significance, ablation)
 GET    /api/metrics/accuracy              # Alias / accuracy metrics summary
 GET    /api/model/health                  # Model health & calibration status
 GET    /api/strategy/backtest             # Directional strategy (e.g. sentiment_multimodal) vs. buy-and-hold simulation
@@ -181,7 +186,7 @@ POST   /api/support/chat                  # Platform support assistant endpoint
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS v4, Vite 8, `motion` (Framer Motion v12), Recharts 3, D3.js 7, Lucide Icons.
 - **Backend**: Node.js + Express (`server.ts`) with integrated Vite middleware in development on port `3000`, `tsx`, and `yahoo-finance2`.
-- **Quantitative Math Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Regime Filtering, Cosine KNN Analogs, Split-Conformal Prediction Intervals (90% default coverage), Two-Sample KS Drift Test, Rule-Based Trend/Volatility Regime Classifier, Keyword Financial-Sentiment Lexicon, Black-Scholes Greeks, and Markowitz MVO.
+- **Quantitative & NLP Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Regime Filtering, Cosine KNN Analogs, Split-Conformal Prediction Intervals (90% default coverage), Two-Sample KS Drift Test, Rule-Based Trend/Volatility Regime Classifier, `@xenova/transformers` FinBERT sentiment (`Xenova/finbert`) with keyword lexicon fallback, Sentiment-Price Lag Analysis (`lagAnalysis.ts`), Black-Scholes Greeks, and Markowitz MVO.
 - **Security & Session**: `bcryptjs` password hashing, `jsonwebtoken` stateless JWT authentication, and API rate limiting.
 
 ---
@@ -214,12 +219,14 @@ npm run dev
 ```
 Open **http://localhost:3000** in your browser. Express API routes and Vite frontend run together on port `3000`.
 
-### 4. Verify Build, Types & Automated Tests
+### 4. Verify Build, Types, Sentiment Backfill, Audit & Automated Tests
 ```bash
-npm run lint    # Run TypeScript type checks (tsc --noEmit)
-npm test        # Run all unit & real-app HTTP tests (tests/*.test.ts)
-npm run build   # Build production frontend bundle to dist/
-npm start       # Start full-stack server via tsx server.ts
+npm run lint               # Run TypeScript type checks (tsc --noEmit)
+npm test                   # Run all unit & real-app HTTP tests (tests/*.test.ts)
+npm run backfill:sentiment # Backfill idempotent daily FinBERT/lexicon sentiment store from news feeds
+npm run audit              # Generate reproducible audit-output/audit.json & audit.csv (with ablation)
+npm run build              # Build production frontend bundle to dist/
+npm start                  # Start full-stack server via tsx server.ts
 ```
 
 ### 5. Docker & Docker Compose Deployment

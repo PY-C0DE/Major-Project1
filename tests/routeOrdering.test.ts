@@ -56,4 +56,30 @@ describe('Real Express app route ordering', () => {
     assert.match(badJsonRes.headers['content-type'] || '', /application\/json/);
     assert.equal(typeof badJsonRes.body.error, 'string');
   });
+
+  it('registers /api/sentiment/lag-analysis and /api/sentiment/daily-stats before /api/sentiment/:ticker', async () => {
+    const app = createApp({ jwtSecret: 'test-jwt-secret-key-at-least-32-characters-long', allowDemoMode: false });
+
+    const lagRes = await request(app).get('/api/sentiment/lag-analysis');
+    assert.equal(lagRes.status, 200);
+    assert.equal(lagRes.body.scope, 'pooled');
+    assert.equal(lagRes.body.ticker, 'ALL');
+    assert.equal(typeof lagRes.body.available, 'boolean');
+
+    const statsRes = await request(app).get('/api/sentiment/daily-stats');
+    assert.equal(statsRes.status, 200);
+    assert.equal(typeof statsRes.body.totalRecords, 'number');
+    assert.equal(typeof statsRes.body.tickersWithData, 'number');
+
+    const prevDisable = process.env.DISABLE_FINBERT;
+    process.env.DISABLE_FINBERT = 'true';
+    try {
+      const tickerRes = await request(app).get('/api/sentiment/RELIANCE.NS');
+      assert.equal(tickerRes.status, 200);
+      assert.ok(['finbert', 'lexicon', 'mixed'].includes(tickerRes.body.sentimentSource));
+    } finally {
+      if (prevDisable === undefined) delete process.env.DISABLE_FINBERT;
+      else process.env.DISABLE_FINBERT = prevDisable;
+    }
+  });
 });

@@ -11,12 +11,14 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "audit": "tsx scripts/runAudit.ts"
+    "audit": "tsx scripts/runAudit.ts",
+    "backfill:sentiment": "tsx scripts/backfillSentiment.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
+    "@xenova/transformers": "^2.17.2",
     "bcryptjs": "^3.0.3",
     "d3": "^7.9.0",
     "dotenv": "^17.2.3",

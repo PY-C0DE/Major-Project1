@@ -31,7 +31,8 @@ import { runConformalPrediction, MIN_CONFORMAL_BARS } from './src/server/math/co
 import { detectConceptDrift } from './src/server/math/driftDetector';
 import { getNewsForTicker, getHybridNewsForTicker, analyzeKeywordSentiment, getAllMarketHeadlines, getAllMarketHeadlinesAsync } from './src/server/math/nlpEngine';
 import { DEFAULT_CONFORMAL_CONFIDENCE, DEFAULT_BACKTEST_STRATEGY } from './src/shared/modelConfig';
-import { isConformalPredictionAvailable } from './src/types';
+import { isConformalPredictionAvailable, DailySentimentRecord } from './src/types';
+import { computeTickerLagAnalysis, computePooledLagAnalysis } from './src/server/math/lagAnalysis';
 import {
   runModelEvaluation,
   computeProjectWideAccuracy,
@@ -82,6 +83,17 @@ export function getJwtSecret(): string {
   const devSecret = crypto.randomBytes(32).toString('hex');
   console.warn('⚠️ [SECURITY WARNING] JWT_SECRET is unset. Using an ephemeral random secret for development. Sessions will invalidate on server restart.');
   return devSecret;
+}
+
+function buildSentimentMapFromDb(): Map<string, DailySentimentRecord[]> {
+  const map = new Map<string, DailySentimentRecord[]>();
+  for (const rec of db.getAllDailySentiment()) {
+    const key = rec.ticker.toUpperCase();
+    const list = map.get(key) || [];
+    list.push(rec);
+    map.set(key, list);
+  }
+  return map;
 }
 
 // Initialize Gemini Client
@@ -477,8 +489,44 @@ app.get('/api/stocks/:ticker/seasonality', async (req: Request, res: Response) =
 });
 
 // -------------------------------------------------------------
-// 3. NEWS & KEYWORD SENTIMENT ENDPOINTS (USP 3)
+// 3. NEWS, FINBERT SENTIMENT & LAG ANALYSIS ENDPOINTS (USP 3)
 // -------------------------------------------------------------
+
+async function computePooledLagResponse() {
+  const sentimentMap = buildSentimentMapFromDb();
+  const tickersWithSentiment = Array.from(sentimentMap.keys());
+  const inputs: Array<{
+    ticker: string;
+    bars: Awaited<ReturnType<typeof fetchHistoryWithSource>>['bars'];
+    sentimentRecords: DailySentimentRecord[];
+  }> = [];
+
+  const batchSize = 5;
+  for (let i = 0; i < tickersWithSentiment.length; i += batchSize) {
+    const batch = tickersWithSentiment.slice(i, i + batchSize);
+    const fetched = await Promise.all(
+      batch.map(async (t) => {
+        try {
+          const { bars, source } = await fetchHistoryWithSource(t, 730);
+          return { ticker: t, bars, source };
+        } catch {
+          return { ticker: t, bars: [], source: 'synthetic' as const };
+        }
+      })
+    );
+    for (const item of fetched) {
+      if (item.source !== 'synthetic' && item.bars.length > 0) {
+        inputs.push({
+          ticker: item.ticker,
+          bars: item.bars,
+          sentimentRecords: sentimentMap.get(item.ticker) || []
+        });
+      }
+    }
+  }
+
+  return computePooledLagAnalysis(inputs);
+}
 
 app.get('/api/news', async (_req: Request, res: Response) => {
   try {
@@ -499,6 +547,57 @@ app.get('/api/news/:ticker', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error(`Error fetching news for ${req.params.ticker}:`, error);
     return res.status(500).json({ error: 'Failed to retrieve financial news.' });
+  }
+});
+
+// Specific /api/sentiment sub-paths MUST be registered before /api/sentiment/:ticker
+app.get('/api/sentiment/daily-stats', (_req: Request, res: Response) => {
+  const byTicker = db.getDailySentimentCountsByTicker();
+  const totalRecords = Object.values(byTicker).reduce((a, b) => a + b, 0);
+  return res.json({
+    tickersWithData: Object.keys(byTicker).length,
+    totalRecords,
+    byTicker
+  });
+});
+
+app.get('/api/sentiment/lag-analysis', async (_req: Request, res: Response) => {
+  try {
+    const result = await computePooledLagResponse();
+    return res.json(result);
+  } catch (error: any) {
+    console.error('Error computing pooled lag analysis:', error);
+    return res.status(500).json({ error: 'Failed to compute pooled sentiment-price lag analysis.' });
+  }
+});
+
+app.get('/api/sentiment/lag-analysis/:ticker', async (req: Request, res: Response) => {
+  try {
+    const raw = (req.params.ticker || '').trim();
+    if (!raw || raw.toUpperCase() === 'ALL') {
+      const pooled = await computePooledLagResponse();
+      return res.json(pooled);
+    }
+    const ticker = await resolveTickerOrName(raw);
+    const records = db.getDailySentimentForTicker(ticker);
+    let bars: Awaited<ReturnType<typeof fetchHistoryWithSource>>['bars'] = [];
+    let source: 'live' | 'synthetic' = 'live';
+    try {
+      const fetched = await fetchHistoryWithSource(ticker, 730);
+      bars = fetched.bars;
+      source = fetched.source;
+    } catch {
+      bars = [];
+    }
+    const result = computeTickerLagAnalysis(
+      ticker,
+      source === 'synthetic' ? [] : bars,
+      records
+    );
+    return res.json(result);
+  } catch (error: any) {
+    console.error(`Error computing lag analysis for ${req.params.ticker}:`, error);
+    return res.status(500).json({ error: 'Failed to compute sentiment-price lag analysis.' });
   }
 });
 
@@ -526,6 +625,12 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
     const posPct = Number(((posSum / count) * 100).toFixed(1));
     const neuPct = Number(((neuSum / count) * 100).toFixed(1));
     const negPct = Number(((negSum / count) * 100).toFixed(1));
+    const modelUsed =
+      hybrid.sentimentSource === 'finbert'
+        ? 'FinBERT Transformer (Xenova/finbert, Publisher-Credibility Weighted)'
+        : hybrid.sentimentSource === 'mixed'
+          ? 'FinBERT Transformer + Keyword Lexicon Fallback Hybrid (Publisher-Credibility Weighted)'
+          : 'Keyword Financial-Sentiment Lexicon Fallback (Publisher-Credibility Weighted)';
 
     return res.json({
       ticker,
@@ -540,7 +645,10 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
       liveCount: hybrid.liveCount,
       baselineCount: hybrid.baselineCount,
       isLive: hybrid.liveCount > 0,
-      modelUsed: 'Hybrid Real-Time News & Keyword Financial-Sentiment Lexicon (Publisher-Credibility Weighted)',
+      topLiveHeadline: hybrid.topLiveHeadline,
+      topLiveSource: hybrid.topLiveSource,
+      sentimentSource: hybrid.sentimentSource,
+      modelUsed,
       lastUpdated: new Date().toISOString()
     });
   } catch (error: any) {
@@ -593,6 +701,7 @@ app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
       liveSentimentScore: hybrid.liveSentimentScore,
       baselineSentimentScore: hybrid.baselineSentimentScore,
       blendedSentimentScore: hybrid.blendedSentimentScore,
+      sentimentSource: hybrid.sentimentSource,
       topLiveHeadline: hybrid.topLiveHeadline,
       topLiveSource: hybrid.topLiveSource,
       newsDriftImpactPct: Number((hybrid.blendedSentimentScore * 1.5).toFixed(2)),
@@ -647,6 +756,7 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
       liveSentimentScore: hybrid.liveSentimentScore,
       baselineSentimentScore: hybrid.baselineSentimentScore,
       blendedSentimentScore: hybrid.blendedSentimentScore,
+      sentimentSource: hybrid.sentimentSource,
       topLiveHeadline: hybrid.topLiveHeadline,
       topLiveSource: hybrid.topLiveSource,
       newsDriftImpactPct: Number((hybrid.blendedSentimentScore * 1.5).toFixed(2)),
@@ -720,7 +830,9 @@ app.get('/api/model/metrics', async (req: Request, res: Response) => {
   try {
     const rawTicker = (req.query.ticker as string) || 'RELIANCE.NS';
     if (rawTicker.trim().toUpperCase() === 'ALL') {
-      const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG);
+      const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG, {
+        sentimentByTicker: buildSentimentMapFromDb()
+      });
       if (!isModelEvaluationAvailable(evaluation)) {
         return res.status(503).json({
           available: false,
@@ -803,7 +915,9 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
       return res.json(buildModelAuditPayload(evaluation, meta?.name || ticker));
     }
 
-    const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG);
+    const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG, {
+      sentimentByTicker: buildSentimentMapFromDb()
+    });
     const payload = buildModelAuditPayload(evaluation);
     if (!payload.available) {
       return res.status(503).json(payload);
@@ -1504,6 +1618,7 @@ app.get('/api/watchlist/pulse', authenticateToken, async (req: AuthenticatedRequ
               sentimentScore: item.sentimentScore,
               confidence: item.confidence,
               isLive: !!item.isLive,
+              sentimentSource: item.sentimentSource,
               price: quote.price,
               changePercent: quote.changePercent
             });
@@ -1768,7 +1883,7 @@ Key product capabilities:
 1. Access & Protection: Public Home page features an institutional overview and quantitative preview widget. Gated features like Dashboard, Watchlist, Portfolio, Deep Analysis, Model Metrics, and Alerts require user registration or login.
 2. Split-Conformal Prediction: Implements split-conformal prediction intervals calculating mathematically grounded finite-sample coverage [lowerBound, upperBound] at nominal confidence (default 90%), avoiding deceptive deterministic single-point forecasts.
 3. Rule-Based Trend/Volatility Regime Classifier: Classifies market conditions into Low Volatility / Bullish (State 0) and High Volatility / Bearish (State 1) to identify volatility shifts.
-4. Keyword Financial-Sentiment Lexicon & Credibility Weighting: Combines financial lexicon polarity scoring with publisher-credibility weighting to filter noise and unverified headlines.
+4. FinBERT Transformer Sentiment & Lexicon Fallback: Scores financial news using Xenova/finbert transformer inference with automatic keyword financial-sentiment lexicon fallback, publisher-credibility weighting, daily persistence, and lag analysis.
 5. Two-Sample KS Drift Test: Evaluates two-sample Kolmogorov-Smirnov tests (p < 0.05 alert trigger) comparing training baselines against live 30-day inference windows.
 6. Multi-Asset Coverage: Dual-exchange support for Indian NSE equities (RELIANCE.NS, TCS.NS, INFY.NS, etc.) and US NASDAQ/NYSE equities (NVDA, AAPL, MSFT, GOOGL).
 7. Profile & Avatars: Users can customize their identity using 20 Google Play Games-inspired vector avatars or uploading custom pictures.
@@ -1935,7 +2050,11 @@ export async function startServer() {
     const warmupTimer = setTimeout(() => {
       const tickers = TICKER_CATALOG.map(t => t.ticker);
       computeProjectWideAccuracy(getHistoricalDataWithSource, tickers)
-        .then(() => runAggregateModelEvaluation(getHistoricalDataWithSource, TICKER_CATALOG))
+        .then(() =>
+          runAggregateModelEvaluation(getHistoricalDataWithSource, TICKER_CATALOG, {
+            sentimentByTicker: buildSentimentMapFromDb()
+          })
+        )
         .catch(() => {});
     }, 1500);
     warmupTimer.unref();

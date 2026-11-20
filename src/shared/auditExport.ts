@@ -90,9 +90,24 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
       : [])
   ];
 
+  const sa = audit.sentimentAblation;
+  const ablationLines = sa
+    ? sa.available && sa.priceOnly && sa.pricePlusSentiment && sa.pairedDiff
+      ? [
+          `# Sentiment Ablation (Paired Subset): samples=${sa.matchedSamples}, dates=${sa.matchedDates}, assets=${sa.matchedAssetsCount}, significant=${sa.pairedDiff.statisticallySignificantImprovement}`,
+          `# Sentiment Ablation Price-Only (24f): priceAcc=${sa.priceOnly.priceAccuracy.toFixed(2)}%, mae=${sa.priceOnly.mae.toFixed(4)}, maeSkill=${sa.priceOnly.maeSkillVsNaive ?? 'n/a'}, dirAcc=${sa.priceOnly.directionalAccuracy}%, coverage=${sa.priceOnly.conformalCoverage}%`,
+          `# Sentiment Ablation Price+Sentiment (28f): priceAcc=${sa.pricePlusSentiment.priceAccuracy.toFixed(2)}%, mae=${sa.pricePlusSentiment.mae.toFixed(4)}, maeSkill=${sa.pricePlusSentiment.maeSkillVsNaive ?? 'n/a'}, dirAcc=${sa.pricePlusSentiment.directionalAccuracy}%, coverage=${sa.pricePlusSentiment.conformalCoverage}%`,
+          `# Sentiment Ablation Paired Diff (b-a): deltaPriceAcc=${sa.pairedDiff.priceAccuracyDiffPct}%, deltaMae=${sa.pairedDiff.maeDiff} ci95=[${sa.pairedDiff.maeDiffCI95[0]}, ${sa.pairedDiff.maeDiffCI95[1]}], deltaDirAcc=${sa.pairedDiff.directionalAccuracyDiffPp}pp ci95=[${sa.pairedDiff.directionalAccuracyDiffCI95[0]}, ${sa.pairedDiff.directionalAccuracyDiffCI95[1]}]pp`
+        ]
+      : [
+          `# Sentiment Ablation: available=false, matchedSamples=${sa.matchedSamples}, matchedDates=${sa.matchedDates}, matchedAssets=${sa.matchedAssetsCount}, reason="${sa.reason ?? 'insufficient overlap'}"`
+        ]
+    : [];
+
   return [
     ...metadataLines,
     ...summaryLines,
+    ...ablationLines,
     headers.join(','),
     ...rows.map((r) => r.map(escapeCsvCell).join(','))
   ].join('\n');

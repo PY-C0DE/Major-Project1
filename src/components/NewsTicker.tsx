@@ -637,7 +637,11 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
             {/* Sentiment Confidence Bars */}
             <div className="space-y-1.5 pt-1">
               <div className="flex justify-between text-xs font-mono">
-                <span className="text-slate-500 dark:text-slate-400">Keyword Financial-Sentiment Distribution</span>
+                <span className="text-slate-500 dark:text-slate-400">
+                  {selectedHeadline.sentimentSource === 'finbert'
+                    ? 'FinBERT Transformer Distribution'
+                    : 'Keyword Lexicon Fallback Distribution'}
+                </span>
                 <span className="text-slate-700 dark:text-slate-300 font-bold">
                   {Math.round((selectedHeadline.confidence || 0.9) * 100)}% Confidence
                 </span>
@@ -738,7 +742,7 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
                     Live Institutional Market Wire
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                    Real-time financial headlines, keyword sentiment lexicon scoring, and market catalysts
+                    Real-time financial headlines, FinBERT + lexicon sentiment scoring, and market catalysts
                   </p>
                 </div>
               </div>
@@ -860,7 +864,7 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
             {/* Drawer Footer */}
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between text-xs">
               <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                Updated every 60s • Keyword Sentiment Lexicon &amp; Credibility Weighted
+                Updated every 60s • FinBERT + Lexicon Fallback &amp; Credibility Weighted
               </span>
               {onNavigate && (
                 <button

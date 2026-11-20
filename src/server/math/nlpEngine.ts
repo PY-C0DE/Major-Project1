@@ -1,23 +1,15 @@
 /**
  * NLP & Verification Engine
- * Implements Keyword Financial Sentiment Scoring and Publisher Credibility Assessment.
+ * Implements FinBERT Transformer Sentiment (with Keyword Lexicon fallback),
+ * Publisher Credibility Weighting, and Daily Sentiment Persistence.
  */
 
-import { NewsItem, ClassifiedFinancialEvent } from '../../types';
-import { fetchLiveNewsForTicker } from '../services/liveNewsService';
+import { NewsItem, ClassifiedFinancialEvent, SentimentSource, DailySentimentRecord } from '../../types';
+import { fetchLiveNewsForTicker, RawLiveArticle } from '../services/liveNewsService';
+import { analyzeKeywordSentiment, scoreHeadlinesWithFinbert } from './finbertSentiment';
+import { db } from '../store/db';
 
-// Financial Sentiment Lexicon & Markers
-const POSITIVE_MARKERS = [
-  'surge', 'jump', 'gain', 'beat', 'record', 'profit', 'outperform', 'upgrade',
-  'growth', 'bullish', 'strong', 'expansion', 'dividend', 'rally', 'breakthrough',
-  'revenue rise', 'contract win', 'strategic partnership', 'upside', 'all-time high'
-];
-
-const NEGATIVE_MARKERS = [
-  'slump', 'drop', 'fall', 'plunge', 'miss', 'loss', 'downgrade', 'lawsuit',
-  'investigation', 'bearish', 'weak', 'recession', 'headwind', 'curb', 'decline',
-  'margin pressure', 'debt crisis', 'default', 'sell-off', 'regulatory scrutiny'
-];
+export { analyzeKeywordSentiment };
 
 const CREDIBLE_DOMAINS: Record<string, number> = {
   'Bloomberg': 0.96,
@@ -36,63 +28,6 @@ const CREDIBLE_DOMAINS: Record<string, number> = {
   'Benzinga': 0.76,
   'StockTwits / Anonymous': 0.38
 };
-
-/**
- * Analyzes headline using keyword sentiment lexicon
- */
-export function analyzeKeywordSentiment(headline: string, summary = ''): {
-  sentiment: 'positive' | 'negative' | 'neutral';
-  sentimentScore: number;
-  probabilities: { positive: number; neutral: number; negative: number };
-  confidence: number;
-} {
-  const text = `${headline} ${summary}`.toLowerCase();
-
-  let posScore = 0;
-  let negScore = 0;
-
-  for (const word of POSITIVE_MARKERS) {
-    if (text.includes(word)) posScore += 1.5;
-  }
-  for (const word of NEGATIVE_MARKERS) {
-    if (text.includes(word)) negScore += 1.5;
-  }
-
-  // Softmax over (posScore, 0.8 [neutral bias], negScore)
-  const zPos = Math.exp(posScore);
-  const zNeu = Math.exp(0.85); // baseline financial neutrality
-  const zNeg = Math.exp(negScore);
-  const zTotal = zPos + zNeu + zNeg;
-
-  const probPos = Number((zPos / zTotal).toFixed(3));
-  const probNeu = Number((zNeu / zTotal).toFixed(3));
-  const probNeg = Number((zNeg / zTotal).toFixed(3));
-
-  let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
-  let confidence = probNeu;
-
-  if (probPos > probNeu && probPos > probNeg) {
-    sentiment = 'positive';
-    confidence = probPos;
-  } else if (probNeg > probNeu && probNeg > probPos) {
-    sentiment = 'negative';
-    confidence = probNeg;
-  }
-
-  // Polarity: [-1.0, +1.0]
-  const sentimentScore = Number((probPos - probNeg).toFixed(3));
-
-  return {
-    sentiment,
-    sentimentScore,
-    probabilities: {
-      positive: probPos,
-      neutral: probNeu,
-      negative: probNeg
-    },
-    confidence
-  };
-}
 
 /**
  * Evaluates fact verification and credibility
@@ -133,7 +68,73 @@ export function verifyNewsItem(
 }
 
 /**
- * Generate contextual news feed for a ticker
+ * Compute publisher-credibility-weighted mean sentiment net score across items.
+ */
+export function computeCredibilityWeightedMeanScore(
+  items: Array<{ sentimentScore: number; sourceCredibility: number }>
+): number {
+  if (!items || items.length === 0) return 0;
+  let weightedSum = 0;
+  let totalWeight = 0;
+  for (const item of items) {
+    const w = Math.max(0.05, Number.isFinite(item.sourceCredibility) ? item.sourceCredibility : 0.75);
+    weightedSum += item.sentimentScore * w;
+    totalWeight += w;
+  }
+  if (totalWeight <= 0) return 0;
+  const mean = weightedSum / totalWeight;
+  return Number(Math.max(-1, Math.min(1, mean)).toFixed(4));
+}
+
+function summarizeSourceKind(items: Array<{ sentimentSource?: SentimentSource }>): SentimentSource | 'mixed' {
+  const hasFinbert = items.some(i => i.sentimentSource === 'finbert');
+  const hasLexicon = items.some(i => i.sentimentSource !== 'finbert');
+  if (hasFinbert && !hasLexicon) return 'finbert';
+  if (hasFinbert && hasLexicon) return 'mixed';
+  return 'lexicon';
+}
+
+/**
+ * Aggregates ONLY real live news items (`isLive === true`) into per-(ticker, YYYY-MM-DD)
+ * credibility-weighted daily sentiment records. Zero-article days are omitted (never 0-filled).
+ */
+export function buildDailySentimentRecordsFromLiveArticles(
+  ticker: string,
+  liveItems: NewsItem[]
+): DailySentimentRecord[] {
+  const byDate = new Map<string, NewsItem[]>();
+  const upperTicker = ticker.trim().toUpperCase();
+
+  for (const item of liveItems) {
+    if (!item.isLive || !item.publishedAt) continue;
+    const parsed = new Date(item.publishedAt);
+    if (isNaN(parsed.getTime())) continue;
+    const isoDate = parsed.toISOString().slice(0, 10);
+    const list = byDate.get(isoDate) || [];
+    list.push(item);
+    byDate.set(isoDate, list);
+  }
+
+  const nowIso = new Date().toISOString();
+  const records: DailySentimentRecord[] = [];
+  for (const [date, articles] of byDate.entries()) {
+    if (articles.length === 0) continue;
+    records.push({
+      ticker: upperTicker,
+      date,
+      credibilityWeightedNetScore: computeCredibilityWeightedMeanScore(articles),
+      articleCount: articles.length,
+      sentimentSource: summarizeSourceKind(articles),
+      updatedAt: nowIso
+    });
+  }
+
+  records.sort((a, b) => a.date.localeCompare(b.date));
+  return records;
+}
+
+/**
+ * Generate contextual news feed for a ticker (baseline synthetic fallback templates)
  */
 export function getNewsForTicker(ticker: string, companyName: string): NewsItem[] {
   const cleanTicker = ticker.replace('.NS', '').replace('.BO', '');
@@ -191,7 +192,8 @@ export function getNewsForTicker(ticker: string, companyName: string): NewsItem[
       factCheckStatus: verification.factCheckStatus,
       verificationScore: verification.verificationScore,
       sourceCredibility: verification.sourceCredibility,
-      isLive: false
+      isLive: false,
+      sentimentSource: 'lexicon'
     };
   });
 }
@@ -203,40 +205,27 @@ export interface HybridNewsResult {
   liveSentimentScore: number;
   baselineSentimentScore: number;
   blendedSentimentScore: number;
+  sentimentSource: SentimentSource | 'mixed';
   topLiveHeadline?: string;
   topLiveSource?: string;
 }
 
-/**
- * Fetches real-time live news and merges it with the baseline template engine
- * to create a hybrid prediction feature and feed.
- */
-export async function getHybridNewsForTicker(ticker: string, companyName: string): Promise<HybridNewsResult> {
-  const baselineNews = getNewsForTicker(ticker, companyName);
-  const baselineScore = baselineNews.reduce((acc, n) => acc + n.sentimentScore, 0) / (baselineNews.length || 1);
+export async function scoreRawLiveArticles(
+  ticker: string,
+  rawLive: RawLiveArticle[]
+): Promise<NewsItem[]> {
+  if (!rawLive || rawLive.length === 0) return [];
 
-  let rawLive: any[] = [];
-  try {
-    rawLive = await fetchLiveNewsForTicker(ticker, companyName);
-  } catch (err) {
-    console.error(`Live news fetch failed for ${ticker}, using baseline mechanism:`, err);
-  }
+  const scoredList = await scoreHeadlinesWithFinbert(
+    rawLive.map((item) => ({
+      headline: item.title,
+      publisher: item.source,
+      summary: item.summary
+    }))
+  );
 
-  if (!rawLive || rawLive.length === 0) {
-    return {
-      news: baselineNews,
-      liveCount: 0,
-      baselineCount: baselineNews.length,
-      liveSentimentScore: baselineScore,
-      baselineSentimentScore: baselineScore,
-      blendedSentimentScore: baselineScore,
-      topLiveHeadline: undefined,
-      topLiveSource: undefined
-    };
-  }
-
-  const liveNewsItems: NewsItem[] = rawLive.map((item, idx) => {
-    const tone = analyzeKeywordSentiment(item.title, item.summary);
+  return rawLive.map((item, idx) => {
+    const tone = scoredList[idx];
     const verification = verifyNewsItem(item.title, item.source);
 
     return {
@@ -254,11 +243,77 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
       factCheckStatus: verification.factCheckStatus,
       verificationScore: verification.verificationScore,
       sourceCredibility: verification.sourceCredibility,
-      isLive: true
+      isLive: true,
+      sentimentSource: tone.sentimentSource
     };
   });
+}
 
-  const liveScore = liveNewsItems.reduce((acc, n) => acc + n.sentimentScore, 0) / (liveNewsItems.length || 1);
+/**
+ * Fetches live articles for a ticker, scores them with FinBERT (or lexicon fallback),
+ * persists daily credibility-weighted aggregates to JSON store without overwriting past days,
+ * and returns the scored live NewsItems + store upsert summary.
+ */
+export async function collectAndPersistLiveSentimentForTicker(
+  ticker: string,
+  companyName: string,
+  options?: { bypassCache?: boolean; maxArticles?: number; persistToDisk?: boolean }
+): Promise<{
+  liveNewsItems: NewsItem[];
+  dailyRecords: DailySentimentRecord[];
+  upsertStats: ReturnType<typeof db.upsertDailySentiment>;
+}> {
+  const rawLive = await fetchLiveNewsForTicker(ticker, companyName, {
+    bypassCache: options?.bypassCache,
+    maxArticles: options?.maxArticles
+  });
+  const liveNewsItems = await scoreRawLiveArticles(ticker, rawLive);
+  const dailyRecords = buildDailySentimentRecordsFromLiveArticles(ticker, liveNewsItems);
+  const upsertStats = db.upsertDailySentiment(dailyRecords, {
+    persist: options?.persistToDisk ?? true
+  });
+  return { liveNewsItems, dailyRecords, upsertStats };
+}
+
+/**
+ * Fetches real-time live news, scores headlines asynchronously with FinBERT
+ * (falling back to keyword lexicon), persists live daily sentiment records,
+ * and merges with baseline context for UI consumption.
+ */
+export async function getHybridNewsForTicker(ticker: string, companyName: string): Promise<HybridNewsResult> {
+  const baselineNews = getNewsForTicker(ticker, companyName);
+  const baselineScore = computeCredibilityWeightedMeanScore(baselineNews);
+
+  let rawLive: RawLiveArticle[] = [];
+  try {
+    rawLive = await fetchLiveNewsForTicker(ticker, companyName);
+  } catch (err) {
+    console.error(`Live news fetch failed for ${ticker}, using baseline mechanism:`, err);
+  }
+
+  if (!rawLive || rawLive.length === 0) {
+    return {
+      news: baselineNews,
+      liveCount: 0,
+      baselineCount: baselineNews.length,
+      liveSentimentScore: Number(baselineScore.toFixed(3)),
+      baselineSentimentScore: Number(baselineScore.toFixed(3)),
+      blendedSentimentScore: Number(baselineScore.toFixed(3)),
+      sentimentSource: 'lexicon',
+      topLiveHeadline: undefined,
+      topLiveSource: undefined
+    };
+  }
+
+  const liveNewsItems = await scoreRawLiveArticles(ticker, rawLive);
+
+  // Task 2: Append daily per-ticker aggregate from live articles ONLY (never baseline templates)
+  const dailyRecords = buildDailySentimentRecordsFromLiveArticles(ticker, liveNewsItems);
+  if (dailyRecords.length > 0) {
+    db.upsertDailySentiment(dailyRecords);
+  }
+
+  const liveScore = computeCredibilityWeightedMeanScore(liveNewsItems);
 
   // Blended hybrid score: 70% live real-time sentiment + 30% baseline template sentiment (or 50/50 if fewer than 3 live items)
   const liveWeight = liveNewsItems.length >= 3 ? 0.70 : liveNewsItems.length > 0 ? 0.50 : 0.0;
@@ -274,6 +329,7 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
     liveSentimentScore: Number(liveScore.toFixed(3)),
     baselineSentimentScore: Number(baselineScore.toFixed(3)),
     blendedSentimentScore: blendedScore,
+    sentimentSource: summarizeSourceKind(liveNewsItems),
     topLiveHeadline: liveNewsItems[0]?.headline,
     topLiveSource: liveNewsItems[0]?.source
   };

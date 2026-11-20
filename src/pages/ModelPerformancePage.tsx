@@ -44,11 +44,11 @@ import { buildAuditCsv } from '../shared/auditExport';
 
 const defaultFeatures: ModelFeatureImportance[] = [
   {
-    feature: 'Real-Time News Tone (Keyword Sentiment Lexicon)',
+    feature: 'Real-Time News Tone (FinBERT Transformer & Lexicon)',
     importance: 21.4,
     rawWeight: 0.185,
     category: 'sentiment',
-    description: 'Keyword financial-sentiment lexicon with publisher-credibility weighting across news feeds and filings',
+    description: 'FinBERT transformer (Xenova/finbert) with keyword financial-sentiment lexicon fallback and publisher-credibility weighting',
     direction: 'positive'
   },
   {
@@ -882,7 +882,7 @@ export const ModelPerformancePage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-1">
-                      Keyword Sentiment Lexicon &amp; Corporate Consensus
+                      FinBERT Transformer, Lexicon Fallback &amp; Consensus
                     </p>
                   </button>
 
@@ -1389,6 +1389,207 @@ export const ModelPerformancePage: React.FC = () => {
                 </table>
               </div>
             </div>
+
+            {/* Task 4: Causal Sentiment Feature Ablation */}
+            {isAll && metrics.sentimentAblation && (
+              <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      Causal Sentiment Feature Ablation (Price-Only vs. Price + Sentiment)
+                    </h2>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      Paired walk-forward evaluation on identical out-of-sample dates using strictly causal daily sentiment (date &lt; predictionDate)
+                    </span>
+                  </div>
+                  {metrics.sentimentAblation.available && metrics.sentimentAblation.pairedDiff ? (
+                    <span
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-mono font-semibold border flex items-center gap-1.5 ${
+                        metrics.sentimentAblation.pairedDiff.statisticallySignificantImprovement
+                          ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      {metrics.sentimentAblation.pairedDiff.statisticallySignificantImprovement ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                      )}
+                      {metrics.sentimentAblation.pairedDiff.statisticallySignificantImprovement
+                        ? 'Statistically Significant Improvement'
+                        : 'No Significant Improvement vs. Price-Only'}
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-1 rounded-md text-[11px] font-mono bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
+                      Insufficient Causal Sentiment Overlap
+                    </span>
+                  )}
+                </div>
+
+                {!metrics.sentimentAblation.available ? (
+                  <div className="p-5 bg-amber-50/60 dark:bg-amber-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                          Ablation comparison unavailable on current historical sentiment store
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                          {metrics.sentimentAblation.reason ||
+                            'Not enough paired out-of-sample dates with prior-day persisted daily sentiment.'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 shrink-0 text-center font-mono text-[11px]">
+                      <div className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <div className="text-[10px] text-slate-400 uppercase">Matched Bars</div>
+                        <div className="font-bold text-slate-900 dark:text-white">
+                          {metrics.sentimentAblation.matchedSamples} / {metrics.sentimentAblation.minRequiredSamples}
+                        </div>
+                      </div>
+                      <div className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <div className="text-[10px] text-slate-400 uppercase">Matched Dates</div>
+                        <div className="font-bold text-slate-900 dark:text-white">
+                          {metrics.sentimentAblation.matchedDates} / {metrics.sentimentAblation.minRequiredDates}
+                        </div>
+                      </div>
+                      <div className="px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                        <div className="text-[10px] text-slate-400 uppercase">Assets</div>
+                        <div className="font-bold text-slate-900 dark:text-white">
+                          {metrics.sentimentAblation.matchedAssetsCount}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 space-y-4">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs font-mono">
+                        <thead>
+                          <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[10px] text-slate-500 dark:text-slate-400 uppercase">
+                            <th className="py-2.5 px-4 font-medium font-sans">Ablation Arm</th>
+                            <th className="py-2.5 px-4 font-medium text-right">Samples / Dates</th>
+                            <th className="py-2.5 px-4 font-medium text-right">Price Acc.</th>
+                            <th className="py-2.5 px-4 font-medium text-right">Naive Acc.</th>
+                            <th className="py-2.5 px-4 font-medium text-right">MAE</th>
+                            <th className="py-2.5 px-4 font-medium text-right">MAE Skill</th>
+                            <th className="py-2.5 px-4 font-medium text-right">RMSE</th>
+                            <th className="py-2.5 px-4 font-medium text-right">Dir. Acc.</th>
+                            <th className="py-2.5 px-4 font-medium text-right">Always-Up</th>
+                            <th className="py-2.5 px-4 font-medium text-right">Edge vs Always-Up 95% CI</th>
+                            <th className="py-2.5 px-4 font-medium text-right">Conformal Cov.</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60">
+                          {[metrics.sentimentAblation.priceOnly, metrics.sentimentAblation.pricePlusSentiment]
+                            .filter((arm): arm is NonNullable<typeof arm> => Boolean(arm))
+                            .map(arm => (
+                              <tr key={arm.name} className="hover:bg-slate-50 dark:hover:bg-slate-900/70">
+                                <td className="py-3 px-4 font-sans font-semibold text-slate-900 dark:text-white">
+                                  {arm.name}
+                                </td>
+                                <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300 tabular-nums">
+                                  {arm.samples} / {arm.distinctDates}d
+                                </td>
+                                <td className="py-3 px-4 text-right text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
+                                  {arm.priceAccuracy.toFixed(2)}%
+                                </td>
+                                <td className="py-3 px-4 text-right text-slate-500 dark:text-slate-400 tabular-nums">
+                                  {arm.naivePriceAccuracy.toFixed(2)}%
+                                </td>
+                                <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
+                                  {arm.mae.toFixed(2)} pts
+                                </td>
+                                <td
+                                  className={`py-3 px-4 text-right font-semibold tabular-nums ${
+                                    (arm.maeSkillVsNaive ?? 0) >= 0
+                                      ? 'text-emerald-600 dark:text-emerald-400'
+                                      : 'text-rose-600 dark:text-rose-400'
+                                  }`}
+                                >
+                                  {arm.maeSkillVsNaive != null
+                                    ? `${arm.maeSkillVsNaive * 100 >= 0 ? '+' : ''}${(arm.maeSkillVsNaive * 100).toFixed(2)}%`
+                                    : 'n/a'}
+                                </td>
+                                <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
+                                  {arm.rmse.toFixed(2)} pts
+                                </td>
+                                <td className="py-3 px-4 text-right text-indigo-600 dark:text-indigo-400 font-bold tabular-nums">
+                                  {arm.directionalAccuracy.toFixed(2)}%
+                                </td>
+                                <td className="py-3 px-4 text-right text-slate-500 dark:text-slate-400 tabular-nums">
+                                  {arm.alwaysUpAccuracy.toFixed(2)}%
+                                </td>
+                                <td className="py-3 px-4 text-right text-slate-600 dark:text-slate-300 tabular-nums">
+                                  {arm.directionalEdgeVsAlwaysUp95CI
+                                    ? `[${arm.directionalEdgeVsAlwaysUp95CI[0] >= 0 ? '+' : ''}${arm.directionalEdgeVsAlwaysUp95CI[0].toFixed(2)}%, ${arm.directionalEdgeVsAlwaysUp95CI[1] >= 0 ? '+' : ''}${arm.directionalEdgeVsAlwaysUp95CI[1].toFixed(2)}%]`
+                                    : 'n/a'}
+                                </td>
+                                <td className="py-3 px-4 text-right text-cyan-600 dark:text-cyan-400 font-bold tabular-nums">
+                                  {arm.conformalCoverage.toFixed(1)}%
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {metrics.sentimentAblation.pairedDiff && (
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                          <div className="text-[10px] font-mono uppercase text-slate-400">Δ Price Accuracy</div>
+                          <div className="text-sm font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+                            {metrics.sentimentAblation.pairedDiff.priceAccuracyDiffPct >= 0 ? '+' : ''}
+                            {metrics.sentimentAblation.pairedDiff.priceAccuracyDiffPct.toFixed(3)}%
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Over {metrics.sentimentAblation.matchedAssetsCount} matched assets
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                          <div className="text-[10px] font-mono uppercase text-slate-400">Δ MAE (Negative = Better)</div>
+                          <div className="text-sm font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+                            {metrics.sentimentAblation.pairedDiff.maeDiff >= 0 ? '+' : ''}
+                            {metrics.sentimentAblation.pairedDiff.maeDiff.toFixed(4)} pts
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                            95% CI [{metrics.sentimentAblation.pairedDiff.maeDiffCI95[0].toFixed(4)}, {metrics.sentimentAblation.pairedDiff.maeDiffCI95[1].toFixed(4)}]
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                          <div className="text-[10px] font-mono uppercase text-slate-400">Δ Directional Accuracy</div>
+                          <div className="text-sm font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+                            {metrics.sentimentAblation.pairedDiff.directionalAccuracyDiffPp >= 0 ? '+' : ''}
+                            {metrics.sentimentAblation.pairedDiff.directionalAccuracyDiffPp.toFixed(2)}%
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                            95% CI [{metrics.sentimentAblation.pairedDiff.directionalAccuracyDiffCI95[0].toFixed(2)}%, {metrics.sentimentAblation.pairedDiff.directionalAccuracyDiffCI95[1].toFixed(2)}%]
+                          </div>
+                        </div>
+
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+                          <div className="text-[10px] font-mono uppercase text-slate-400">Δ Conformal Coverage</div>
+                          <div className="text-sm font-mono font-bold text-slate-900 dark:text-white mt-0.5">
+                            {metrics.sentimentAblation.pairedDiff.conformalCoverageDiffPp >= 0 ? '+' : ''}
+                            {metrics.sentimentAblation.pairedDiff.conformalCoverageDiffPp.toFixed(2)}%
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                            Seeded date-clustered bootstrap (n={metrics.sentimentAblation.matchedDates}d)
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950/50 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {metrics.sentimentAblation.interpretationNote}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )
       ) : (

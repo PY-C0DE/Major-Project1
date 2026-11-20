@@ -129,7 +129,7 @@ export function detectConceptDrift(bars: ComputedBar[], ticker: string): Concept
 
   let safetyWarning: string | null = null;
   if (driftDetected) {
-    safetyWarning = `Statistical distribution drift detected across ${driftingCount} market features. Live distributions deviate significantly from model training bounds. Conformal intervals have been widened by ${(overallDriftScore * 30 + 10).toFixed(0)}% to maintain finite-sample coverage guarantees.`;
+    safetyWarning = `Statistical distribution drift detected across ${driftingCount} market features (informational diagnostic only: live feature distributions deviate from the historical baseline; conformal prediction bands are not automatically widened by this monitor).`;
   }
 
   return {

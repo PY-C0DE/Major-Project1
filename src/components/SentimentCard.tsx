@@ -45,6 +45,14 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
   const liveArticles = news.filter(item => item.isLive);
   const baselineArticles = news.filter(item => !item.isLive);
   const hasLive = liveArticles.length > 0;
+  const hasFinbert = news.some(item => item.sentimentSource === 'finbert');
+  const hasLexicon = news.some(item => item.sentimentSource !== 'finbert');
+  const aggregateSourceLabel =
+    hasFinbert && !hasLexicon
+      ? 'FinBERT Transformer'
+      : hasFinbert && hasLexicon
+        ? 'FinBERT + Lexicon Hybrid'
+        : 'Lexicon Fallback';
 
   const [showAll, setShowAll] = React.useState(false);
   const displayedNews = showAll ? news.slice(0, 8) : news.slice(0, 4);
@@ -58,19 +66,28 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
             <Newspaper className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Sentiment & Credibility</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Sentiment &amp; Credibility</h3>
               {hasLive && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   REAL-TIME LIVE NEWS
                 </span>
               )}
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                  hasFinbert
+                    ? 'bg-cyan-50 dark:bg-cyan-950/70 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                }`}
+              >
+                {aggregateSourceLabel}
+              </span>
             </div>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
               {hasLive
                 ? `${liveArticles.length} Live Articles · ${baselineArticles.length} Fundamental Baselines`
-                : 'Keyword Sentiment Lexicon · Domain Reputation Scoring'}
+                : 'Domain Reputation & Credibility Weighting'}
             </span>
           </div>
         </div>
@@ -83,9 +100,9 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
 
       {/* Aggregate Tone Breakdown */}
       <div className="p-3 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-lg mb-4">
-        <div className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between">
-          <span>Aggregated Sentiment Tone (Live + Baseline Hybrid)</span>
-          <span className="text-slate-400 text-[10px]">Keyword Financial-Sentiment Lexicon</span>
+        <div className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 mb-2 flex items-center justify-between gap-2">
+          <span>Aggregated Sentiment Tone ({ticker})</span>
+          <span className="text-slate-500 dark:text-slate-400 text-[10px]">{aggregateSourceLabel}</span>
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
@@ -107,7 +124,7 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
       {/* Recent Headlines (Live Breaking News + Foundational Templates) */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 tracking-wider">
-          <span>Financial Disclosures & Live Verifications</span>
+          <span>Financial Disclosures &amp; Live Verifications</span>
           {news.length > 4 && (
             <button
               onClick={() => setShowAll(!showAll)}
@@ -118,55 +135,67 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
           )}
         </div>
 
-        {displayedNews.map(item => (
-          <div
-            key={item.id}
-            className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs font-medium text-slate-800 dark:text-slate-200 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors leading-snug line-clamp-2"
-              >
-                {item.headline}
-              </a>
-              <ExternalLink className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-            </div>
+        {displayedNews.map(item => {
+          const isFinbert = item.sentimentSource === 'finbert';
+          return (
+            <div
+              key={item.id}
+              className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/60 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-medium text-slate-800 dark:text-slate-200 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors leading-snug line-clamp-2"
+                >
+                  {item.headline}
+                </a>
+                <ExternalLink className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+              </div>
 
-            {/* Zero-pill metadata line with typographic separators */}
-            <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500 font-mono flex-wrap">
-              {item.isLive ? (
-                <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                  LIVE
+              {/* Zero-pill metadata line with typographic separators */}
+              <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-500 font-mono flex-wrap">
+                {item.isLive ? (
+                  <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                    LIVE
+                  </span>
+                ) : (
+                  <span className="px-1 py-0.2 rounded text-[9px] text-slate-500 bg-slate-200/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
+                    BASELINE
+                  </span>
+                )}
+                <span
+                  className={`px-1 py-0.2 rounded text-[9px] font-bold border ${
+                    isFinbert
+                      ? 'bg-cyan-50 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                  }`}
+                >
+                  {isFinbert ? 'FINBERT' : 'LEXICON'}
                 </span>
-              ) : (
-                <span className="px-1 py-0.2 rounded text-[9px] text-slate-500 bg-slate-200/80 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
-                  BASELINE
+                <span className="text-slate-600 dark:text-slate-400 font-medium">{item.source}</span>
+                <span aria-hidden="true">·</span>
+                <span
+                  className={
+                    item.sentiment === 'positive'
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : item.sentiment === 'negative'
+                      ? 'text-rose-600 dark:text-rose-400'
+                      : 'text-slate-500 dark:text-slate-400'
+                  }
+                >
+                  {item.sentiment.toUpperCase()} ({(item.confidence * 100).toFixed(0)}%)
                 </span>
-              )}
-              <span className="text-slate-600 dark:text-slate-400 font-medium">{item.source}</span>
-              <span aria-hidden="true">·</span>
-              <span
-                className={
-                  item.sentiment === 'positive'
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : item.sentiment === 'negative'
-                    ? 'text-rose-600 dark:text-rose-400'
-                    : 'text-slate-500 dark:text-slate-400'
-                }
-              >
-                {item.sentiment.toUpperCase()} ({(item.confidence * 100).toFixed(0)}%)
-              </span>
-              <span aria-hidden="true">·</span>
-              <span className="text-cyan-700 dark:text-cyan-400 flex items-center gap-1 font-sans">
-                <CheckCircle2 className="w-3 h-3 inline" />
-                {item.factCheckStatus}
-              </span>
+                <span aria-hidden="true">·</span>
+                <span className="text-cyan-700 dark:text-cyan-400 flex items-center gap-1 font-sans">
+                  <CheckCircle2 className="w-3 h-3 inline" />
+                  {item.factCheckStatus}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

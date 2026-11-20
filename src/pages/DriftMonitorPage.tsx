@@ -199,7 +199,7 @@ export const DriftMonitorPage: React.FC = () => {
   const handleSendTestAlert = () => {
     const targetLabel = alertScope === 'all' ? 'All Assets (Catalog Wide)' : ticker.replace('.NS', '');
     const title = `🚨 Model Drift Alert Triggered: ${targetLabel}`;
-    const message = `Supremum distance D = 0.245 (p = 0.012 < 0.05). KS drift threshold exceeded on RSI-14 and ATR Volatility. Conformal bands automatically widened by +22% to maintain 90% coverage.`;
+    const message = `Supremum distance D = 0.245 (p = 0.012 < 0.05). KS drift threshold exceeded on RSI-14 and ATR Volatility (diagnostic monitoring alert; review regime/interval width before trading).`;
 
     if (pushEnabled && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
       try {
@@ -548,8 +548,8 @@ export const DriftMonitorPage: React.FC = () => {
               Automated Drift Alert Dispatched: {drift?.driftingFeaturesCount || 1} Indicator(s) Exceeded Critical Threshold
             </span>
             <p className="text-slate-700 dark:text-slate-300">
-              Distribution tests reject hypothesis of equivalence. Conformal interval bands have been widened automatically by{' '}
-              <strong>{((drift?.overallDriftScore || 0.2) * 30 + 10).toFixed(0)}%</strong> to protect statistical finite-sample coverage.
+              Distribution tests reject the null hypothesis of equivalence (diagnostic drift score:{' '}
+              <strong>{((drift?.overallDriftScore || 0.2) * 100).toFixed(0)}%</strong> across tested features). This monitor is diagnostic/informational and does not automatically widen conformal prediction intervals.
               Notifications sent to {emailEnabled ? `email (${subscriberEmail})` : ''}{emailEnabled && pushEnabled ? ' & ' : ''}{pushEnabled ? 'push notifications' : ''}.
             </p>
           </div>
@@ -564,9 +564,8 @@ export const DriftMonitorPage: React.FC = () => {
         </div>
         <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-xs">
           Financial time series are subject to structural shifts. AlphaQuant computes empirical cumulative distribution functions
-          (ECDFs) for the historical training partition (180+ trading days) and tests them against the live inference window (past 30 days).
-          If the supremum distance $D$ yields an asymptotic $p$-value &lt; 0.05, the null hypothesis of distribution equivalence is rejected,
-          and conformal prediction intervals are automatically expanded to prevent undercoverage.
+          (ECDFs) for the historical training partition (baseline window) and tests them against the live inference window (past 30 days).
+          If the supremum distance $D$ yields an asymptotic $p$-value &lt; 0.05 and $D &gt; 0.15$, a diagnostic distribution-drift warning is raised for operator review (conformal intervals continue to be calibrated directly from walk-forward residuals and regime volatility).
         </p>
       </div>
 

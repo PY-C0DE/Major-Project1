@@ -284,7 +284,7 @@ export const DailyMarketDigest: React.FC<Props> = ({ onSelectTicker, onNavigate 
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-sans">
-              AI news synthesis, keyword financial-sentiment barometer, and split-conformal momentum updates for your saved assets
+              AI news synthesis, FinBERT / lexicon sentiment barometer, and split-conformal momentum updates for your saved assets
             </p>
           </div>
         </div>
@@ -587,7 +587,9 @@ export const DailyMarketDigest: React.FC<Props> = ({ onSelectTicker, onNavigate 
                       </div>
 
                       <div className="mt-2 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60 flex items-center justify-between text-[10px] font-mono text-slate-400">
-                        <span>Confidence: {Math.round((item.confidence || 0.9) * 100)}%</span>
+                        <span>
+                          {item.sentimentSource === 'finbert' ? 'FinBERT' : 'Lexicon'} · Conf: {Math.round((item.confidence || 0.9) * 100)}%
+                        </span>
                         <span className="text-cyan-600 dark:text-cyan-400 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform font-bold">
                           <span>Model Forecast</span>
                           <ArrowRight className="w-2.5 h-2.5" />
@@ -604,7 +606,7 @@ export const DailyMarketDigest: React.FC<Props> = ({ onSelectTicker, onNavigate 
           <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
               <BookmarkCheck className="w-3.5 h-3.5 text-cyan-500" />
-              <span>Monitoring {watchlist.length} assets with Split-Conformal intervals & Keyword Sentiment Lexicon</span>
+              <span>Monitoring {watchlist.length} assets with Split-Conformal intervals &amp; FinBERT / Lexicon Sentiment</span>
             </div>
 
             <div className="flex items-center gap-3">

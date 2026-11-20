@@ -14,8 +14,95 @@
  */
 
 import { ComputedBar } from './indicators';
+import { DailySentimentRecord } from '../../types';
 
 export const FEATURE_COUNT = 24;
+export const SENTIMENT_FEATURE_COUNT = 4;
+export const SENTIMENT_FEATURE_NAMES = [
+  'Causal Lagged Net Sentiment',
+  '3-Day Trailing Mean Sentiment',
+  'Log(1 + Article Count)',
+  'Sentiment Missing Indicator'
+] as const;
+
+function parseIsoDayUtcMs(dateStr: string): number {
+  const ms = Date.parse(`${dateStr.slice(0, 10)}T00:00:00Z`);
+  return Number.isFinite(ms) ? ms : NaN;
+}
+
+function nextWeekdayIso(dateStr: string): string {
+  const ms = parseIsoDayUtcMs(dateStr);
+  if (!Number.isFinite(ms)) return '9999-12-31';
+  const d = new Date(ms + 86_400_000);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) {
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Builds a strictly causal 4-feature sentiment matrix aligned by bar index `i`:
+ *   [laggedNetScore, trailing3DayMean, log1pArticleCount, missingIndicator]
+ * For bar `i`, `predictionDate` is `bars[i + 1].date` (or next weekday if `i === bars.length - 1`).
+ * Only stored daily sentiment records with `rec.date < predictionDate` (within trailing 5 calendar days)
+ * are visible, preventing any lookahead leakage.
+ */
+export function buildCausalSentimentFeatureMatrix(
+  bars: Pick<ComputedBar, 'date'>[],
+  sentimentRecords: DailySentimentRecord[],
+  maxLookbackDays = 5
+): number[][] {
+  const validRecords = (sentimentRecords || [])
+    .filter((r) => r && r.articleCount > 0 && Number.isFinite(r.credibilityWeightedNetScore))
+    .map((r) => ({ ...r, dayMs: parseIsoDayUtcMs(r.date) }))
+    .filter((r) => Number.isFinite(r.dayMs))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const matrix: number[][] = new Array(bars.length);
+  for (let i = 0; i < bars.length; i++) {
+    const barDate = bars[i].date.slice(0, 10);
+    const barDayMs = parseIsoDayUtcMs(barDate);
+    const predictionDate = i + 1 < bars.length ? bars[i + 1].date.slice(0, 10) : nextWeekdayIso(barDate);
+
+    if (!Number.isFinite(barDayMs) || validRecords.length === 0) {
+      matrix[i] = [0, 0, 0, 1];
+      continue;
+    }
+
+    const eligible: typeof validRecords = [];
+    for (let j = validRecords.length - 1; j >= 0; j--) {
+      const rec = validRecords[j];
+      if (rec.date >= predictionDate) continue;
+      if (rec.date > barDate) continue;
+      const ageDays = (barDayMs - rec.dayMs) / 86_400_000;
+      if (ageDays < 0 || ageDays > maxLookbackDays) {
+        if (ageDays > maxLookbackDays) break;
+        continue;
+      }
+      eligible.push(rec);
+      if (eligible.length >= 3) break;
+    }
+
+    if (eligible.length === 0) {
+      matrix[i] = [0, 0, 0, 1];
+      continue;
+    }
+
+    const mostRecent = eligible[0];
+    const trailingMean =
+      eligible.reduce((acc, r) => acc + r.credibilityWeightedNetScore, 0) / eligible.length;
+    const logCount = Math.log1p(Math.max(0, mostRecent.articleCount));
+
+    matrix[i] = [
+      Math.max(-1, Math.min(1, mostRecent.credibilityWeightedNetScore)),
+      Math.max(-1, Math.min(1, trailingMean)),
+      Math.max(0, Math.min(5, logCount)),
+      0
+    ];
+  }
+
+  return matrix;
+}
 
 export interface ModelWeights {
   intercept: number;
@@ -514,6 +601,11 @@ export function fitBoostingTrees(
   const minLeafCount = 7;
   const learningRate = 0.11;
   const candidateFeatures = [1, 3, 4, 5, 8, 9, 10, 13, 14, 15, 18, 19, 20, 21, 22, 23];
+  if (k > FEATURE_COUNT) {
+    for (let j = FEATURE_COUNT; j < k; j++) {
+      candidateFeatures.push(j);
+    }
+  }
 
   const rootThresholdsByFeature = new Map<number, [number, number, number]>();
   for (const fIdx of candidateFeatures) {
@@ -925,7 +1017,8 @@ export function fitEnsembleModel(
   trainStartIndex = 20,
   trainEndIndex?: number,
   horizonDays = 1,
-  cache?: FeatureVolumeCache
+  cache?: FeatureVolumeCache,
+  extraFeaturesByBar?: number[][]
 ): EnsembleModel {
   const n = bars.length;
   const h = Math.max(1, Math.min(30, horizonDays));
@@ -947,24 +1040,27 @@ export function fitEnsembleModel(
     const sigma = getCachedVol(bars, featIdx, cache);
     const normalizedTarget = Math.max(-2.6, Math.min(2.6, rawRet / sigma));
 
-    rawX.push(getCachedFeatures(bars, featIdx, cache));
+    const baseVec = getCachedFeatures(bars, featIdx, cache);
+    const extraVec = extraFeaturesByBar?.[featIdx];
+    rawX.push(extraVec && extraVec.length > 0 ? baseVec.concat(extraVec) : baseVec);
     yNorm.push(normalizedTarget);
   }
 
   const m = rawX.length;
   const decayFactor = 0.985;
+  const featureDim = rawX[0]?.length ?? (FEATURE_COUNT + (extraFeaturesByBar?.[0]?.length ?? 0));
 
   if (m < 14) {
     return {
-      linearWeights: new Array(FEATURE_COUNT).fill(0),
+      linearWeights: new Array(featureDim).fill(0),
       stumps: [],
       trees: [],
       lambda: 120,
       residualBias: 0,
       decayFactor,
       optimalAlpha: 120,
-      featureMeans: new Array(FEATURE_COUNT).fill(0),
-      featureStds: new Array(FEATURE_COUNT).fill(1),
+      featureMeans: new Array(featureDim).fill(0),
+      featureStds: new Array(featureDim).fill(1),
       metaWeights: [0.35, 0.25, 0.25, 0.15],
       shrinkageGain: 0.14,
       horizonDays: h,
@@ -1123,9 +1219,12 @@ export function predictEnsembleReturn(
   bars: ComputedBar[],
   i: number,
   applyBiasCorrection = true,
-  cache?: FeatureVolumeCache
+  cache?: FeatureVolumeCache,
+  extraFeatures?: number[]
 ): number {
-  const rawFeatures = getCachedFeatures(bars, i, cache);
+  const baseFeatures = getCachedFeatures(bars, i, cache);
+  const rawFeatures =
+    extraFeatures && extraFeatures.length > 0 ? baseFeatures.concat(extraFeatures) : baseFeatures;
   const z = model.featureMeans
     ? standardizeRow(rawFeatures, model.featureMeans, model.featureStds)
     : rawFeatures;

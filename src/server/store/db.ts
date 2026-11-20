@@ -6,7 +6,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { PortfolioHolding, AlertRule, UserProfile } from '../../types';
+import { PortfolioHolding, AlertRule, UserProfile, DailySentimentRecord } from '../../types';
 
 export interface UserAccount extends UserProfile {
   passwordHash: string;
@@ -32,20 +32,30 @@ interface PersistedState {
   watchlists: [string, string[]][];
   alerts: [string, AlertRule[]][];
   predictionHistory: StoredPrediction[];
+  dailySentiment?: [string, DailySentimentRecord][];
 }
 
-// Storage file location
-const DATA_DIR = path.resolve(process.cwd(), 'data');
-const STORE_FILE = path.join(DATA_DIR, 'alphaquant_store.json');
-
-// Ensure data directory exists
-try {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+function resolveStoreFilePath(): string {
+  const override = process.env.ALPHAQUANT_STORE_PATH?.trim();
+  if (override) {
+    return path.isAbsolute(override) ? override : path.resolve(process.cwd(), override);
   }
-} catch (e) {
-  console.warn('Could not create data directory, falling back to memory-only storage:', e);
+  return path.resolve(process.cwd(), 'data', 'alphaquant_store.json');
 }
+
+function ensureParentDir(filePath: string) {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  } catch (e) {
+    console.warn('Could not create data directory, falling back to memory-only storage:', e);
+  }
+}
+
+let activeStoreFile = resolveStoreFilePath();
+ensureParentDir(activeStoreFile);
 
 // Initial default user for seamless instant evaluation & demo mode
 const DEFAULT_USER_ID = 'user-alphaquant-demo-1';
@@ -270,23 +280,35 @@ let portfolios = new Map<string, PortfolioHolding[]>(defaultPortfolios);
 let watchlists = new Map<string, string[]>(defaultWatchlists);
 let alerts = new Map<string, AlertRule[]>(defaultAlerts);
 let predictionHistory: StoredPrediction[] = [...defaultPredictions];
+let dailySentiment = new Map<string, DailySentimentRecord>();
 
 let saveMutex = Promise.resolve();
 
+function dailySentimentKey(ticker: string, date: string): string {
+  return `${ticker.trim().toUpperCase()}::${date.trim()}`;
+}
+
+function isValidIsoDate(dateStr: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+}
+
 // Function to save state to disk atomically with mutex serialization
 function saveToDisk() {
+  const targetFile = activeStoreFile;
   saveMutex = saveMutex.then(async () => {
     try {
+      ensureParentDir(targetFile);
       const state: PersistedState = {
         users: Array.from(users.entries()),
         portfolios: Array.from(portfolios.entries()),
         watchlists: Array.from(watchlists.entries()),
         alerts: Array.from(alerts.entries()),
-        predictionHistory
+        predictionHistory,
+        dailySentiment: Array.from(dailySentiment.entries())
       };
-      const tempFile = `${STORE_FILE}.tmp.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+      const tempFile = `${targetFile}.tmp.${Date.now()}.${Math.random().toString(36).slice(2)}`;
       await fs.promises.writeFile(tempFile, JSON.stringify(state, null, 2), 'utf8');
-      await fs.promises.rename(tempFile, STORE_FILE);
+      await fs.promises.rename(tempFile, targetFile);
     } catch (err) {
       console.error('Failed to save AlphaQuant store to disk:', err);
     }
@@ -294,15 +316,25 @@ function saveToDisk() {
 }
 
 // Function to load state from disk
-function loadFromDisk() {
+function loadFromDisk(customPath?: string) {
+  activeStoreFile = customPath ? (path.isAbsolute(customPath) ? customPath : path.resolve(process.cwd(), customPath)) : resolveStoreFilePath();
+  ensureParentDir(activeStoreFile);
+
+  // Reset in-memory collections to defaults before loading target file
+  users = new Map<string, UserAccount>([[defaultUser.email.toLowerCase(), defaultUser]]);
+  portfolios = new Map<string, PortfolioHolding[]>(defaultPortfolios);
+  watchlists = new Map<string, string[]>(defaultWatchlists);
+  alerts = new Map<string, AlertRule[]>(defaultAlerts);
+  predictionHistory = [...defaultPredictions];
+  dailySentiment = new Map<string, DailySentimentRecord>();
+
   try {
-    if (fs.existsSync(STORE_FILE)) {
-      const raw = fs.readFileSync(STORE_FILE, 'utf8');
+    if (fs.existsSync(activeStoreFile)) {
+      const raw = fs.readFileSync(activeStoreFile, 'utf8');
       if (raw && raw.trim().length > 0) {
         const parsed: PersistedState = JSON.parse(raw);
         if (parsed.users && Array.isArray(parsed.users)) {
           users = new Map(parsed.users);
-          // Ensure default user exists if not already
           if (!users.has(defaultUser.email.toLowerCase())) {
             users.set(defaultUser.email.toLowerCase(), defaultUser);
           }
@@ -319,11 +351,17 @@ function loadFromDisk() {
         if (parsed.predictionHistory && Array.isArray(parsed.predictionHistory)) {
           predictionHistory = parsed.predictionHistory;
         }
-        console.log(`[Storage] Loaded persistent database with ${users.size} users, ${portfolios.size} portfolios from disk.`);
+        if (parsed.dailySentiment && Array.isArray(parsed.dailySentiment)) {
+          for (const [k, rec] of parsed.dailySentiment) {
+            if (rec && rec.articleCount > 0 && isValidIsoDate(rec.date) && Number.isFinite(rec.credibilityWeightedNetScore)) {
+              dailySentiment.set(k, rec);
+            }
+          }
+        }
+        console.log(`[Storage] Loaded persistent database with ${users.size} users, ${portfolios.size} portfolios, ${dailySentiment.size} daily sentiment rows from disk.`);
         return;
       }
     }
-    // If file doesn't exist, save default state to disk
     saveToDisk();
   } catch (err) {
     console.warn('Failed to load AlphaQuant store from disk, running with defaults:', err);
@@ -462,5 +500,112 @@ export const db = {
     if (userId) res = res.filter(p => p.userId === userId);
     if (ticker) res = res.filter(p => p.ticker === ticker);
     return res;
-  }
+  },
+
+  // Daily Sentiment Store (Task 2: append/backfill per ticker+date; never overwrite past dates; omit zero-article days)
+  upsertDailySentiment: (
+    records: DailySentimentRecord[],
+    options?: { todayDate?: string; persist?: boolean }
+  ): { inserted: number; updatedToday: number; skippedExistingPast: number; skippedInvalid: number } => {
+    const todayDate = options?.todayDate || new Date().toISOString().slice(0, 10);
+    let inserted = 0;
+    let updatedToday = 0;
+    let skippedExistingPast = 0;
+    let skippedInvalid = 0;
+    let changed = false;
+
+    for (const rawRec of records) {
+      if (
+        !rawRec ||
+        !rawRec.ticker ||
+        !isValidIsoDate(rawRec.date) ||
+        !Number.isFinite(rawRec.credibilityWeightedNetScore) ||
+        !Number.isFinite(rawRec.articleCount) ||
+        rawRec.articleCount <= 0
+      ) {
+        skippedInvalid++;
+        continue;
+      }
+
+      const tickerUpper = rawRec.ticker.trim().toUpperCase();
+      const key = dailySentimentKey(tickerUpper, rawRec.date);
+      const existing = dailySentiment.get(key);
+
+      if (existing) {
+        // Strictly NEVER overwrite past days (date < todayDate)
+        if (rawRec.date < todayDate) {
+          skippedExistingPast++;
+          continue;
+        }
+        // Same-day refresh (`date >= todayDate`): only update if count or score changed meaningfully
+        if (
+          existing.articleCount === rawRec.articleCount &&
+          Math.abs(existing.credibilityWeightedNetScore - rawRec.credibilityWeightedNetScore) < 1e-6 &&
+          existing.sentimentSource === rawRec.sentimentSource
+        ) {
+          continue;
+        }
+        dailySentiment.set(key, {
+          ...rawRec,
+          ticker: tickerUpper,
+          credibilityWeightedNetScore: Number(Math.max(-1, Math.min(1, rawRec.credibilityWeightedNetScore)).toFixed(4))
+        });
+        updatedToday++;
+        changed = true;
+      } else {
+        dailySentiment.set(key, {
+          ...rawRec,
+          ticker: tickerUpper,
+          credibilityWeightedNetScore: Number(Math.max(-1, Math.min(1, rawRec.credibilityWeightedNetScore)).toFixed(4))
+        });
+        inserted++;
+        changed = true;
+      }
+    }
+
+    if (changed && options?.persist !== false) {
+      saveToDisk();
+    }
+
+    return { inserted, updatedToday, skippedExistingPast, skippedInvalid };
+  },
+
+  getDailySentimentForTicker: (ticker: string): DailySentimentRecord[] => {
+    const target = ticker.trim().toUpperCase();
+    const out: DailySentimentRecord[] = [];
+    for (const rec of dailySentiment.values()) {
+      if (rec.ticker === target && rec.articleCount > 0) {
+        out.push(rec);
+      }
+    }
+    out.sort((a, b) => a.date.localeCompare(b.date));
+    return out;
+  },
+
+  getAllDailySentiment: (): DailySentimentRecord[] => {
+    const out = Array.from(dailySentiment.values()).filter(r => r.articleCount > 0);
+    out.sort((a, b) => a.date.localeCompare(b.date) || a.ticker.localeCompare(b.ticker));
+    return out;
+  },
+
+  getDailySentimentCountsByTicker: (): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    for (const rec of dailySentiment.values()) {
+      if (rec.articleCount > 0) {
+        counts[rec.ticker] = (counts[rec.ticker] || 0) + 1;
+      }
+    }
+    return counts;
+  },
+
+  flushToDisk: async (): Promise<void> => {
+    await saveMutex;
+  },
+
+  reloadStoreFromDisk: async (customPath?: string): Promise<void> => {
+    await saveMutex;
+    loadFromDisk(customPath);
+  },
+
+  getStoreFilePath: (): string => activeStoreFile
 };

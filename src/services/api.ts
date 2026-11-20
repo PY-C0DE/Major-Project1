@@ -37,7 +37,8 @@ import {
   MarketIndexItem,
   QuickWatchItem,
   SentimentScoreResult,
-  ModelAuditResponse
+  ModelAuditResponse,
+  LagAnalysisResult
 } from '../types';
 import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { generateSupportFallback } from '../utils/supportKnowledge';
@@ -591,6 +592,16 @@ export const api = {
       // Return instant local domain knowledge response if network fails
       return localFallback;
     }
+  },
+
+  async getLagAnalysis(ticker?: string): Promise<LagAnalysisResult> {
+    const clean = ticker?.trim();
+    const url =
+      !clean || clean.toUpperCase() === 'ALL'
+        ? `${API_BASE}/sentiment/lag-analysis`
+        : `${API_BASE}/sentiment/lag-analysis/${encodeURIComponent(clean)}`;
+    const res = await fetch(url);
+    return parseApiResponse<LagAnalysisResult>(res, 'Failed to load sentiment-price lag analysis');
   },
 
   // Project-Wide Price Accuracy Metric obtained by analyzing model predictions

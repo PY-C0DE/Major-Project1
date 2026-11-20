@@ -200,11 +200,18 @@ export function runConformalPrediction(
   const wickAsymmetry = (lowerWick - upperWick) / barRange;
   const clv = ((latestBar.close - latestBar.low) - (latestBar.high - latestBar.close)) / barRange;
 
+  const sentSrcLabel =
+    liveNewsMeta?.sentimentSource === 'finbert'
+      ? 'FinBERT'
+      : liveNewsMeta?.sentimentSource === 'mixed'
+        ? 'FinBERT + Lexicon'
+        : 'Lexicon Fallback';
+
   const topFeatures: FeatureContribution[] = [
     {
       feature: liveNewsMeta?.isLive
-        ? `Real-Time Live News Sentiment (${liveNewsMeta.liveArticlesCount} live sources)`
-        : 'Keyword Sentiment Polarity',
+        ? `Real-Time Live News Sentiment (${liveNewsMeta.liveArticlesCount} live, ${sentSrcLabel})`
+        : `Financial Sentiment Polarity (${sentSrcLabel})`,
       impact: Number((effectiveSentiment * 22).toFixed(1)),
       category: 'sentiment',
       description: liveNewsMeta?.topLiveHeadline

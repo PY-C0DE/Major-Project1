@@ -545,6 +545,15 @@ export const RealTimeNewsPulse: React.FC<Props> = ({
                           LIVE
                         </span>
                       )}
+                      <span
+                        className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
+                          item.sentimentSource === 'finbert'
+                            ? 'bg-cyan-50 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                        }`}
+                      >
+                        {item.sentimentSource === 'finbert' ? 'FINBERT' : 'LEXICON'}
+                      </span>
                     </div>
 
                     <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${

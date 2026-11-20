@@ -114,10 +114,10 @@ function parseGoogleNewsRss(xmlText: string): RawLiveArticle[] {
 /**
  * Fetches real-time articles from Yahoo Finance search/news endpoint
  */
-async function fetchYahooFinanceNews(ticker: string, companyName: string): Promise<RawLiveArticle[]> {
+async function fetchYahooFinanceNews(ticker: string, companyName: string, newsCount = 8): Promise<RawLiveArticle[]> {
   const cleanTicker = ticker.replace('.NS', '').replace('.BO', '');
   const query = companyName && companyName.length > 2 ? companyName : cleanTicker;
-  const endpoint = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=8`;
+  const endpoint = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=${newsCount}`;
 
   try {
     const res = await fetch(endpoint, {
@@ -125,7 +125,7 @@ async function fetchYahooFinanceNews(ticker: string, companyName: string): Promi
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json'
       },
-      signal: AbortSignal.timeout(4500)
+      signal: AbortSignal.timeout(6000)
     });
 
     if (!res.ok) return [];
@@ -168,7 +168,7 @@ async function fetchGoogleNewsRss(ticker: string, companyName: string): Promise<
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(6000)
     });
 
     if (!res.ok) return [];
@@ -184,21 +184,23 @@ async function fetchGoogleNewsRss(ticker: string, companyName: string): Promise<
  */
 export async function fetchLiveNewsForTicker(
   ticker: string,
-  companyName = ''
+  companyName = '',
+  options?: { bypassCache?: boolean; maxArticles?: number }
 ): Promise<RawLiveArticle[]> {
   const cacheKey = ticker.toUpperCase();
   const cached = NEWS_CACHE.get(cacheKey);
   const now = Date.now();
+  const maxArticles = options?.maxArticles ?? 8;
 
-  if (cached && now - cached.timestamp < CACHE_TTL_MS && cached.articles.length > 0) {
-    return cached.articles;
+  if (!options?.bypassCache && cached && now - cached.timestamp < CACHE_TTL_MS && cached.articles.length > 0) {
+    return cached.articles.slice(0, maxArticles);
   }
 
   try {
     // Run both queries concurrently
     const [rssArticles, yahooArticles] = await Promise.allSettled([
       fetchGoogleNewsRss(ticker, companyName),
-      fetchYahooFinanceNews(ticker, companyName)
+      fetchYahooFinanceNews(ticker, companyName, Math.max(8, maxArticles))
     ]);
 
     const combined: RawLiveArticle[] = [];
@@ -225,10 +227,9 @@ export async function fetchLiveNewsForTicker(
     // Sort by publication date descending (newest first)
     deduplicated.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
-    // Limit to top 8 most recent live articles
-    const topLive = deduplicated.slice(0, 8);
+    const topLive = deduplicated.slice(0, maxArticles);
 
-    if (topLive.length > 0) {
+    if (topLive.length > 0 && maxArticles <= 8) {
       NEWS_CACHE.set(cacheKey, {
         timestamp: now,
         articles: topLive

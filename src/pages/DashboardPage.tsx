@@ -48,6 +48,7 @@ import { InteractiveStockChart } from '../components/InteractiveStockChart';
 import { ConformalPredictionCard } from '../components/ConformalPredictionCard';
 import { MarketRegimeCard } from '../components/MarketRegimeCard';
 import { SentimentCard } from '../components/SentimentCard';
+import { SentimentLagPanel } from '../components/SentimentLagPanel';
 import { ConceptDriftCard } from '../components/ConceptDriftCard';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { CompanySearchCombobox } from '../components/CompanySearchCombobox';
@@ -735,17 +736,27 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
 
       {/* 4. Primary Stock Price Prediction Candle Chart */}
       <div id="tour-candle-chart" className="space-y-4 sm:space-y-6">
-        {/* Real-Time Live Stock Header & Keyword Sentiment News Bar */}
+        {/* Real-Time Live Stock Header & Sentiment Engine Bar */}
         {(() => {
           const currSym = getCurrencySymbol(quote?.currency, selectedTicker);
           const isUp = (quote?.change ?? 0) >= 0;
-          const posPct = sentiment?.distribution ? Math.round(sentiment.distribution.positive * 100) : 64;
-          const neuPct = sentiment?.distribution ? Math.round(sentiment.distribution.neutral * 100) : 24;
-          const negPct = sentiment?.distribution ? Math.round(sentiment.distribution.negative * 100) : 12;
+          const normPct = (val: number | undefined, fallback: number) => {
+            if (val === undefined || !Number.isFinite(val)) return fallback;
+            return Math.min(100, Math.max(0, Math.round(val > 1 ? val : val * 100)));
+          };
+          const posPct = sentiment?.distribution ? normPct(sentiment.distribution.positive, 64) : 64;
+          const neuPct = sentiment?.distribution ? normPct(sentiment.distribution.neutral, 24) : 24;
+          const negPct = sentiment?.distribution ? normPct(sentiment.distribution.negative, 12) : 12;
           const scoreStr = sentiment
             ? (sentiment.sentimentScore >= 0 ? `+${sentiment.sentimentScore.toFixed(2)}` : sentiment.sentimentScore.toFixed(2))
             : (news.length > 0 ? '+0.45' : '0.00');
           const sentimentLabel = sentiment?.label || (news.length > 0 ? 'Positive' : 'Neutral');
+          const sentSrcText =
+            sentiment?.sentimentSource === 'finbert'
+              ? 'FinBERT Sentiment'
+              : sentiment?.sentimentSource === 'mixed'
+                ? 'FinBERT + Lexicon'
+                : 'Lexicon Fallback';
 
           return (
             <div className="rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-5 shadow-xs hover:shadow-sm transition-all space-y-4">
@@ -841,7 +852,7 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                     <div className="flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
                       <span className="text-xs font-mono font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                        Keyword News Sentiment
+                        {sentSrcText}
                       </span>
                     </div>
                     <span
@@ -885,11 +896,11 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
 
                   <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
                     <span>
-                      {sentiment?.sampleCount || (news.length > 0 ? news.length : 8)} real-time headlines scored
+                      {sentiment?.sampleCount || (news.length > 0 ? news.length : 8)} headlines ({sentSrcText})
                     </span>
                     <span className="text-cyan-700 dark:text-cyan-400 font-semibold flex items-center gap-1">
                       <Cpu className="w-3 h-3" />
-                      NLP Ingestion Active
+                      {sentiment?.sentimentSource === 'finbert' ? 'FinBERT Active' : sentiment?.sentimentSource === 'mixed' ? 'Hybrid NLP' : 'Lexicon Fallback'}
                     </span>
                   </div>
                 </div>
@@ -937,6 +948,11 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
             <div id="tour-drift-card" className="w-full">
               <ConceptDriftCard drift={drift} />
             </div>
+          </div>
+
+          {/* Row 3: Sentiment-Return Lead/Lag Analysis (k = -5..+5) */}
+          <div id="tour-lag-panel" className="w-full">
+            <SentimentLagPanel ticker={selectedTicker} />
           </div>
         </div>
       </div>
