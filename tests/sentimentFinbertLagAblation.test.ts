@@ -175,7 +175,8 @@ describe('Task 2: Daily sentiment store persistence and immutability rules', () 
     }
   });
 
-  it('appends non-zero days, refuses to overwrite past dates, skips zero-article days, and persists across disk reload', async () => {
+  it('creates a fresh store if missing, appends non-zero days, refuses to overwrite past dates, skips zero-article days, and persists across disk reload', async () => {
+    assert.equal(fs.existsSync(tmpStorePath), true, 'Missing store file should be auto-created on disk');
     const todayDate = '2026-05-10';
     const initial: DailySentimentRecord[] = [
       {

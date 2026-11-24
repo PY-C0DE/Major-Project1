@@ -7,3 +7,5 @@ coverage/
 .env*
 !.env.example
 audit-output/
+data/*
+!data/alphaquant_store.example.json

@@ -41,8 +41,8 @@ Concept drift is monitored by comparing the cumulative empirical distribution fu
 
 $$D = \\sup_{x} |F_{\\text{baseline}}(x) - F_{\\text{live}}(x)|$$
 
-- **Threshold**: When the asymptotic $p$-value falls below $0.05$ with $D > 0.15$, a **Concept Drift Alert** is triggered.
-- **Safety Auto-Widening**: Conformal prediction intervals are automatically expanded by up to $30\\%$ to prevent under-coverage while the model re-calibrates.`;
+- **Threshold**: When the asymptotic $p$-value falls below $0.05$ with $D > 0.15$, an **informational Concept Drift Alert** is surfaced.
+- **Diagnostic Only**: Conformal prediction intervals remain anchored to historical split-conformal calibration residuals and are not automatically widened by drift alerts.`;
   }
 
   if (q.includes('sharpe') || q.includes('optimizer') || q.includes('markowitz') || q.includes('mvo') || q.includes('portfolio')) {

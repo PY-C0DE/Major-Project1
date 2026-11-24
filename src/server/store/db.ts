@@ -362,7 +362,17 @@ function loadFromDisk(customPath?: string) {
         return;
       }
     }
-    saveToDisk();
+    const initialState: PersistedState = {
+      users: Array.from(users.entries()),
+      portfolios: Array.from(portfolios.entries()),
+      watchlists: Array.from(watchlists.entries()),
+      alerts: Array.from(alerts.entries()),
+      predictionHistory,
+      dailySentiment: Array.from(dailySentiment.entries())
+    };
+    const tempFile = `${activeStoreFile}.init.${Date.now()}.tmp`;
+    fs.writeFileSync(tempFile, JSON.stringify(initialState, null, 2), 'utf8');
+    fs.renameSync(tempFile, activeStoreFile);
   } catch (err) {
     console.warn('Failed to load AlphaQuant store from disk, running with defaults:', err);
   }

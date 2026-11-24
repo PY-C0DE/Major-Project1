@@ -1009,7 +1009,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
               <div className="p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300">
                 <div className="text-amber-600 dark:text-amber-400 font-semibold mb-1">Distribution Drift Guard:</div>
                 <div>Null Hypothesis Testing · p-value &lt; 0.05 Alert Trigger</div>
-                <div className="text-slate-500 text-[10px] mt-1">Automatically widens conformal intervals upon drift</div>
+                <div className="text-slate-500 text-[10px] mt-1">Informational distribution-shift diagnostic monitor</div>
               </div>
             </div>
           </div>

@@ -365,7 +365,7 @@ export function classifyFinancialEvent(title: string, summary: string): {
       eventImpact: 'High Bullish Catalyst',
       predictedPriceEffectPct: effect,
       confidenceScore: 0.92,
-      incorporationInModel: 'Acquisition premium incorporated as upward drift bias (+4.8%) in conformal quantile calibration.'
+      incorporationInModel: 'Logged as an informational M&A catalyst tag; conformal bounds remain anchored strictly to split-conformal residual quantiles.'
     };
   }
 
@@ -387,10 +387,10 @@ export function classifyFinancialEvent(title: string, summary: string): {
       predictedPriceEffectPct: isBeat ? 3.5 : isMiss ? -4.2 : 1.2,
       confidenceScore: 0.88,
       incorporationInModel: isBeat
-        ? 'Earnings surprise shifts conformal lower bound upward, compressing downside quantile risk.'
+        ? 'Logged as an informational bullish earnings catalyst; does not alter split-conformal interval bounds.'
         : isMiss
-        ? 'Earnings compression widens lower conformal band variance to account for downward price revisions.'
-        : 'Neutral earnings report maintains baseline distribution-free band widths.'
+        ? 'Logged as an informational earnings headwind alert; split-conformal bounds remain unchanged from historical calibration residuals.'
+        : 'Logged as a neutral earnings update with baseline split-conformal band widths.'
     };
   }
 
@@ -411,7 +411,7 @@ export function classifyFinancialEvent(title: string, summary: string): {
       eventImpact: 'High Risk Headwind',
       predictedPriceEffectPct: -3.8,
       confidenceScore: 0.85,
-      incorporationInModel: 'Regulatory overhang triggers non-linear downside non-conformity widening in safety band.'
+      incorporationInModel: 'Logged as an informational regulatory headwind warning; conformal uncertainty bands are not automatically widened.'
     };
   }
 
@@ -429,7 +429,7 @@ export function classifyFinancialEvent(title: string, summary: string): {
       eventImpact: 'Moderate Bullish',
       predictedPriceEffectPct: 2.4,
       confidenceScore: 0.90,
-      incorporationInModel: 'Share reduction and dividend yields establish strong support floor in mean-reversion calculations.'
+      incorporationInModel: 'Logged as an informational capital-return catalyst; quantitative forecasts continue to follow price-series calibration.'
     };
   }
 
@@ -448,7 +448,7 @@ export function classifyFinancialEvent(title: string, summary: string): {
       eventImpact: isHawkish ? 'Moderate Bearish' : 'Moderate Bullish',
       predictedPriceEffectPct: isHawkish ? -1.8 : 1.5,
       confidenceScore: 0.84,
-      incorporationInModel: 'Macro factor coefficient adjusted via Ridge regularizer on inter-market rate differentials.'
+      incorporationInModel: 'Logged as an informational macroeconomic regime catalyst for analyst context.'
     };
   }
 
@@ -458,7 +458,7 @@ export function classifyFinancialEvent(title: string, summary: string): {
     eventImpact: 'Moderate Bullish',
     predictedPriceEffectPct: 2.1,
     confidenceScore: 0.80,
-    incorporationInModel: 'Strategic investment and capacity expansion enhances fundamental trend continuation factor.'
+    incorporationInModel: 'Logged as an informational strategic expansion news catalyst.'
   };
 }
 
