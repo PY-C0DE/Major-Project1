@@ -39,6 +39,7 @@ import {
 } from './modelEngine';
 import { MIN_CONFORMAL_BARS } from './conformal';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
+import { inferCurrencyFromTicker } from '../../utils/currency';
 
 export function computeModelFeatureImportance(
   ensembleModel: ReturnType<typeof fitEnsembleModel>,
@@ -883,6 +884,7 @@ export function runModelEvaluation(
     dataSource: 'live',
     evaluatedAssetsCount: 1,
     ticker,
+    currency: inferCurrencyFromTicker(ticker),
     modelName: 'AlphaQuant Ensemble (ridge + Huber gradient-boosted trees + Kalman regime filter + KNN stacker)',
     horizonDays: 1,
     mae,
@@ -1105,18 +1107,32 @@ export async function computeProjectWideAccuracy(
     }
 
     const sampleCount = evaluatedResults.length;
+    const distinctCurrencies = new Set(
+      evaluatedResults.map(r => r.currency || inferCurrencyFromTicker(r.ticker))
+    );
+    const isMixedCurrency = distinctCurrencies.size > 1;
+    const aggregateCurrency = distinctCurrencies.size === 1 ? Array.from(distinctCurrencies)[0] : 'MIXED';
+
     const priceAccs = evaluatedResults.map(r => r.priceAccuracy ?? (100 - r.mape));
     const naivePriceAccs = evaluatedResults.map(r => r.naivePriceAccuracy ?? (100 - (r.naiveMape ?? r.mape)));
     const mapes = evaluatedResults.map(r => r.mape);
     const naiveMapes = evaluatedResults.map(r => r.naiveMape ?? r.mape);
     const maeSkills = evaluatedResults.map(r => r.maeSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
     const rmseSkills = evaluatedResults.map(r => r.rmseSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
-    const beatNaiveCount = evaluatedResults.filter(r => r.naiveMae !== undefined && r.mae < r.naiveMae).length;
+    const beatNaiveCount = evaluatedResults.filter(
+      r => r.naiveMae != null && r.mae != null && r.mae < r.naiveMae
+    ).length;
 
     const avgMape = mapes.reduce((a, b) => a + b, 0) / sampleCount;
     const avgNaiveMape = naiveMapes.reduce((a, b) => a + b, 0) / sampleCount;
-    const avgMae = evaluatedResults.reduce((a, b) => a + b.mae, 0) / sampleCount;
-    const avgRmse = evaluatedResults.reduce((a, b) => a + b.rmse, 0) / sampleCount;
+    const maeValues = evaluatedResults.map(r => r.mae).filter((v): v is number => v != null && Number.isFinite(v));
+    const rmseValues = evaluatedResults.map(r => r.rmse).filter((v): v is number => v != null && Number.isFinite(v));
+    const avgMae = !isMixedCurrency && maeValues.length === sampleCount
+      ? maeValues.reduce((a, b) => a + b, 0) / sampleCount
+      : null;
+    const avgRmse = !isMixedCurrency && rmseValues.length === sampleCount
+      ? rmseValues.reduce((a, b) => a + b, 0) / sampleCount
+      : null;
     const avgDir = evaluatedResults.reduce((a, b) => a + b.directionalAccuracy, 0) / sampleCount;
     const covs = evaluatedResults.map(r => r.conformalCoverage).filter((v): v is number => v !== undefined);
     const avgCov = covs.length > 0 ? covs.reduce((a, b) => a + b, 0) / covs.length : 0;
@@ -1129,6 +1145,7 @@ export async function computeProjectWideAccuracy(
     const result: ProjectWideAccuracyResult = {
       available: true,
       dataSource: 'live',
+      currency: aggregateCurrency,
       priceAccuracyPct,
       naivePriceAccuracyPct,
       mape: avgMape,
@@ -1240,6 +1257,10 @@ function summarizeAblationArm(
     seriesByTicker.set(o.ticker, list);
   }
 
+  const distinctCurrencies = new Set(obs.map((o) => inferCurrencyFromTicker(o.ticker)));
+  const isMixedCurrency = distinctCurrencies.size > 1;
+  const currency = distinctCurrencies.size === 1 ? Array.from(distinctCurrencies)[0] : 'MIXED';
+
   const mae = sumAbs / n;
   const rmse = Math.sqrt(sumSq / n);
   const mape = (sumPct / n) * 100;
@@ -1258,11 +1279,12 @@ function summarizeAblationArm(
 
   return {
     name,
+    currency,
     samples: n,
     distinctDates,
     assetsCount,
-    mae: Number(mae.toFixed(4)),
-    rmse: Number(rmse.toFixed(4)),
+    mae: isMixedCurrency ? null : Number(mae.toFixed(4)),
+    rmse: isMixedCurrency ? null : Number(rmse.toFixed(4)),
     mape: Number(mape.toFixed(4)),
     priceAccuracy: Number(priceAccuracy.toFixed(4)),
     naiveMape: Number(naiveMape.toFixed(4)),
@@ -1492,16 +1514,25 @@ export function evaluateSentimentAblationOnSeries(
   bootMaeDiffs.sort((a, b) => a - b);
   bootDirDiffs.sort((a, b) => a - b);
 
-  const maeDiffCI95: [number, number] = [
-    Number(linearQuantile(bootMaeDiffs, 0.025).toFixed(4)),
-    Number(linearQuantile(bootMaeDiffs, 0.975).toFixed(4))
-  ];
+  const ablationCurrencies = new Set(matchedObs.map((o) => inferCurrencyFromTicker(o.ticker)));
+  const ablationIsMixed = ablationCurrencies.size > 1;
+  const ablationCurrency = ablationCurrencies.size === 1 ? Array.from(ablationCurrencies)[0] : 'MIXED';
+
+  const maeDiffCI95: [number, number] | null = ablationIsMixed
+    ? null
+    : [
+        Number(linearQuantile(bootMaeDiffs, 0.025).toFixed(4)),
+        Number(linearQuantile(bootMaeDiffs, 0.975).toFixed(4))
+      ];
   const directionalAccuracyDiffCI95: [number, number] = [
     Number(linearQuantile(bootDirDiffs, 0.025).toFixed(2)),
     Number(linearQuantile(bootDirDiffs, 0.975).toFixed(2))
   ];
 
-  const maeDiff = Number((pricePlusSentiment.mae - priceOnly.mae).toFixed(4));
+  const maeDiff =
+    !ablationIsMixed && pricePlusSentiment.mae != null && priceOnly.mae != null
+      ? Number((pricePlusSentiment.mae - priceOnly.mae).toFixed(4))
+      : null;
   const priceAccuracyDiffPct = Number((pricePlusSentiment.priceAccuracy - priceOnly.priceAccuracy).toFixed(4));
   const maeSkillDiff = Number(
     ((pricePlusSentiment.maeSkillVsNaive ?? 0) - (priceOnly.maeSkillVsNaive ?? 0)).toFixed(6)
@@ -1514,16 +1545,21 @@ export function evaluateSentimentAblationOnSeries(
   );
 
   // Only claim statistical improvement when paired 95% CI strictly excludes 0 in the favorable direction
-  const maeImprovedSignificantly = maeDiffCI95[1] < 0;
+  const maeImprovedSignificantly = maeDiffCI95 !== null && maeDiffCI95[1] < 0;
   const dirImprovedSignificantly = directionalAccuracyDiffCI95[0] > 0;
   const statisticallySignificantImprovement = maeImprovedSignificantly || dirImprovedSignificantly;
 
+  const maeNote =
+    maeDiffCI95 !== null
+      ? `ΔMAE [${maeDiffCI95[0]}, ${maeDiffCI95[1]}]`
+      : 'ΔMAE suppressed across mixed currencies';
   const interpretationNote = statisticallySignificantImprovement
-    ? `Adding strictly causal FinBERT/lexicon daily sentiment yielded a statistically significant improvement (paired 95% CI excludes 0: ΔMAE [${maeDiffCI95[0]}, ${maeDiffCI95[1]}], ΔDirAcc [${directionalAccuracyDiffCI95[0]}, ${directionalAccuracyDiffCI95[1]}]pp across ${matchedSamples} matched observations).`
-    : `No statistically significant improvement over price-only baseline: paired 95% bootstrap confidence intervals cross zero (ΔMAE 95% CI [${maeDiffCI95[0]}, ${maeDiffCI95[1]}], ΔDirAcc 95% CI [${directionalAccuracyDiffCI95[0]}, ${directionalAccuracyDiffCI95[1]}]pp across ${matchedSamples} matched observations).`;
+    ? `Adding strictly causal FinBERT/lexicon daily sentiment yielded a statistically significant improvement (paired 95% CI excludes 0: ${maeNote}, ΔDirAcc [${directionalAccuracyDiffCI95[0]}, ${directionalAccuracyDiffCI95[1]}]pp across ${matchedSamples} matched observations).`
+    : `No statistically significant improvement over price-only baseline: paired 95% bootstrap confidence intervals cross zero (${maeNote}, ΔDirAcc 95% CI [${directionalAccuracyDiffCI95[0]}, ${directionalAccuracyDiffCI95[1]}]pp across ${matchedSamples} matched observations).`;
 
   return {
     available: true,
+    currency: ablationCurrency,
     minRequiredSamples,
     minRequiredDates,
     matchedSamples,
@@ -1534,6 +1570,7 @@ export function evaluateSentimentAblationOnSeries(
     priceOnly,
     pricePlusSentiment,
     pairedDiff: {
+      currency: ablationCurrency,
       priceAccuracyDiffPct,
       maeSkillDiff,
       maeDiff,
@@ -1679,24 +1716,45 @@ export async function runAggregateModelEvaluation(
   }
 
   const count = evaluations.length;
+  const distinctCurrencies = new Set(
+    evaluations.map(e => e.currency || inferCurrencyFromTicker(e.ticker))
+  );
+  const isMixedCurrency = distinctCurrencies.size > 1;
+  const aggregateCurrency = distinctCurrencies.size === 1 ? Array.from(distinctCurrencies)[0] : 'MIXED';
 
   const avgMape = evaluations.reduce((acc, e) => acc + e.mape, 0) / count;
   const avgPriceAccuracy = 100 - avgMape;
   const avgNaiveMape = evaluations.reduce((acc, e) => acc + (e.naiveMape ?? e.mape), 0) / count;
   const avgNaivePriceAccuracy = 100 - avgNaiveMape;
-  const avgNaiveMae = evaluations.reduce((acc, e) => acc + (e.naiveMae ?? e.mae), 0) / count;
-  const avgNaiveRmse = evaluations.reduce((acc, e) => acc + (e.naiveRmse ?? e.rmse), 0) / count;
+
+  const naiveMaeVals = evaluations.map(e => e.naiveMae ?? e.mae).filter((v): v is number => v != null && Number.isFinite(v));
+  const naiveRmseVals = evaluations.map(e => e.naiveRmse ?? e.rmse).filter((v): v is number => v != null && Number.isFinite(v));
+  const avgNaiveMae = !isMixedCurrency && naiveMaeVals.length === count
+    ? naiveMaeVals.reduce((acc, v) => acc + v, 0) / count
+    : null;
+  const avgNaiveRmse = !isMixedCurrency && naiveRmseVals.length === count
+    ? naiveRmseVals.reduce((acc, v) => acc + v, 0) / count
+    : null;
+
   const maeSkillValues = evaluations.map(e => e.maeSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
   const rmseSkillValues = evaluations.map(e => e.rmseSkillVsNaive).filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
   const avgMaeSkillVsNaive = maeSkillValues.length > 0 ? maeSkillValues.reduce((a, b) => a + b, 0) / maeSkillValues.length : null;
   const avgRmseSkillVsNaive = rmseSkillValues.length > 0 ? rmseSkillValues.reduce((a, b) => a + b, 0) / rmseSkillValues.length : null;
-  const beatNaiveCount = evaluations.filter(e => e.naiveMae !== undefined && e.mae < e.naiveMae).length;
+  const beatNaiveCount = evaluations.filter(
+    e => e.naiveMae != null && e.mae != null && e.mae < e.naiveMae
+  ).length;
   const beatNaiveLabel = `${beatNaiveCount} of ${count}`;
 
   const avgConformalCoverage = evaluations.reduce((acc, e) => acc + (e.conformalCoverage ?? 90), 0) / count;
   const avgR2 = evaluations.reduce((acc, e) => acc + e.r2, 0) / count;
-  const avgMae = evaluations.reduce((acc, e) => acc + e.mae, 0) / count;
-  const avgRmse = evaluations.reduce((acc, e) => acc + e.rmse, 0) / count;
+  const maeVals = evaluations.map(e => e.mae).filter((v): v is number => v != null && Number.isFinite(v));
+  const rmseVals = evaluations.map(e => e.rmse).filter((v): v is number => v != null && Number.isFinite(v));
+  const avgMae = !isMixedCurrency && maeVals.length === count
+    ? maeVals.reduce((acc, v) => acc + v, 0) / count
+    : null;
+  const avgRmse = !isMixedCurrency && rmseVals.length === count
+    ? rmseVals.reduce((acc, v) => acc + v, 0) / count
+    : null;
   const avgDir = evaluations.reduce((acc, e) => acc + e.directionalAccuracy, 0) / count;
   const totalSamples = evaluations.reduce((acc, e) => acc + e.totalBacktestSamples, 0);
 
@@ -1807,8 +1865,8 @@ export async function runAggregateModelEvaluation(
     const rowMape = mapeCount > 0 ? totalMape / mapeCount : null;
     return {
       model: modelName,
-      mae: maeCount > 0 ? totalMae / maeCount : null,
-      rmse: rmseCount > 0 ? totalRmse / rmseCount : null,
+      mae: !isMixedCurrency && maeCount > 0 ? totalMae / maeCount : null,
+      rmse: !isMixedCurrency && rmseCount > 0 ? totalRmse / rmseCount : null,
       r2: r2Count > 0 ? Number((totalR2 / r2Count).toFixed(2)) : null,
       mape: rowMape,
       priceAccuracy: rowMape !== null ? 100 - rowMape : null,
@@ -1860,6 +1918,7 @@ export async function runAggregateModelEvaluation(
     return {
       ticker: e.ticker,
       name: meta?.name || e.ticker,
+      currency: e.currency || inferCurrencyFromTicker(e.ticker),
       dataSource: e.dataSource === 'live' ? 'live' : 'synthetic',
       testWindowStart: e.testWindowStart || '',
       testWindowEnd: e.testWindowEnd || '',
@@ -1874,10 +1933,10 @@ export async function runAggregateModelEvaluation(
       directionalAccuracy: Number(e.directionalAccuracy.toFixed(1)),
       alwaysUpAccuracy: Number((e.alwaysUpAccuracy ?? 0).toFixed(1)),
       samples: e.totalBacktestSamples,
-      rmse: e.rmse,
-      naiveRmse: e.naiveRmse ?? e.rmse,
-      mae: e.mae,
-      naiveMae: e.naiveMae ?? e.mae
+      rmse: e.rmse ?? 0,
+      naiveRmse: e.naiveRmse ?? e.rmse ?? 0,
+      mae: e.mae ?? 0,
+      naiveMae: e.naiveMae ?? e.mae ?? 0
     };
   });
 
@@ -1948,6 +2007,7 @@ export async function runAggregateModelEvaluation(
     evaluatedAssetsCount: evaluations.length,
     skippedTickers,
     ticker: 'ALL',
+    currency: aggregateCurrency,
     modelName: 'AlphaQuant Ensemble (Cross-Asset Stacked Aggregate)',
     horizonDays: 1,
     mae: avgMae,
@@ -2025,6 +2085,7 @@ export function buildModelAuditPayload(
       gitCommit,
       evaluationParams,
       dataSource: evaluation.dataSource || 'live',
+      currency: evaluation.currency,
       evaluatedAssetsCount: evaluation.evaluatedAssetsCount || evaluation.assetBreakdown?.length || 0,
       skippedTickers: evaluation.skippedTickers || [],
       evaluatedAt: evaluation.evaluatedAt,
@@ -2048,11 +2109,15 @@ export function buildModelAuditPayload(
   }
 
   const evalNaiveMape = evaluation.naiveMape ?? evaluation.mape;
+  const evalCurrency = evaluation.currency || inferCurrencyFromTicker(evaluation.ticker);
+  const evalMae = evaluation.mae ?? 0;
+  const evalRmse = evaluation.rmse ?? 0;
   return {
     available: true,
     gitCommit,
     evaluationParams,
     dataSource: evaluation.dataSource || 'live',
+    currency: evalCurrency,
     evaluatedAssetsCount: 1,
     skippedTickers: evaluation.skippedTickers || [],
     evaluatedAt: evaluation.evaluatedAt,
@@ -2065,8 +2130,12 @@ export function buildModelAuditPayload(
     naiveMape: evalNaiveMape,
     maeSkillVsNaive: evaluation.maeSkillVsNaive ?? null,
     rmseSkillVsNaive: evaluation.rmseSkillVsNaive ?? null,
-    beatNaiveCount: evaluation.beatNaiveCount ?? (evaluation.naiveMae !== undefined && evaluation.mae < evaluation.naiveMae ? 1 : 0),
-    beatNaiveLabel: evaluation.beatNaiveLabel ?? (evaluation.naiveMae !== undefined && evaluation.mae < evaluation.naiveMae ? '1 of 1' : '0 of 1'),
+    beatNaiveCount:
+      evaluation.beatNaiveCount ??
+      (evaluation.naiveMae != null && evaluation.mae != null && evaluation.mae < evaluation.naiveMae ? 1 : 0),
+    beatNaiveLabel:
+      evaluation.beatNaiveLabel ??
+      (evaluation.naiveMae != null && evaluation.mae != null && evaluation.mae < evaluation.naiveMae ? '1 of 1' : '0 of 1'),
     summaryStats: evaluation.summaryStats,
     directionalStats: evaluation.directionalStats,
     comparison: evaluation.comparison,
@@ -2074,6 +2143,7 @@ export function buildModelAuditPayload(
       {
         ticker: evaluation.ticker,
         name: assetName || evaluation.ticker,
+        currency: evalCurrency,
         dataSource: 'live',
         testWindowStart: evaluation.testWindowStart || '',
         testWindowEnd: evaluation.testWindowEnd || '',
@@ -2088,10 +2158,10 @@ export function buildModelAuditPayload(
         directionalAccuracy: Number(evaluation.directionalAccuracy.toFixed(1)),
         alwaysUpAccuracy: Number((evaluation.alwaysUpAccuracy ?? 0).toFixed(1)),
         samples: evaluation.totalBacktestSamples,
-        rmse: evaluation.rmse,
-        naiveRmse: evaluation.naiveRmse ?? evaluation.rmse,
-        mae: evaluation.mae,
-        naiveMae: evaluation.naiveMae ?? evaluation.mae
+        rmse: evalRmse,
+        naiveRmse: evaluation.naiveRmse ?? evalRmse,
+        mae: evalMae,
+        naiveMae: evaluation.naiveMae ?? evalMae
       }
     ]
   };

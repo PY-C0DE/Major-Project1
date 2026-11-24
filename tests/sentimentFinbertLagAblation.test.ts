@@ -205,12 +205,12 @@ describe('Task 2: Daily sentiment store persistence and immutability rules', () 
       }
     ];
 
-    const s1 = db.upsertDailySentiment(initial, { todayDate });
+    const s1 = await db.upsertDailySentiment(initial, { todayDate });
     assert.equal(s1.inserted, 2);
     assert.equal(s1.skippedInvalid, 1);
 
     // Attempt to overwrite past day (2026-05-08) AND update today (2026-05-10)
-    const s2 = db.upsertDailySentiment(
+    const s2 = await db.upsertDailySentiment(
       [
         {
           date: '2026-05-08',
@@ -237,7 +237,7 @@ describe('Task 2: Daily sentiment store persistence and immutability rules', () 
     await db.flushToDisk();
     await db.reloadStoreFromDisk(tmpStorePath);
 
-    const saved = db.getDailySentimentForTicker('AAPL');
+    const saved = await db.getDailySentimentForTicker('AAPL');
     assert.equal(saved.length, 2, 'Zero-article day 2026-05-09 must stay missing');
     assert.equal(saved[0].date, '2026-05-08');
     assert.ok(Math.abs(saved[0].credibilityWeightedNetScore - 0.42) < 1e-4, 'Past day must never be overwritten');
@@ -436,7 +436,7 @@ describe('Task 4: Strictly causal sentiment features & paired walk-forward ablat
     assert.ok(fullAblation.priceOnly && fullAblation.pricePlusSentiment && fullAblation.pairedDiff);
     assert.equal(fullAblation.priceOnly!.samples, fullAblation.pricePlusSentiment!.samples);
     assert.equal(fullAblation.priceOnly!.distinctDates, fullAblation.pricePlusSentiment!.distinctDates);
-    assert.equal(fullAblation.pairedDiff!.maeDiffCI95.length, 2);
+    assert.ok(fullAblation.pairedDiff!.maeDiffCI95 && fullAblation.pairedDiff!.maeDiffCI95.length === 2);
     assert.equal(fullAblation.pairedDiff!.directionalAccuracyDiffCI95.length, 2);
   });
 });

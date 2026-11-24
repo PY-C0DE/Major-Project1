@@ -16,6 +16,7 @@
 import { TICKER_CATALOG } from '../src/shared/tickerCatalog';
 import { collectAndPersistLiveSentimentForTicker } from '../src/server/math/nlpEngine';
 import { db } from '../src/server/store/db';
+import { closePool } from '../src/db/index';
 
 async function main() {
   const uniqueTickers = Array.from(new Map(TICKER_CATALOG.map((item) => [item.ticker, item])).values());
@@ -73,12 +74,12 @@ async function main() {
   }
 
   await db.flushToDisk();
-  const countsByTicker = db.getDailySentimentCountsByTicker();
-  const totalStoredRows = db.getAllDailySentiment().length;
+  const countsByTicker = await db.getDailySentimentCountsByTicker();
+  const totalStoredRows = (await db.getAllDailySentiment()).length;
   const maxDaysPerTicker = Math.max(0, ...Object.values(countsByTicker));
 
   console.log('\n=== Daily Sentiment Backfill Complete ===');
-  console.log(`Store File                 : ${db.getStoreFilePath()}`);
+  console.log(`Store Target               : ${db.getStoreFilePath()}`);
   console.log(`Tickers With Live Headlines: ${tickersWithLiveNews} / ${uniqueTickers.length}`);
   console.log(`Live Articles Scored       : ${totalArticlesScored} (FinBERT: ${totalFinbertArticles}, Lexicon fallback: ${totalLexiconArticles})`);
   console.log(`Records Inserted           : ${totalInserted}`);
@@ -91,4 +92,7 @@ main()
   .catch((err) => {
     console.error('[Sentiment Backfill] Unhandled error:', err);
     process.exitCode = 1;
+  })
+  .finally(async () => {
+    await closePool().catch(() => {});
   });

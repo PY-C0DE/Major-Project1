@@ -79,59 +79,88 @@ export const CompanySearchCombobox: React.FC<Props> = ({
     return () => clearTimeout(timer);
   }, [typedPlaceholder, isDeleting, placeholderIndex, isInputFocused, query]);
 
-  // Default suggested companies when empty query is focused
-  const defaultSuggestions: StockSearchResult[] = [
-    { ticker: 'RELIANCE.NS', name: 'Reliance Industries Ltd.', exchange: 'NSE', currency: 'INR', price: 2980.50, sector: 'Energy & Conglomerate' },
-    { ticker: 'TCS.NS', name: 'Tata Consultancy Services', exchange: 'NSE', currency: 'INR', price: 4210.75, sector: 'Information Technology' },
-    { ticker: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', currency: 'USD', price: 128.40, sector: 'Semiconductors & AI' },
-    { ticker: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', currency: 'USD', price: 228.50, sector: 'Consumer Electronics' },
-    { ticker: 'HDFCBANK.NS', name: 'HDFC Bank Ltd.', exchange: 'NSE', currency: 'INR', price: 1675.40, sector: 'Banking & Financial Services' },
-    { ticker: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', currency: 'USD', price: 442.10, sector: 'Enterprise Software & Cloud' },
-    { ticker: 'INFY.NS', name: 'Infosys Ltd.', exchange: 'NSE', currency: 'INR', price: 1915.20, sector: 'Information Technology' },
-    { ticker: 'SBIN.NS', name: 'State Bank of India', exchange: 'NSE', currency: 'INR', price: 815.60, sector: 'Banking & Financial Services' },
-    { ticker: 'GOOGL', name: 'Alphabet Inc. (Google)', exchange: 'NASDAQ', currency: 'USD', price: 178.60, sector: 'Internet & Search' },
-    { ticker: 'TSLA', name: 'Tesla Inc.', exchange: 'NASDAQ', currency: 'USD', price: 248.90, sector: 'Automotive & Clean Energy' },
-    { ticker: 'TMCV.NS', name: 'Tata Motors Ltd.', exchange: 'NSE', currency: 'INR', price: 446.05, sector: 'Automobile' },
-    { ticker: 'ETERNAL.NS', name: 'Eternal Ltd. (formerly Zomato)', exchange: 'NSE', currency: 'INR', price: 304.45, sector: 'Consumer Internet & Food Tech' }
-  ];
+  const [initialSuggestions, setInitialSuggestions] = useState<StockSearchResult[]>([]);
 
-  // Fetch search results debounced
+  const mapMasterToSearchResult = (item: import('../types').TickerMasterItem): StockSearchResult => ({
+    ticker: item.symbol,
+    name: item.name,
+    exchange: item.exchangeCode || item.exchange,
+    exchangeCode: item.exchange,
+    country: item.country,
+    currency: item.currency,
+    timezone: item.timezone,
+    assetType: item.assetType,
+    price: item.basePrice ?? undefined,
+    sector: item.sector
+  });
+
+  // Load initial ranked universe slice from ticker_master
+  useEffect(() => {
+    let active = true;
+    api
+      .searchTickersMaster({ limit: 12 })
+      .then((res) => {
+        if (!active) return;
+        const mapped = (res.items || []).map(mapMasterToSearchResult);
+        setInitialSuggestions(mapped);
+        if (!query.trim()) {
+          setResults(mapped);
+        }
+      })
+      .catch(() => {
+        // Ignore transient startup failure; live search remains active
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Fetch search results debounced from PostgreSQL ticker_master (+ Yahoo discovery fallback)
   useEffect(() => {
     const trimmed = query.trim();
     if (!trimmed) {
-      setResults(defaultSuggestions);
+      setResults(initialSuggestions);
       setLoading(false);
       return;
     }
 
+    let cancelled = false;
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const data = await api.searchStocks(trimmed);
-        if (data && data.length > 0) {
-          setResults(data);
-        } else {
-          const fallback = defaultSuggestions.filter(
-            s =>
-              s.name.toLowerCase().includes(trimmed.toLowerCase()) ||
-              s.ticker.toLowerCase().includes(trimmed.toLowerCase())
-          );
-          setResults(fallback);
+        const masterRes = await api.searchTickersMaster({ q: trimmed, limit: 12 });
+        let combined = (masterRes.items || []).map(mapMasterToSearchResult);
+
+        if (trimmed.length >= 2 && combined.length < 6) {
+          const remote = await api.searchStocks(trimmed);
+          const seen = new Set(combined.map((c) => c.ticker.toUpperCase()));
+          for (const item of remote) {
+            if (!seen.has(item.ticker.toUpperCase())) {
+              seen.add(item.ticker.toUpperCase());
+              combined.push(item);
+            }
+          }
+        }
+
+        if (!cancelled) {
+          setResults(combined.slice(0, 15));
         }
       } catch {
-        const fallback = defaultSuggestions.filter(
-          s =>
-            s.name.toLowerCase().includes(trimmed.toLowerCase()) ||
-            s.ticker.toLowerCase().includes(trimmed.toLowerCase())
-        );
-        setResults(fallback);
+        if (!cancelled) {
+          setResults([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }, 200);
 
-    return () => clearTimeout(timer);
-  }, [query]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, initialSuggestions]);
 
   // Click outside listener
   useEffect(() => {
@@ -179,7 +208,7 @@ export const CompanySearchCombobox: React.FC<Props> = ({
   const clearInput = (e: React.MouseEvent) => {
     e.stopPropagation();
     setQuery('');
-    setResults(defaultSuggestions);
+    setResults(initialSuggestions);
     inputRef.current?.focus();
   };
 
@@ -206,7 +235,7 @@ export const CompanySearchCombobox: React.FC<Props> = ({
             onFocus={() => {
               setIsInputFocused(true);
               setIsOpen(true);
-              if (!query.trim()) setResults(defaultSuggestions);
+              if (!query.trim()) setResults(initialSuggestions);
             }}
             onBlur={() => {
               setIsInputFocused(false);
@@ -282,9 +311,32 @@ export const CompanySearchCombobox: React.FC<Props> = ({
                           {item.ticker}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
-                        <span>{item.exchange}</span>
-                        <MarketStatusBadge ticker={item.ticker} exchange={item.exchange} compact showTime={false} />
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500 dark:text-slate-400 flex-wrap">
+                        <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+                          {item.exchange}
+                        </span>
+                        {item.exchangeCode && item.exchangeCode !== item.exchange && (
+                          <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                            {item.exchangeCode}
+                          </span>
+                        )}
+                        {item.country && (
+                          <span className="px-1 py-0.2 rounded text-[9px] font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                            {item.country}
+                          </span>
+                        )}
+                        {item.currency && (
+                          <span className="px-1 py-0.2 rounded text-[9px] font-mono font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                            {item.currency}
+                          </span>
+                        )}
+                        <MarketStatusBadge
+                          ticker={item.ticker}
+                          exchange={item.exchange}
+                          exchangeTimezoneName={item.timezone}
+                          compact
+                          showTime={false}
+                        />
                         {item.sector && (
                           <>
                             <span>·</span>

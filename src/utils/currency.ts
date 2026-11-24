@@ -20,7 +20,11 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   SGD: 'S$',
   CHF: 'CHF ',
   TWD: 'NT$',
-  BRL: 'R$'
+  BRL: 'R$',
+  SEK: 'kr ',
+  NOK: 'kr ',
+  DKK: 'kr ',
+  ZAR: 'R '
 };
 
 /**
@@ -36,12 +40,16 @@ export function inferCurrencyFromTicker(ticker?: string): string {
   if (t.endsWith('.HK')) return 'HKD';
   if (t.endsWith('.TW') || t.endsWith('.TWO')) return 'TWD';
   if (t.endsWith('.L')) return 'GBP';
-  if (t.endsWith('.DE') || t.endsWith('.PA') || t.endsWith('.AS') || t.endsWith('.MC') || t.endsWith('.MI') || t.endsWith('.F')) return 'EUR';
+  if (t.endsWith('.DE') || t.endsWith('.PA') || t.endsWith('.AS') || t.endsWith('.MC') || t.endsWith('.MI') || t.endsWith('.F') || t.endsWith('.BR') || t.endsWith('.HE') || t.endsWith('.LS')) return 'EUR';
   if (t.endsWith('.SW')) return 'CHF';
   if (t.endsWith('.AX')) return 'AUD';
   if (t.endsWith('.TO') || t.endsWith('.V')) return 'CAD';
   if (t.endsWith('.SI')) return 'SGD';
   if (t.endsWith('.SA')) return 'BRL';
+  if (t.endsWith('.ST')) return 'SEK';
+  if (t.endsWith('.OL')) return 'NOK';
+  if (t.endsWith('.CO')) return 'DKK';
+  if (t.endsWith('.JO')) return 'ZAR';
   return 'USD';
 }
 
@@ -58,7 +66,10 @@ export function inferExchangeFromTicker(ticker?: string): string {
   if (t.endsWith('.T')) return 'TSE';
   if (t.endsWith('.L')) return 'LSE';
   if (t.endsWith('.DE') || t.endsWith('.F')) return 'XETRA';
-  if (t.endsWith('.PA')) return 'EURONEXT';
+  if (t.endsWith('.PA') || t.endsWith('.AS') || t.endsWith('.BR')) return 'EURONEXT';
+  if (t.endsWith('.MC')) return 'BME';
+  if (t.endsWith('.MI')) return 'MIL';
+  if (t.endsWith('.SW')) return 'SIX';
   if (t.endsWith('.HK')) return 'HKEX';
   if (t.endsWith('.TW') || t.endsWith('.TWO')) return 'TWSE';
   if (t.endsWith('.SS')) return 'SSE';
@@ -66,6 +77,9 @@ export function inferExchangeFromTicker(ticker?: string): string {
   if (t.endsWith('.TO') || t.endsWith('.V')) return 'TSX';
   if (t.endsWith('.AX')) return 'ASX';
   if (t.endsWith('.SI')) return 'SGX';
+  if (t.endsWith('.SA')) return 'B3';
+  if (t.endsWith('.ST') || t.endsWith('.HE') || t.endsWith('.CO')) return 'NASDAQ NORDIC';
+  if (t.endsWith('.OL')) return 'OSLO';
   return 'NASDAQ';
 }
 

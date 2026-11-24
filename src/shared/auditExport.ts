@@ -12,6 +12,7 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
   const headers = [
     'ticker',
     'name',
+    'currency',
     'dataSource',
     'testWindowStart',
     'testWindowEnd',
@@ -35,6 +36,7 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
   const rows = (audit.assets || []).map((row) => [
     row.ticker,
     row.name,
+    row.currency ?? '',
     row.dataSource,
     row.testWindowStart,
     row.testWindowEnd,
@@ -48,9 +50,9 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
     row.conformalCoverage,
     row.directionalAccuracy,
     row.alwaysUpAccuracy,
-    row.mae.toFixed(2),
+    row.mae != null ? row.mae.toFixed(2) : '',
     row.naiveMae != null ? row.naiveMae.toFixed(2) : '',
-    row.rmse.toFixed(2),
+    row.rmse != null ? row.rmse.toFixed(2) : '',
     row.naiveRmse != null ? row.naiveRmse.toFixed(2) : '',
     row.r2
   ]);
@@ -63,7 +65,7 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
 
   const metadataLines = [
     `# Reproducible Audit Metadata (${scopeLabel})`,
-    `# evaluatedAt=${audit.evaluatedAt ?? 'n/a'}, gitCommit=${audit.gitCommit ?? 'null'}, dataSource=${audit.dataSource}, evaluatedAssetsCount=${audit.evaluatedAssetsCount}, skippedCount=${skipped.length}`,
+    `# evaluatedAt=${audit.evaluatedAt ?? 'n/a'}, gitCommit=${audit.gitCommit ?? 'null'}, dataSource=${audit.dataSource}, currency=${audit.currency ?? 'n/a'}, evaluatedAssetsCount=${audit.evaluatedAssetsCount}, skippedCount=${skipped.length}`,
     ...(ep
       ? [
           `# evaluationParams: historyDays=${ep.historyDays}, minBarsRequired=${ep.minBarsRequired}, testWindowRule="${ep.testWindowRule}", retrainIntervalRule="${ep.retrainIntervalRule}", calibrationWindowMax=${ep.calibrationWindowMax}, conformalCoverageTarget=${ep.conformalCoverageTarget}, bootstrapResamples=${ep.bootstrapResamples}, bootstrapSeed=${ep.bootstrapSeed}, signTestNullP=${ep.signTestNullP}`
@@ -94,10 +96,10 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
   const ablationLines = sa
     ? sa.available && sa.priceOnly && sa.pricePlusSentiment && sa.pairedDiff
       ? [
-          `# Sentiment Ablation (Paired Subset): samples=${sa.matchedSamples}, dates=${sa.matchedDates}, assets=${sa.matchedAssetsCount}, significant=${sa.pairedDiff.statisticallySignificantImprovement}`,
-          `# Sentiment Ablation Price-Only (24f): priceAcc=${sa.priceOnly.priceAccuracy.toFixed(2)}%, mae=${sa.priceOnly.mae.toFixed(4)}, maeSkill=${sa.priceOnly.maeSkillVsNaive ?? 'n/a'}, dirAcc=${sa.priceOnly.directionalAccuracy}%, coverage=${sa.priceOnly.conformalCoverage}%`,
-          `# Sentiment Ablation Price+Sentiment (28f): priceAcc=${sa.pricePlusSentiment.priceAccuracy.toFixed(2)}%, mae=${sa.pricePlusSentiment.mae.toFixed(4)}, maeSkill=${sa.pricePlusSentiment.maeSkillVsNaive ?? 'n/a'}, dirAcc=${sa.pricePlusSentiment.directionalAccuracy}%, coverage=${sa.pricePlusSentiment.conformalCoverage}%`,
-          `# Sentiment Ablation Paired Diff (b-a): deltaPriceAcc=${sa.pairedDiff.priceAccuracyDiffPct}%, deltaMae=${sa.pairedDiff.maeDiff} ci95=[${sa.pairedDiff.maeDiffCI95[0]}, ${sa.pairedDiff.maeDiffCI95[1]}], deltaDirAcc=${sa.pairedDiff.directionalAccuracyDiffPp}pp ci95=[${sa.pairedDiff.directionalAccuracyDiffCI95[0]}, ${sa.pairedDiff.directionalAccuracyDiffCI95[1]}]pp`
+          `# Sentiment Ablation (Paired Subset): samples=${sa.matchedSamples}, dates=${sa.matchedDates}, assets=${sa.matchedAssetsCount}, currency=${sa.currency ?? 'n/a'}, significant=${sa.pairedDiff.statisticallySignificantImprovement}`,
+          `# Sentiment Ablation Price-Only (24f): priceAcc=${sa.priceOnly.priceAccuracy.toFixed(2)}%, mae=${sa.priceOnly.mae != null ? sa.priceOnly.mae.toFixed(4) : 'n/a(mixed)'}, maeSkill=${sa.priceOnly.maeSkillVsNaive ?? 'n/a'}, dirAcc=${sa.priceOnly.directionalAccuracy}%, coverage=${sa.priceOnly.conformalCoverage}%`,
+          `# Sentiment Ablation Price+Sentiment (28f): priceAcc=${sa.pricePlusSentiment.priceAccuracy.toFixed(2)}%, mae=${sa.pricePlusSentiment.mae != null ? sa.pricePlusSentiment.mae.toFixed(4) : 'n/a(mixed)'}, maeSkill=${sa.pricePlusSentiment.maeSkillVsNaive ?? 'n/a'}, dirAcc=${sa.pricePlusSentiment.directionalAccuracy}%, coverage=${sa.pricePlusSentiment.conformalCoverage}%`,
+          `# Sentiment Ablation Paired Diff (b-a): deltaPriceAcc=${sa.pairedDiff.priceAccuracyDiffPct}%, deltaMae=${sa.pairedDiff.maeDiff != null ? sa.pairedDiff.maeDiff : 'n/a(mixed)'} ci95=${sa.pairedDiff.maeDiffCI95 ? `[${sa.pairedDiff.maeDiffCI95[0]}, ${sa.pairedDiff.maeDiffCI95[1]}]` : 'n/a'}, deltaDirAcc=${sa.pairedDiff.directionalAccuracyDiffPp}pp ci95=[${sa.pairedDiff.directionalAccuracyDiffCI95[0]}, ${sa.pairedDiff.directionalAccuracyDiffCI95[1]}]pp`
         ]
       : [
           `# Sentiment Ablation: available=false, matchedSamples=${sa.matchedSamples}, matchedDates=${sa.matchedDates}, matchedAssets=${sa.matchedAssetsCount}, reason="${sa.reason ?? 'insufficient overlap'}"`

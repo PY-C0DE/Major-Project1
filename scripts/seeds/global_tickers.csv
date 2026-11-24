@@ -1,0 +1,115 @@
+symbol,name,exchange,exchangeCode,country,currency,timezone,assetType,sector,aliases,active
+ORCL,Oracle Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Enterprise Software,"oracle|larry ellison|oci",true
+CRM,Salesforce Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Cloud Software,"salesforce|crm",true
+ADBE,Adobe Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Software & Creative,"adobe|photoshop|acrobat",true
+INTC,Intel Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,"intel|foundry",true
+QCOM,Qualcomm Incorporated,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,"qualcomm|snapdragon",true
+TXN,Texas Instruments Incorporated,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,"texas instruments|ti",true
+INTU,Intuit Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Fintech & Software,"intuit|turbotax|quickbooks",true
+AMAT,Applied Materials Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductor Equipment,"applied materials",true
+LRCX,Lam Research Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductor Equipment,"lam research",true
+MU,Micron Technology Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,"micron|dram|hbm",true
+PANW,Palo Alto Networks Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Cybersecurity,"palo alto|cybersecurity",true
+CRWD,CrowdStrike Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Cybersecurity,"crowdstrike|falcon",true
+NOW,ServiceNow Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Enterprise Software,"servicenow",true
+SNOW,Snowflake Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Cloud Data,"snowflake",true
+PLTR,Palantir Technologies Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,AI & Analytics,"palantir|gotham|aip",true
+UBER,Uber Technologies Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Mobility & Delivery,"uber|uber eats",true
+SHOP,Shopify Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,E-Commerce Software,"shopify",true
+BKNG,Booking Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Travel & Consumer,"booking|priceline|kayak",true
+SBUX,Starbucks Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer & Dining,"starbucks",true
+NKE,NIKE Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Apparel & Consumer,"nike|jordan",true
+MCD,McDonald's Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer & Dining,"mcdonalds|mcdonald's",true
+PEP,PepsiCo Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Beverages & Snacks,"pepsi|pepsico|frito-lay",true
+PG,Procter & Gamble Co.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Staples,"procter gamble|p&g",true
+CAT,Caterpillar Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,"caterpillar",true
+BA,The Boeing Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Aerospace & Defense,"boeing",true
+GE,GE Aerospace,XNYS,NYSE,US,USD,America/New_York,EQUITY,Aerospace & Defense,"general electric|ge aerospace",true
+HON,Honeywell International Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,"honeywell",true
+UNH,UnitedHealth Group Incorporated,XNYS,NYSE,US,USD,America/New_York,EQUITY,Healthcare,"unitedhealth|optum",true
+LLY,Eli Lilly and Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,"eli lilly|lilly|mounjaro",true
+PFE,Pfizer Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,"pfizer",true
+ABBV,AbbVie Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,"abbvie|humira",true
+MRK,Merck & Co. Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,"merck",true
+BAC,Bank of America Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,"bank of america|bofa",true
+WFC,Wells Fargo & Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,"wells fargo",true
+MS,Morgan Stanley,XNYS,NYSE,US,USD,America/New_York,EQUITY,Investment Banking,"morgan stanley",true
+C,Citigroup Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,"citi|citigroup",true
+BLK,BlackRock Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Asset Management,"blackrock|ishares|aladdin",true
+BRK-B,Berkshire Hathaway Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Diversified Financials,"berkshire|buffett|berkshire hathaway",true
+PYPL,PayPal Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Fintech & Payments,"paypal|venmo",true
+COP,ConocoPhillips,XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy,"conocophillips",true
+SLB,SLB (Schlumberger),XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy Services,"slb|schlumberger",true
+DMART.NS,Avenue Supermarts Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Retail,"dmart|avenue supermarts",true
+ADANIGREEN.NS,Adani Green Energy Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Renewable Energy,"adani green",true
+HAL.NS,Hindustan Aeronautics Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Aerospace & Defense,"hal|hindustan aeronautics",true
+BEL.NS,Bharat Electronics Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Defense Electronics,"bel|bharat electronics",true
+TRENT.NS,Trent Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Retail & Apparel,"trent|zudio|westside",true
+ETERNAL.NS,Eternal Ltd. (Zomato),XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Tech,"zomato|eternal|blinkit",true
+INDIGO.NS,InterGlobe Aviation Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Aviation,"indigo|interglobe",true
+PIDILITIND.NS,Pidilite Industries Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Specialty Chemicals,"pidilite|fevicol",true
+GRASIM.NS,Grasim Industries Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Materials & Cement,"grasim",true
+CIPLA.NS,Cipla Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Pharmaceuticals,"cipla",true
+DRREDDY.NS,Dr. Reddy's Laboratories Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Pharmaceuticals,"dr reddy|dr reddys",true
+TECHM.NS,Tech Mahindra Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Information Technology,"tech mahindra|techm",true
+RELIANCE.BO,Reliance Industries Ltd. (BSE),XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Energy & Conglomerate,"reliance bse",true
+TCS.BO,Tata Consultancy Services (BSE),XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Information Technology,"tcs bse",true
+AZN.L,AstraZeneca PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Pharmaceuticals,"astrazeneca",true
+SHEL.L,Shell plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Energy,"shell|royal dutch shell",true
+HSBA.L,HSBC Holdings plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,"hsbc",true
+ULVR.L,Unilever PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Consumer Staples,"unilever uk",true
+BP.L,BP p.l.c.,XLON,LSE,GB,GBP,Europe/London,EQUITY,Energy,"bp|british petroleum",true
+GSK.L,GSK plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Pharmaceuticals,"gsk|glaxosmithkline",true
+RIO.L,Rio Tinto Group,XLON,LSE,GB,GBP,Europe/London,EQUITY,Metals & Mining,"rio tinto",true
+BARC.L,Barclays PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,"barclays",true
+LLOY.L,Lloyds Banking Group plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,"lloyds",true
+DGE.L,Diageo plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Consumer Beverages,"diageo|guinness|johnnie walker",true
+SAP.DE,SAP SE,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Enterprise Software,"sap",true
+SIE.DE,Siemens AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Industrials & Automation,"siemens",true
+ALV.DE,Allianz SE,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Insurance & Financials,"allianz",true
+BMW.DE,Bayerische Motoren Werke AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Automobile,"bmw",true
+MBG.DE,Mercedes-Benz Group AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Automobile,"mercedes|mercedes-benz|daimler",true
+DTE.DE,Deutsche Telekom AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Telecommunications,"deutsche telekom|t-mobile",true
+MC.PA,LVMH Moët Hennessy Louis Vuitton,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Luxury & Consumer,"lvmh|louis vuitton|moet",true
+OR.PA,L'Oréal S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Beauty,"loreal|l'oreal",true
+TTE.PA,TotalEnergies SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Energy,"totalenergies|total",true
+AIR.PA,Airbus SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Aerospace & Defense,"airbus",true
+SAN.PA,Sanofi,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Pharmaceuticals,"sanofi",true
+ASML.AS,ASML Holding N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Semiconductor Equipment,"asml|euv",true
+NESN.SW,Nestlé S.A.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Staples,"nestle|nespresso",true
+NOVN.SW,Novartis AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Pharmaceuticals,"novartis",true
+ROG.SW,Roche Holding AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Pharmaceuticals,"roche",true
+UBSG.SW,UBS Group AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Banking & Wealth Management,"ubs",true
+NOVO-B.CO,Novo Nordisk A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Pharmaceuticals,"novo nordisk|ozempic|wegovy",true
+7203.T,Toyota Motor Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Automobile,"toyota",true
+6758.T,Sony Group Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Electronics & Media,"sony|playstation",true
+6861.T,Keyence Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Automation & Sensors,"keyence",true
+9984.T,SoftBank Group Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Tech Investment,"softbank",true
+8306.T,Mitsubishi UFJ Financial Group,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Banking & Financials,"mufg|mitsubishi ufj",true
+9983.T,Fast Retailing Co. Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Apparel & Retail,"fast retailing|uniqlo",true
+8035.T,Tokyo Electron Limited,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Semiconductor Equipment,"tokyo electron|tel",true
+7974.T,Nintendo Co. Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Gaming & Entertainment,"nintendo|switch",true
+0700.HK,Tencent Holdings Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Internet & Gaming,"tencent|wechat",true
+9988.HK,Alibaba Group Holding Ltd.,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,E-Commerce & Cloud,"alibaba|taobao|aliyun",true
+3690.HK,Meituan,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Tech,"meituan",true
+1211.HK,BYD Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Automobile & EV,"byd",true
+005930.KS,Samsung Electronics Co. Ltd.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Semiconductors & Electronics,"samsung|samsung electronics",true
+000660.KS,SK hynix Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Semiconductors,"sk hynix|hynix",true
+005380.KS,Hyundai Motor Company,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Automobile,"hyundai",true
+035420.KS,NAVER Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Internet & Search,"naver",true
+2330.TW,Taiwan Semiconductor Mfg. (TSMC),XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Semiconductors,"tsmc|taiwan semiconductor",true
+2317.TW,Hon Hai Precision Industry (Foxconn),XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Electronics Manufacturing,"foxconn|hon hai",true
+RY.TO,Royal Bank of Canada,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Banking & Financials,"rbc|royal bank of canada",true
+TD.TO,Toronto-Dominion Bank,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Banking & Financials,"td bank|toronto-dominion",true
+ENB.TO,Enbridge Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Energy Infrastructure,"enbridge",true
+CNR.TO,Canadian National Railway,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Rail & Logistics,"cn rail|canadian national",true
+BHP.AX,BHP Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Metals & Mining,"bhp",true
+CBA.AX,Commonwealth Bank of Australia,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Banking & Financials,"commbank|commonwealth bank",true
+CSL.AX,CSL Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Biotechnology,"csl",true
+WES.AX,Wesfarmers Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Retail & Industrials,"wesfarmers|bunnings",true
+D05.SI,DBS Group Holdings Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Banking & Financials,"dbs|dbs bank",true
+O39.SI,Oversea-Chinese Banking Corp,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Banking & Financials,"ocbc",true
+Z74.SI,Singapore Telecommunications Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Telecommunications,"singtel",true
+PETR4.SA,Petróleo Brasileiro S.A. (Petrobras),BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Energy,"petrobras",true
+VALE3.SA,Vale S.A.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Metals & Mining,"vale",true
+ITUB4.SA,Itaú Unibanco Holding S.A.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Banking & Financials,"itau|itau unibanco",true

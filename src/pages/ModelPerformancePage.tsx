@@ -186,7 +186,9 @@ export const ModelPerformancePage: React.FC = () => {
   }, [ticker, strategyType, activeTab]);
 
   const isAll = ticker === 'ALL';
-  const currSym = isAll ? '' : getCurrencySymbol(undefined, ticker);
+  const currSym = isAll
+    ? (metrics?.currency && metrics.currency !== 'MIXED' ? getCurrencySymbol(metrics.currency) : '')
+    : getCurrencySymbol(metrics?.currency, ticker);
 
   const formatPValue = (p: number | undefined): string => {
     if (p === undefined || Number.isNaN(p)) return 'n/a';
@@ -550,27 +552,39 @@ export const ModelPerformancePage: React.FC = () => {
                 </span>
               </div>
 
-              <div className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div
+                className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-xs"
+                title={metrics.currency === 'MIXED' ? 'Raw price errors cannot be averaged across multiple currencies.' : undefined}
+              >
                 <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 block font-semibold">
                   {isAll ? 'Avg RMSE' : 'RMSE (Root Mean Sq)'}
                 </span>
                 <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 block tabular-nums">
-                  {metrics.rmse != null ? (isAll ? `${metrics.rmse.toFixed(2)} pts` : `${currSym}${metrics.rmse.toFixed(2)}`) : 'n/a'}
+                  {metrics.rmse != null
+                    ? (currSym ? `${currSym}${metrics.rmse.toFixed(2)}` : `${metrics.rmse.toFixed(2)} pts`)
+                    : (metrics.currency === 'MIXED' ? 'n/a (mixed)' : 'n/a')}
                 </span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block font-mono">
                   RMSE skill: {metrics.rmseSkillVsNaive != null ? `${metrics.rmseSkillVsNaive * 100 >= 0 ? '+' : ''}${(metrics.rmseSkillVsNaive * 100).toFixed(1)}%` : 'n/a'}
                 </span>
               </div>
 
-              <div className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div
+                className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-xs"
+                title={metrics.currency === 'MIXED' ? 'Raw price errors cannot be averaged across multiple currencies.' : undefined}
+              >
                 <span className="text-[10px] font-mono uppercase text-slate-500 dark:text-slate-400 block font-semibold">
                   {isAll ? 'Avg MAE' : 'MAE (Mean Abs Error)'}
                 </span>
                 <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white mt-1 block tabular-nums">
-                  {metrics.mae != null ? (isAll ? `${metrics.mae.toFixed(2)} pts` : `${currSym}${metrics.mae.toFixed(2)}`) : 'n/a'}
+                  {metrics.mae != null
+                    ? (currSym ? `${currSym}${metrics.mae.toFixed(2)}` : `${metrics.mae.toFixed(2)} pts`)
+                    : (metrics.currency === 'MIXED' ? 'n/a (mixed)' : 'n/a')}
                 </span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block font-mono">
-                  Naive MAE: {metrics.naiveMae != null ? (isAll ? `${metrics.naiveMae.toFixed(2)} pts` : `${currSym}${metrics.naiveMae.toFixed(2)}`) : 'n/a'}
+                  Naive MAE: {metrics.naiveMae != null
+                    ? (currSym ? `${currSym}${metrics.naiveMae.toFixed(2)}` : `${metrics.naiveMae.toFixed(2)} pts`)
+                    : (metrics.currency === 'MIXED' ? 'n/a (mixed currency)' : 'n/a')}
                 </span>
               </div>
 
@@ -1252,6 +1266,11 @@ export const ModelPerformancePage: React.FC = () => {
                           <td className="py-3 px-4 font-sans font-medium text-slate-900 dark:text-white">
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-xs text-cyan-600 dark:text-cyan-400">{asset.ticker}</span>
+                              {asset.currency && (
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                                  {asset.currency}
+                                </span>
+                              )}
                               <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[160px]">{asset.name}</span>
                             </div>
                           </td>
@@ -1348,11 +1367,21 @@ export const ModelPerformancePage: React.FC = () => {
                           {m.isProduction && <Award className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />}
                           <span>{m.model}</span>
                         </td>
-                        <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          {m.mae != null ? (isAll ? `${m.mae.toFixed(2)} pts` : `${currSym}${m.mae.toFixed(2)}`) : <span className="text-slate-400">n/a</span>}
+                        <td
+                          className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums"
+                          title={m.mae == null && metrics.currency === 'MIXED' ? 'Raw price errors cannot be averaged across multiple currencies.' : undefined}
+                        >
+                          {m.mae != null
+                            ? (currSym ? `${currSym}${m.mae.toFixed(2)}` : `${m.mae.toFixed(2)} pts`)
+                            : <span className="text-slate-400">n/a{isAll && metrics.currency === 'MIXED' ? ' (mixed)' : ''}</span>}
                         </td>
-                        <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          {m.rmse != null ? (isAll ? `${m.rmse.toFixed(2)} pts` : `${currSym}${m.rmse.toFixed(2)}`) : <span className="text-slate-400">n/a</span>}
+                        <td
+                          className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums"
+                          title={m.rmse == null && metrics.currency === 'MIXED' ? 'Raw price errors cannot be averaged across multiple currencies.' : undefined}
+                        >
+                          {m.rmse != null
+                            ? (currSym ? `${currSym}${m.rmse.toFixed(2)}` : `${m.rmse.toFixed(2)} pts`)
+                            : <span className="text-slate-400">n/a{isAll && metrics.currency === 'MIXED' ? ' (mixed)' : ''}</span>}
                         </td>
                         <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
                           {m.mape != null ? `${m.mape.toFixed(2)}%` : <span className="text-slate-400">n/a</span>}
@@ -1499,7 +1528,7 @@ export const ModelPerformancePage: React.FC = () => {
                                   {arm.naivePriceAccuracy.toFixed(2)}%
                                 </td>
                                 <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                                  {arm.mae.toFixed(2)} pts
+                                  {arm.mae != null ? `${arm.mae.toFixed(2)} pts` : <span className="text-slate-400">n/a (mixed)</span>}
                                 </td>
                                 <td
                                   className={`py-3 px-4 text-right font-semibold tabular-nums ${
@@ -1513,7 +1542,7 @@ export const ModelPerformancePage: React.FC = () => {
                                     : 'n/a'}
                                 </td>
                                 <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                                  {arm.rmse.toFixed(2)} pts
+                                  {arm.rmse != null ? `${arm.rmse.toFixed(2)} pts` : <span className="text-slate-400">n/a (mixed)</span>}
                                 </td>
                                 <td className="py-3 px-4 text-right text-indigo-600 dark:text-indigo-400 font-bold tabular-nums">
                                   {arm.directionalAccuracy.toFixed(2)}%
@@ -1551,11 +1580,14 @@ export const ModelPerformancePage: React.FC = () => {
                         <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
                           <div className="text-[10px] font-mono uppercase text-slate-400">Δ MAE (Negative = Better)</div>
                           <div className="text-sm font-mono font-bold text-slate-900 dark:text-white mt-0.5">
-                            {metrics.sentimentAblation.pairedDiff.maeDiff >= 0 ? '+' : ''}
-                            {metrics.sentimentAblation.pairedDiff.maeDiff.toFixed(4)} pts
+                            {metrics.sentimentAblation.pairedDiff.maeDiff != null
+                              ? `${metrics.sentimentAblation.pairedDiff.maeDiff >= 0 ? '+' : ''}${metrics.sentimentAblation.pairedDiff.maeDiff.toFixed(4)} pts`
+                              : 'n/a (mixed currency)'}
                           </div>
                           <div className="text-[10px] font-mono text-slate-500 dark:text-slate-400">
-                            95% CI [{metrics.sentimentAblation.pairedDiff.maeDiffCI95[0].toFixed(4)}, {metrics.sentimentAblation.pairedDiff.maeDiffCI95[1].toFixed(4)}]
+                            {metrics.sentimentAblation.pairedDiff.maeDiffCI95
+                              ? `95% CI [${metrics.sentimentAblation.pairedDiff.maeDiffCI95[0].toFixed(4)}, ${metrics.sentimentAblation.pairedDiff.maeDiffCI95[1].toFixed(4)}]`
+                              : 'Mixed currency — ΔMAE omitted'}
                           </div>
                         </div>
 

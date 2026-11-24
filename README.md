@@ -111,12 +111,14 @@ Consistent Light and Dark theme styling across all pages, D3/Recharts visualizat
 # Authentication & User Preferences
 POST   /api/auth/register                 # Create user account with salted bcrypt hash
 POST   /api/auth/login                    # Authenticate & issue JWT session token
+POST   /api/auth/firebase                 # Verify Firebase ID token & sync PostgreSQL user record
 GET    /api/auth/me                       # Retrieve authenticated user profile
 PUT    /api/auth/profile                  # Update profile, language, or home currency preferences
 PUT    /api/auth/change-password          # Update account password
 
-# Global Market Data, FX & Seasonality
-GET    /api/stocks/search?q=:query        # Global ticker/company search across international exchanges
+# Global Ticker Master, Market Data, FX & Seasonality
+GET    /api/tickers/search?q=&country=&exchange= # Ranked, paginated ticker_master search (MIC, country, currency, timezone)
+GET    /api/stocks/search?q=:query        # Ticker/company search backed by ticker_master + Yahoo discovery
 GET    /api/markets/indices?markets=...   # Global macro indices (supports ?markets=US,JP,EU,etc.)
 GET    /api/stocks/quick-watch            # Curated quick-watch global tickers
 GET    /api/fx/rates                      # Real-time FX conversion rates matrix
@@ -184,21 +186,22 @@ POST   /api/support/chat                  # Platform support assistant endpoint
 
 ## 6. Technology Stack
 
-- **Frontend**: React 19, TypeScript, Tailwind CSS v4, Vite 8, `motion` (Framer Motion v12), Recharts 3, D3.js 7, Lucide Icons.
-- **Backend**: Node.js + Express (`server.ts`) with integrated Vite middleware in development on port `3000`, `tsx`, and `yahoo-finance2`.
+- **Frontend**: React 19, TypeScript, Tailwind CSS v4, Vite 8, `motion` (Framer Motion v12), Recharts 3, D3.js 7, Lucide Icons, Firebase Web SDK.
+- **Backend & Persistence**: Node.js + Express (`server.ts`), **PostgreSQL + Drizzle ORM** (`src/db/schema.ts`, migrations in `drizzle/`), `pg`, `tsx`, and `yahoo-finance2`. Uses a pluggable `DatabaseRepository` interface (`PostgresRepository` in production/Postgres-configured environments; `InMemoryRepository` for isolated unit/HTTP tests).
 - **Quantitative & NLP Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Regime Filtering, Cosine KNN Analogs, Split-Conformal Prediction Intervals (90% default coverage), Two-Sample KS Drift Test, Rule-Based Trend/Volatility Regime Classifier, `@xenova/transformers` FinBERT sentiment (`Xenova/finbert`) with keyword lexicon fallback, Sentiment-Price Lag Analysis (`lagAnalysis.ts`), Black-Scholes Greeks, and Markowitz MVO.
-- **Security & Session**: `bcryptjs` password hashing, `jsonwebtoken` stateless JWT authentication, and API rate limiting.
+- **Multi-Currency Safety**: Every price, conformal bound, portfolio holding, prediction history record, and evaluation carries its ISO 4217 currency code. Cross-currency aggregates set `currency = 'MIXED'` and omit unit-incompatible raw `MAE`/`RMSE`/`ΔMAE` averages (`null`) while keeping scale-free metrics (`Price Accuracy`, `MAPE`, `MAE/RMSE Skill`, `Directional Accuracy`).
+- **Security & Session**: `bcryptjs` password hashing, `jsonwebtoken` stateless JWT authentication, Firebase Admin token verification (`POST /api/auth/firebase`), and API rate limiting.
 
 ---
 
-## 7. Quick Start (Local Development)
+## 7. Quick Start & Database Setup (PostgreSQL + Cloud SQL)
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure PostgreSQL & Environment Variables
 Copy `.env.example` to `.env` and set required secrets before production or Docker runs:
 ```bash
 cp .env.example .env
@@ -208,18 +211,35 @@ openssl rand -hex 32
 
 | Variable | Description | Default |
 | :--- | :--- | :--- |
-| `JWT_SECRET` | **Required in production** (`NODE_ENV=production`). Must be at least 32 characters and not a public placeholder. In development, an ephemeral random secret is generated if unset. | Ephemeral (dev) / Required (prod) |
-| `ALLOW_DEMO_MODE` | Server-side flag (`true` / `false`). When `true`, requests without a valid JWT fall back to the demo user account. Keep `false` in real deployments. | `false` |
+| `SQL_HOST` | PostgreSQL / Cloud SQL host (e.g. `127.0.0.1` or Unix socket). Required with `SQL_*` in `NODE_ENV=production` (app fails closed if missing). | Unset (`InMemoryRepository` in dev/test only) |
+| `SQL_USER` | PostgreSQL database user | Unset |
+| `SQL_PASSWORD` | PostgreSQL database password | Unset |
+| `SQL_DB_NAME` | PostgreSQL database name | Unset |
+| `JWT_SECRET` | **Required in production** (`NODE_ENV=production`). Must be at least 32 characters and not a public placeholder. | Ephemeral (dev) / Required (prod) |
+| `ALLOW_DEMO_MODE` | Server-side flag (`true` / `false`). When `true`, requests without a valid JWT fall back to the demo user account. | `false` |
 | `VITE_DEMO_MODE` | Client-side flag (`true` / `false`). Enables automatic demo-session fallback in the frontend when unauthenticated. | `false` |
-| `GEMINI_API_KEY` | Optional Google Gemini API key used by `/api/support/chat` and `/api/copilot/chat` (falls back to deterministic knowledge base responses when unset). | Unset |
+| `GEMINI_API_KEY` | Optional Google Gemini API key used by `/api/support/chat` and `/api/copilot/chat`. | Unset |
 
-### 3. Start Full-Stack Development Server
+### 3. Initialize Schema, Seed Global Tickers & Migrate Legacy JSON Store
+Schema migrations are checked into `drizzle/`. With PostgreSQL running and `SQL_*` configured:
+```bash
+# Push/apply Drizzle schema (users, portfolios, watchlists, alerts, prediction_history, daily_sentiment, ticker_master)
+npx drizzle-kit push --config=src/db/drizzle.config.ts
+
+# Seed ticker_master from the 62-equity catalog + scripts/seeds/global_tickers.csv
+npm run db:import-tickers
+
+# One-off idempotent migration from a legacy data/alphaquant_store.json snapshot into PostgreSQL
+npm run db:import-json
+```
+
+### 4. Start Full-Stack Development Server
 ```bash
 npm run dev
 ```
 Open **http://localhost:3000** in your browser. Express API routes and Vite frontend run together on port `3000`.
 
-### 4. Verify Build, Types, Sentiment Backfill, Audit & Automated Tests
+### 5. Verify Build, Types, Sentiment Backfill, Audit & Automated Tests
 ```bash
 npm run lint               # Run TypeScript type checks (tsc --noEmit)
 npm test                   # Run all unit & real-app HTTP tests (tests/*.test.ts)
@@ -229,16 +249,16 @@ npm run build              # Build production frontend bundle to dist/
 npm start                  # Start full-stack server via tsx server.ts
 ```
 
-### 5. Docker & Docker Compose Deployment
-Ensure `.env` defines a strong `JWT_SECRET` (at least 32 characters); Compose refuses to start if `JWT_SECRET` is missing:
+### 6. Docker & Docker Compose Deployment (with PostgreSQL)
+`docker-compose.yml` provisions a `postgres:16-alpine` service alongside the `app` service and passes `SQL_HOST=postgres`, `SQL_USER`, `SQL_PASSWORD`, and `SQL_DB_NAME`. Ensure `.env` defines a strong `JWT_SECRET` (at least 32 characters); Compose refuses to start if `JWT_SECRET` is missing:
 ```bash
-# Option A: Docker Compose
+# Option A: Docker Compose (starts PostgreSQL + AlphaQuant AI)
 export JWT_SECRET=$(openssl rand -hex 32)
 docker compose up --build
 
-# Option B: Direct Docker Build & Run
+# Option B: Direct Docker Build & Run (connects to external PostgreSQL / Cloud SQL)
 docker build -t alphaquant-ai .
-docker run -p 3000:3000 -e NODE_ENV=production -e JWT_SECRET="$(openssl rand -hex 32)" alphaquant-ai
+docker run -p 3000:3000 -e NODE_ENV=production -e SQL_HOST=... -e SQL_USER=... -e SQL_PASSWORD=... -e SQL_DB_NAME=... -e JWT_SECRET="$(openssl rand -hex 32)" alphaquant-ai
 ```
 
 ---

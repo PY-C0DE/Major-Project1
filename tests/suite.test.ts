@@ -213,12 +213,14 @@ describe('AlphaQuant Quantitative Model Evaluation (Real Function & Fixture)', (
       `Expected naivePriceAccuracy === 100 - naiveMape, got ${evalBaseline.naivePriceAccuracy} vs ${100 - evalBaseline.naiveMape}`
     );
     assert.ok(typeof naiveRow.mae === 'number' && naiveRow.mae > 0);
+    assert.ok(typeof evalBaseline.mae === 'number' && evalBaseline.mae > 0);
     assert.ok(typeof evalBaseline.maeSkillVsNaive === 'number');
     assert.ok(
       Math.abs(evalBaseline.maeSkillVsNaive - (1 - evalBaseline.mae / naiveRow.mae)) < 1e-9,
       `Expected maeSkillVsNaive === 1 - mae/naiveMae, got ${evalBaseline.maeSkillVsNaive}`
     );
     assert.ok(typeof naiveRow.rmse === 'number' && naiveRow.rmse > 0);
+    assert.ok(typeof evalBaseline.rmse === 'number' && evalBaseline.rmse > 0);
     assert.ok(typeof evalBaseline.rmseSkillVsNaive === 'number');
     assert.ok(
       Math.abs(evalBaseline.rmseSkillVsNaive - (1 - evalBaseline.rmse / naiveRow.rmse)) < 1e-9,
@@ -226,6 +228,7 @@ describe('AlphaQuant Quantitative Model Evaluation (Real Function & Fixture)', (
     );
     assert.equal(naiveRow.mape, evalBaseline.naiveMape);
     assert.equal(naiveRow.priceAccuracy, evalBaseline.naivePriceAccuracy);
+    assert.equal(evalBaseline.currency, 'USD');
   });
 
   it('refuses evaluation on synthetic series and returns 503 when no live market data is available', async () => {
@@ -574,6 +577,8 @@ describe('Statistical Power, 2-Year Evaluation Window, Wilson CI, Binomial Test 
     }, catalog);
 
     assert.ok(isModelEvaluationAvailable(agg));
+    assert.equal(agg.currency, 'INR');
+    assert.ok(typeof agg.mae === 'number' && typeof agg.rmse === 'number');
     assert.ok(requestedDays.every((d) => d >= 500), 'Must request >= 2 years (>= 500 days) of history');
     assert.equal(agg.evaluatedAssetsCount, 22, 'Must evaluate all live catalog tickers without 18-ticker truncation');
     assert.equal(agg.assetBreakdown?.length, 22);

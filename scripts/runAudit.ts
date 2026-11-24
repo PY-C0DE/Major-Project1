@@ -9,11 +9,12 @@ import {
 } from '../src/server/math/evaluation';
 import { buildAuditCsv } from '../src/shared/auditExport';
 import { db } from '../src/server/store/db';
+import { closePool } from '../src/db/index';
 import { DailySentimentRecord } from '../src/types';
 
 async function main() {
   clearEvaluationCaches();
-  const allSentiment = db.getAllDailySentiment();
+  const allSentiment = await db.getAllDailySentiment();
   const sentimentByTicker = new Map<string, DailySentimentRecord[]>();
   for (const rec of allSentiment) {
     const key = rec.ticker.toUpperCase();
@@ -49,6 +50,7 @@ async function main() {
   console.log(`Evaluated At      : ${audit.evaluatedAt}`);
   console.log(`Git Commit        : ${audit.gitCommit ?? 'null (unavailable)'}`);
   console.log(`Data Source       : ${audit.dataSource}`);
+  console.log(`Currency Scope    : ${audit.currency ?? 'n/a'}`);
   console.log(`Assets Evaluated  : ${audit.evaluatedAssetsCount} / ${TICKER_CATALOG.length} (skipped: ${audit.skippedTickers?.length ?? 0})`);
   console.log(`Test Window       : ${audit.testWindowStart} -> ${audit.testWindowEnd} (n = ${audit.totalTestPredictions})`);
   console.log(`Price Accuracy    : Mean ${audit.priceAccuracy?.toFixed(2)}% | Median ${ss?.priceAccuracy?.median ?? 'n/a'}% (Naive Mean ${audit.naivePriceAccuracy?.toFixed(2)}% | Median ${ss?.naivePriceAccuracy?.median ?? 'n/a'}%)`);
@@ -61,7 +63,10 @@ async function main() {
   const sa = audit.sentimentAblation;
   if (sa) {
     if (sa.available && sa.priceOnly && sa.pricePlusSentiment && sa.pairedDiff) {
-      console.log(`Sentiment Ablation: n=${sa.matchedSamples} across ${sa.matchedDates} dates (${sa.matchedAssetsCount} assets) | ΔPriceAcc=${sa.pairedDiff.priceAccuracyDiffPct >= 0 ? '+' : ''}${sa.pairedDiff.priceAccuracyDiffPct.toFixed(2)}% | ΔMAE=${sa.pairedDiff.maeDiff} 95%CI [${sa.pairedDiff.maeDiffCI95[0]}, ${sa.pairedDiff.maeDiffCI95[1]}] | ΔDirAcc=${sa.pairedDiff.directionalAccuracyDiffPp >= 0 ? '+' : ''}${sa.pairedDiff.directionalAccuracyDiffPp}pp 95%CI [${sa.pairedDiff.directionalAccuracyDiffCI95[0]}, ${sa.pairedDiff.directionalAccuracyDiffCI95[1]}]pp`);
+      const maePart = sa.pairedDiff.maeDiff != null && sa.pairedDiff.maeDiffCI95
+        ? `ΔMAE=${sa.pairedDiff.maeDiff} 95%CI [${sa.pairedDiff.maeDiffCI95[0]}, ${sa.pairedDiff.maeDiffCI95[1]}]`
+        : 'ΔMAE=n/a(mixed currency)';
+      console.log(`Sentiment Ablation: n=${sa.matchedSamples} across ${sa.matchedDates} dates (${sa.matchedAssetsCount} assets) | ΔPriceAcc=${sa.pairedDiff.priceAccuracyDiffPct >= 0 ? '+' : ''}${sa.pairedDiff.priceAccuracyDiffPct.toFixed(2)}% | ${maePart} | ΔDirAcc=${sa.pairedDiff.directionalAccuracyDiffPp >= 0 ? '+' : ''}${sa.pairedDiff.directionalAccuracyDiffPp}pp 95%CI [${sa.pairedDiff.directionalAccuracyDiffCI95[0]}, ${sa.pairedDiff.directionalAccuracyDiffCI95[1]}]pp`);
     } else {
       console.log(`Sentiment Ablation: unavailable (${sa.reason})`);
     }
@@ -76,6 +81,7 @@ main()
     console.error('[Audit CLI] Unhandled error:', err);
     process.exitCode = 1;
   })
-  .finally(() => {
+  .finally(async () => {
     clearInterval(keepAlive);
+    await closePool().catch(() => {});
   });

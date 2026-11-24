@@ -1,621 +1,127 @@
 /**
- * In-Memory & File-Persistent Storage Engine
- * Manages user accounts, portfolios, watchlists, alerts, and prediction history
- * with automated JSON file persistence on disk to preserve user state across logouts and server reloads.
+ * Pluggable Storage Facade
+ * Selects PostgreSQL (via Drizzle ORM / Cloud SQL) in production and PG-configured runtimes,
+ * failing closed in NODE_ENV=production if database credentials are missing,
+ * while providing an InMemoryRepository (with optional ALPHAQUANT_STORE_PATH disk persistence) for tests.
  */
 
-import fs from 'fs';
-import path from 'path';
-import { PortfolioHolding, AlertRule, UserProfile, DailySentimentRecord } from '../../types';
+import { hasPostgresConfig } from '../../db/index.ts';
+import {
+  DatabaseRepository,
+  InMemoryRepository,
+  PostgresRepository,
+  StoredPrediction,
+  UserAccount
+} from './repository';
 
-export interface UserAccount extends UserProfile {
-  passwordHash: string;
-}
+export type { StoredPrediction, UserAccount, DatabaseRepository };
+export { InMemoryRepository, PostgresRepository };
 
-export interface StoredPrediction {
-  id: string;
-  userId: string;
-  ticker: string;
-  predictedPrice: number;
-  currentPrice: number;
-  lowerBound: number;
-  upperBound: number;
-  confidenceLevel: number;
-  marketRegime: string;
-  sentimentScore: number;
-  timestamp: string;
-}
+function createDefaultRepository(): DatabaseRepository {
+  const storePathOverride = process.env.ALPHAQUANT_STORE_PATH?.trim();
+  const forceMemory = process.env.ALPHAQUANT_STORE_MODE?.trim().toLowerCase() === 'memory';
+  const isTestEnv = process.env.NODE_ENV === 'test' && process.env.ALPHAQUANT_USE_PG_IN_TESTS !== 'true';
 
-interface PersistedState {
-  users: [string, UserAccount][];
-  portfolios: [string, PortfolioHolding[]][];
-  watchlists: [string, string[]][];
-  alerts: [string, AlertRule[]][];
-  predictionHistory: StoredPrediction[];
-  dailySentiment?: [string, DailySentimentRecord][];
-}
-
-function resolveStoreFilePath(): string {
-  const override = process.env.ALPHAQUANT_STORE_PATH?.trim();
-  if (override) {
-    return path.isAbsolute(override) ? override : path.resolve(process.cwd(), override);
+  if (storePathOverride) {
+    return new InMemoryRepository({ filePath: storePathOverride });
   }
-  return path.resolve(process.cwd(), 'data', 'alphaquant_store.json');
-}
 
-function ensureParentDir(filePath: string) {
-  try {
-    const dir = path.dirname(filePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  } catch (e) {
-    console.warn('Could not create data directory, falling back to memory-only storage:', e);
+  if (forceMemory || isTestEnv) {
+    return new InMemoryRepository();
   }
-}
 
-let activeStoreFile = resolveStoreFilePath();
-ensureParentDir(activeStoreFile);
-
-// Initial default user for seamless instant evaluation & demo mode
-const DEFAULT_USER_ID = 'user-alphaquant-demo-1';
-const defaultUser: UserAccount = {
-  id: DEFAULT_USER_ID,
-  name: 'Alex Morgan, CFA',
-  email: 'alex.morgan@alphaquant.ai',
-  createdAt: '2026-01-15T09:00:00.000Z',
-  passwordHash: '$2b$10$6RaciIhx/9S4Iq8gYWq5A.1T6UV2ZAU.bCwvO/UBx06i1PzpM91kq', // bcrypt hash for 'demo1234'
-  isDemoUser: true,
-  title: 'Lead Quantitative Strategist',
-  organization: 'Morgan Capital Alpha Desk',
-  phone: '+91 98765 43210',
-  timezone: 'Asia/Kolkata (IST)',
-  bio: 'Institutional quantitative portfolio manager focusing on tail-risk mitigation and conformal forecast envelopes.',
-  currencyPreference: 'INR',
-  defaultExchange: 'NSE',
-  confidenceLevel: 90,
-  twoFactorEnabled: true,
-  notifications: {
-    emailAlerts: true,
-    regimeShifts: true,
-    driftWarnings: true,
-    marketOpenSummary: false
+  if (process.env.NODE_ENV === 'production' && !hasPostgresConfig()) {
+    throw new Error(
+      'Database configuration missing in production: SQL_HOST, SQL_USER, SQL_PASSWORD, and SQL_DB_NAME are required.'
+    );
   }
-};
 
-const defaultPortfolios: [string, PortfolioHolding[]][] = [
-  [
-    DEFAULT_USER_ID,
-    [
-      {
-        id: 'hold-1',
-        ticker: 'RELIANCE.NS',
-        companyName: 'Reliance Industries Ltd.',
-        quantity: 50,
-        avgBuyPrice: 2820.00,
-        currentPrice: 2980.50,
-        totalInvested: 141000.00,
-        currentValue: 149025.00,
-        pnl: 8025.00,
-        pnlPercent: 5.69,
-        purchaseDate: '2026-04-12',
-        notes: 'Core Indian conglomerate holding'
-      },
-      {
-        id: 'hold-2',
-        ticker: 'NVDA',
-        companyName: 'NVIDIA Corporation',
-        quantity: 120,
-        avgBuyPrice: 108.50,
-        currentPrice: 128.40,
-        totalInvested: 13020.00,
-        currentValue: 15408.00,
-        pnl: 2388.00,
-        pnlPercent: 18.34,
-        purchaseDate: '2026-03-20',
-        notes: 'AI infrastructure semiconductor leader'
-      },
-      {
-        id: 'hold-3',
-        ticker: 'TCS.NS',
-        companyName: 'Tata Consultancy Services',
-        quantity: 25,
-        avgBuyPrice: 4050.00,
-        currentPrice: 4210.75,
-        totalInvested: 101250.00,
-        currentValue: 105268.75,
-        pnl: 4018.75,
-        pnlPercent: 3.97,
-        purchaseDate: '2026-05-18',
-        notes: 'IT services defensive yield'
-      },
-      {
-        id: 'hold-4',
-        ticker: 'MSFT',
-        companyName: 'Microsoft Corporation',
-        quantity: 30,
-        avgBuyPrice: 425.00,
-        currentPrice: 442.10,
-        totalInvested: 12750.00,
-        currentValue: 13263.00,
-        pnl: 513.00,
-        pnlPercent: 4.02,
-        purchaseDate: '2026-06-01',
-        notes: 'Enterprise cloud & generative AI exposure'
-      }
-    ]
-  ]
-];
-
-const defaultWatchlists: [string, string[]][] = [
-  [DEFAULT_USER_ID, ['RELIANCE.NS', 'TCS.NS', 'NVDA', 'AAPL', 'INFY.NS', 'HDFCBANK.NS', 'TSLA']]
-];
-
-const defaultAlerts: [string, AlertRule[]][] = [
-  [
-    DEFAULT_USER_ID,
-    [
-      {
-        id: 'alert-1',
-        ticker: 'RELIANCE.NS',
-        type: 'price_above',
-        threshold: 3050.0,
-        label: 'Breakout above ₹3,050 resistance',
-        enabled: true,
-        createdAt: '2026-08-10T10:00:00.000Z'
-      },
-      {
-        id: 'alert-2',
-        ticker: 'NVDA',
-        type: 'var_exceeded',
-        threshold: 3.8,
-        varConfidenceLevel: 95,
-        varHorizonDays: 1,
-        varThresholdPct: 3.8,
-        varThresholdDollar: 650.0,
-        varMetric: 'parametric',
-        riskCategory: 'Value-at-Risk (VaR)',
-        riskSeverity: 'Critical Tail Risk',
-        currentMetricValue: 3.42,
-        label: 'Tail Risk Trigger: 1-Day 95% VaR exceeds 3.80% capital threshold',
-        enabled: true,
-        createdAt: '2026-08-12T14:30:00.000Z'
-      },
-      {
-        id: 'alert-3',
-        ticker: 'TSLA',
-        type: 'volatility_spike',
-        threshold: 40.0,
-        volatilityThresholdPct: 40.0,
-        volatilityLookbackDays: 30,
-        volatilityMetric: 'annualized',
-        riskCategory: 'Volatility Surge',
-        riskSeverity: 'High Risk',
-        currentMetricValue: 37.8,
-        label: 'Volatility Alert: 30-Day Annualized Volatility surges above 40.0%',
-        enabled: true,
-        createdAt: '2026-08-13T11:20:00.000Z'
-      },
-      {
-        id: 'alert-4',
-        ticker: 'AAPL',
-        type: 'rsi_cross',
-        threshold: 30.0,
-        rsiThreshold: 30.0,
-        rsiCondition: 'oversold_30',
-        rsiPeriod: 14,
-        currentRsiValue: 33.4,
-        direction: 'below',
-        riskCategory: 'RSI Momentum',
-        riskSeverity: 'Warning',
-        label: 'RSI Oversold Alert: AAPL 14-Period RSI crosses below 30 (Dip Buy Signal)',
-        pushEnabled: true,
-        emailEnabled: true,
-        channels: ['push', 'email'],
-        enabled: true,
-        createdAt: '2026-08-14T08:30:00.000Z'
-      },
-      {
-        id: 'alert-5',
-        ticker: 'NVDA',
-        type: 'rsi_cross',
-        threshold: 70.0,
-        rsiThreshold: 70.0,
-        rsiCondition: 'overbought_70',
-        rsiPeriod: 14,
-        currentRsiValue: 68.2,
-        direction: 'above',
-        riskCategory: 'RSI Momentum',
-        riskSeverity: 'Warning',
-        label: 'RSI Overbought Alert: NVDA 14-Period RSI crosses above 70 (Take-Profit Signal)',
-        pushEnabled: true,
-        emailEnabled: true,
-        channels: ['push', 'email'],
-        enabled: true,
-        createdAt: '2026-08-14T10:15:00.000Z'
-      },
-      {
-        id: 'alert-6',
-        ticker: 'TCS.NS',
-        type: 'drift_detected',
-        label: 'Model Safety: Alert when feature drift is detected',
-        enabled: true,
-        createdAt: '2026-08-14T11:00:00.000Z'
-      }
-    ]
-  ]
-];
-
-const defaultPredictions: StoredPrediction[] = [
-  {
-    id: 'pred-1',
-    userId: DEFAULT_USER_ID,
-    ticker: 'RELIANCE.NS',
-    currentPrice: 2980.50,
-    predictedPrice: 3025.80,
-    lowerBound: 2915.20,
-    upperBound: 3136.40,
-    confidenceLevel: 0.90,
-    marketRegime: 'Low Volatility / Bullish',
-    sentimentScore: 0.72,
-    timestamp: '2026-10-05T15:30:00.000Z'
-  },
-  {
-    id: 'pred-2',
-    userId: DEFAULT_USER_ID,
-    ticker: 'NVDA',
-    currentPrice: 128.40,
-    predictedPrice: 132.80,
-    lowerBound: 122.60,
-    upperBound: 143.00,
-    confidenceLevel: 0.90,
-    marketRegime: 'Low Volatility / Bullish',
-    sentimentScore: 0.81,
-    timestamp: '2026-10-05T20:00:00.000Z'
+  if (hasPostgresConfig()) {
+    return new PostgresRepository();
   }
-];
 
-let users = new Map<string, UserAccount>([[defaultUser.email.toLowerCase(), defaultUser]]);
-let portfolios = new Map<string, PortfolioHolding[]>(defaultPortfolios);
-let watchlists = new Map<string, string[]>(defaultWatchlists);
-let alerts = new Map<string, AlertRule[]>(defaultAlerts);
-let predictionHistory: StoredPrediction[] = [...defaultPredictions];
-let dailySentiment = new Map<string, DailySentimentRecord>();
-
-let saveMutex = Promise.resolve();
-
-function dailySentimentKey(ticker: string, date: string): string {
-  return `${ticker.trim().toUpperCase()}::${date.trim()}`;
+  // Non-production fallback when no PostgreSQL environment is configured
+  return new InMemoryRepository();
 }
 
-function isValidIsoDate(dateStr: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
+let activeRepo: DatabaseRepository = createDefaultRepository();
+
+export function getRepository(): DatabaseRepository {
+  return activeRepo;
 }
 
-// Function to save state to disk atomically with mutex serialization
-function saveToDisk() {
-  const targetFile = activeStoreFile;
-  saveMutex = saveMutex.then(async () => {
-    try {
-      ensureParentDir(targetFile);
-      const state: PersistedState = {
-        users: Array.from(users.entries()),
-        portfolios: Array.from(portfolios.entries()),
-        watchlists: Array.from(watchlists.entries()),
-        alerts: Array.from(alerts.entries()),
-        predictionHistory,
-        dailySentiment: Array.from(dailySentiment.entries())
-      };
-      const tempFile = `${targetFile}.tmp.${Date.now()}.${Math.random().toString(36).slice(2)}`;
-      await fs.promises.writeFile(tempFile, JSON.stringify(state, null, 2), 'utf8');
-      await fs.promises.rename(tempFile, targetFile);
-    } catch (err) {
-      console.error('Failed to save AlphaQuant store to disk:', err);
-    }
-  });
+export function setRepository(repo: DatabaseRepository): void {
+  activeRepo = repo;
 }
 
-// Function to load state from disk
-function loadFromDisk(customPath?: string) {
-  activeStoreFile = customPath ? (path.isAbsolute(customPath) ? customPath : path.resolve(process.cwd(), customPath)) : resolveStoreFilePath();
-  ensureParentDir(activeStoreFile);
-
-  // Reset in-memory collections to defaults before loading target file
-  users = new Map<string, UserAccount>([[defaultUser.email.toLowerCase(), defaultUser]]);
-  portfolios = new Map<string, PortfolioHolding[]>(defaultPortfolios);
-  watchlists = new Map<string, string[]>(defaultWatchlists);
-  alerts = new Map<string, AlertRule[]>(defaultAlerts);
-  predictionHistory = [...defaultPredictions];
-  dailySentiment = new Map<string, DailySentimentRecord>();
-
-  try {
-    if (fs.existsSync(activeStoreFile)) {
-      const raw = fs.readFileSync(activeStoreFile, 'utf8');
-      if (raw && raw.trim().length > 0) {
-        const parsed: PersistedState = JSON.parse(raw);
-        if (parsed.users && Array.isArray(parsed.users)) {
-          users = new Map(parsed.users);
-          if (!users.has(defaultUser.email.toLowerCase())) {
-            users.set(defaultUser.email.toLowerCase(), defaultUser);
-          }
-        }
-        if (parsed.portfolios && Array.isArray(parsed.portfolios)) {
-          portfolios = new Map(parsed.portfolios);
-        }
-        if (parsed.watchlists && Array.isArray(parsed.watchlists)) {
-          watchlists = new Map(parsed.watchlists);
-        }
-        if (parsed.alerts && Array.isArray(parsed.alerts)) {
-          alerts = new Map(parsed.alerts);
-        }
-        if (parsed.predictionHistory && Array.isArray(parsed.predictionHistory)) {
-          predictionHistory = parsed.predictionHistory;
-        }
-        if (parsed.dailySentiment && Array.isArray(parsed.dailySentiment)) {
-          for (const [k, rec] of parsed.dailySentiment) {
-            if (rec && rec.articleCount > 0 && isValidIsoDate(rec.date) && Number.isFinite(rec.credibilityWeightedNetScore)) {
-              dailySentiment.set(k, rec);
-            }
-          }
-        }
-        console.log(`[Storage] Loaded persistent database with ${users.size} users, ${portfolios.size} portfolios, ${dailySentiment.size} daily sentiment rows from disk.`);
-        return;
-      }
-    }
-    const initialState: PersistedState = {
-      users: Array.from(users.entries()),
-      portfolios: Array.from(portfolios.entries()),
-      watchlists: Array.from(watchlists.entries()),
-      alerts: Array.from(alerts.entries()),
-      predictionHistory,
-      dailySentiment: Array.from(dailySentiment.entries())
-    };
-    const tempFile = `${activeStoreFile}.init.${Date.now()}.tmp`;
-    fs.writeFileSync(tempFile, JSON.stringify(initialState, null, 2), 'utf8');
-    fs.renameSync(tempFile, activeStoreFile);
-  } catch (err) {
-    console.warn('Failed to load AlphaQuant store from disk, running with defaults:', err);
-  }
+export function resetRepository(): void {
+  activeRepo = createDefaultRepository();
 }
 
-// Initialize on boot
-loadFromDisk();
+export function createInMemoryRepository(options?: { filePath?: string | null }): InMemoryRepository {
+  return new InMemoryRepository(options);
+}
 
 export const db = {
-  // Users
-  getUserByEmail: (email: string) => users.get(email.toLowerCase()),
-  getUserById: (id: string) => Array.from(users.values()).find(u => u.id === id),
-  createUser: (user: UserAccount) => {
-    users.set(user.email.toLowerCase(), user);
-    if (!portfolios.has(user.id)) {
-      portfolios.set(user.id, []);
-    }
-    if (!watchlists.has(user.id)) {
-      watchlists.set(user.id, ['RELIANCE.NS', 'NVDA', 'AAPL', 'TCS.NS']);
-    }
-    if (!alerts.has(user.id)) {
-      alerts.set(user.id, []);
-    }
-    saveToDisk();
-    return user;
-  },
-  updateUser: (userId: string, updates: Partial<UserAccount>) => {
-    const existing = Array.from(users.values()).find(u => u.id === userId);
-    if (!existing) return null;
+  getUserByEmail: (email: string) => activeRepo.getUserByEmail(email),
+  getUserById: (id: string) => activeRepo.getUserById(id),
+  getUserByFirebaseUid: (uid: string) => activeRepo.getUserByFirebaseUid(uid),
+  getOrCreateFirebaseUser: (profile: {
+    uid: string;
+    email: string;
+    name?: string | null;
+    avatarUrl?: string | null;
+  }) => activeRepo.getOrCreateFirebaseUser(profile),
+  createUser: (user: UserAccount) => activeRepo.createUser(user),
+  updateUser: (userId: string, updates: Partial<UserAccount>) => activeRepo.updateUser(userId, updates),
 
-    const updatedUser: UserAccount = {
-      ...existing,
-      ...updates,
-      // Prevent id and createdAt from being altered
-      id: existing.id,
-      createdAt: existing.createdAt
-    };
+  getPortfolio: (userId: string) => activeRepo.getPortfolio(userId),
+  savePortfolio: (userId: string, holdings: Parameters<DatabaseRepository['savePortfolio']>[1]) =>
+    activeRepo.savePortfolio(userId, holdings),
+  addHolding: (userId: string, holding: Parameters<DatabaseRepository['addHolding']>[1]) =>
+    activeRepo.addHolding(userId, holding),
+  updateHolding: (userId: string, id: string, updates: Parameters<DatabaseRepository['updateHolding']>[2]) =>
+    activeRepo.updateHolding(userId, id, updates),
+  deleteHolding: (userId: string, id: string) => activeRepo.deleteHolding(userId, id),
 
-    // If email changed, delete old key
-    if (updates.email && updates.email.toLowerCase() !== existing.email.toLowerCase()) {
-      users.delete(existing.email.toLowerCase());
-    }
+  getWatchlist: (userId: string) => activeRepo.getWatchlist(userId),
+  addToWatchlist: (userId: string, ticker: string) => activeRepo.addToWatchlist(userId, ticker),
+  removeFromWatchlist: (userId: string, ticker: string) => activeRepo.removeFromWatchlist(userId, ticker),
 
-    users.set(updatedUser.email.toLowerCase(), updatedUser);
-    saveToDisk();
-    return updatedUser;
-  },
+  getAlerts: (userId: string) => activeRepo.getAlerts(userId),
+  createAlert: (userId: string, alert: Parameters<DatabaseRepository['createAlert']>[1]) =>
+    activeRepo.createAlert(userId, alert),
+  toggleAlert: (userId: string, alertId: string, enabled: boolean) =>
+    activeRepo.toggleAlert(userId, alertId, enabled),
+  deleteAlert: (userId: string, alertId: string) => activeRepo.deleteAlert(userId, alertId),
 
-  // Portfolios
-  getPortfolio: (userId: string): PortfolioHolding[] => portfolios.get(userId) || [],
-  savePortfolio: (userId: string, holdings: PortfolioHolding[]) => {
-    portfolios.set(userId, holdings);
-    saveToDisk();
-    return holdings;
-  },
-  addHolding: (userId: string, holding: PortfolioHolding) => {
-    const list = portfolios.get(userId) || [];
-    list.push(holding);
-    portfolios.set(userId, list);
-    saveToDisk();
-    return holding;
-  },
-  updateHolding: (userId: string, id: string, updates: Partial<PortfolioHolding>) => {
-    const list = portfolios.get(userId) || [];
-    const idx = list.findIndex(h => h.id === id);
-    if (idx !== -1) {
-      list[idx] = { ...list[idx], ...updates };
-      portfolios.set(userId, list);
-      saveToDisk();
-      return list[idx];
-    }
-    return null;
-  },
-  deleteHolding: (userId: string, id: string) => {
-    const list = portfolios.get(userId) || [];
-    const filtered = list.filter(h => h.id !== id);
-    portfolios.set(userId, filtered);
-    saveToDisk();
-    return true;
-  },
+  addPrediction: (pred: StoredPrediction) => activeRepo.addPrediction(pred),
+  getPredictionHistory: (userId?: string, ticker?: string) => activeRepo.getPredictionHistory(userId, ticker),
 
-  // Watchlists
-  getWatchlist: (userId: string): string[] => watchlists.get(userId) || [],
-  addToWatchlist: (userId: string, ticker: string) => {
-    const list = watchlists.get(userId) || [];
-    if (!list.includes(ticker)) {
-      list.push(ticker);
-      watchlists.set(userId, list);
-      saveToDisk();
-    }
-    return list;
-  },
-  removeFromWatchlist: (userId: string, ticker: string) => {
-    const list = watchlists.get(userId) || [];
-    const filtered = list.filter(t => t !== ticker);
-    watchlists.set(userId, filtered);
-    saveToDisk();
-    return filtered;
-  },
-
-  // Alerts
-  getAlerts: (userId: string): AlertRule[] => alerts.get(userId) || [],
-  createAlert: (userId: string, alert: AlertRule) => {
-    const list = alerts.get(userId) || [];
-    list.push(alert);
-    alerts.set(userId, list);
-    saveToDisk();
-    return alert;
-  },
-  toggleAlert: (userId: string, alertId: string, enabled: boolean) => {
-    const list = alerts.get(userId) || [];
-    const target = list.find(a => a.id === alertId);
-    if (target) {
-      target.enabled = enabled;
-      saveToDisk();
-    }
-    return target;
-  },
-  deleteAlert: (userId: string, alertId: string) => {
-    const list = alerts.get(userId) || [];
-    alerts.set(userId, list.filter(a => a.id !== alertId));
-    saveToDisk();
-    return true;
-  },
-
-  // Prediction History
-  addPrediction: (pred: StoredPrediction) => {
-    predictionHistory.unshift(pred);
-    if (predictionHistory.length > 200) predictionHistory.pop();
-    saveToDisk();
-    return pred;
-  },
-  getPredictionHistory: (userId?: string, ticker?: string) => {
-    let res = predictionHistory;
-    if (userId) res = res.filter(p => p.userId === userId);
-    if (ticker) res = res.filter(p => p.ticker === ticker);
-    return res;
-  },
-
-  // Daily Sentiment Store (Task 2: append/backfill per ticker+date; never overwrite past dates; omit zero-article days)
   upsertDailySentiment: (
-    records: DailySentimentRecord[],
-    options?: { todayDate?: string; persist?: boolean }
-  ): { inserted: number; updatedToday: number; skippedExistingPast: number; skippedInvalid: number } => {
-    const todayDate = options?.todayDate || new Date().toISOString().slice(0, 10);
-    let inserted = 0;
-    let updatedToday = 0;
-    let skippedExistingPast = 0;
-    let skippedInvalid = 0;
-    let changed = false;
+    records: Parameters<DatabaseRepository['upsertDailySentiment']>[0],
+    options?: Parameters<DatabaseRepository['upsertDailySentiment']>[1]
+  ) => activeRepo.upsertDailySentiment(records, options),
+  getDailySentimentForTicker: (ticker: string) => activeRepo.getDailySentimentForTicker(ticker),
+  getAllDailySentiment: () => activeRepo.getAllDailySentiment(),
+  getDailySentimentCountsByTicker: () => activeRepo.getDailySentimentCountsByTicker(),
 
-    for (const rawRec of records) {
-      if (
-        !rawRec ||
-        !rawRec.ticker ||
-        !isValidIsoDate(rawRec.date) ||
-        !Number.isFinite(rawRec.credibilityWeightedNetScore) ||
-        !Number.isFinite(rawRec.articleCount) ||
-        rawRec.articleCount <= 0
-      ) {
-        skippedInvalid++;
-        continue;
-      }
+  searchTickers: (params: Parameters<DatabaseRepository['searchTickers']>[0]) => activeRepo.searchTickers(params),
+  getTickerBySymbol: (symbol: string) => activeRepo.getTickerBySymbol(symbol),
+  resolveTickerSymbol: (query: string) => activeRepo.resolveTickerSymbol(query),
+  upsertTickers: (items: Parameters<DatabaseRepository['upsertTickers']>[0]) => activeRepo.upsertTickers(items),
+  getAllTickers: (activeOnly?: boolean) => activeRepo.getAllTickers(activeOnly),
 
-      const tickerUpper = rawRec.ticker.trim().toUpperCase();
-      const key = dailySentimentKey(tickerUpper, rawRec.date);
-      const existing = dailySentiment.get(key);
-
-      if (existing) {
-        // Strictly NEVER overwrite past days (date < todayDate)
-        if (rawRec.date < todayDate) {
-          skippedExistingPast++;
-          continue;
-        }
-        // Same-day refresh (`date >= todayDate`): only update if count or score changed meaningfully
-        if (
-          existing.articleCount === rawRec.articleCount &&
-          Math.abs(existing.credibilityWeightedNetScore - rawRec.credibilityWeightedNetScore) < 1e-6 &&
-          existing.sentimentSource === rawRec.sentimentSource
-        ) {
-          continue;
-        }
-        dailySentiment.set(key, {
-          ...rawRec,
-          ticker: tickerUpper,
-          credibilityWeightedNetScore: Number(Math.max(-1, Math.min(1, rawRec.credibilityWeightedNetScore)).toFixed(4))
-        });
-        updatedToday++;
-        changed = true;
-      } else {
-        dailySentiment.set(key, {
-          ...rawRec,
-          ticker: tickerUpper,
-          credibilityWeightedNetScore: Number(Math.max(-1, Math.min(1, rawRec.credibilityWeightedNetScore)).toFixed(4))
-        });
-        inserted++;
-        changed = true;
-      }
+  importSnapshot: (snapshot: Parameters<DatabaseRepository['importSnapshot']>[0]) =>
+    activeRepo.importSnapshot(snapshot),
+  flushToDisk: () => activeRepo.flushToDisk(),
+  reloadStoreFromDisk: async (customPath?: string) => {
+    const storePathOverride = customPath || process.env.ALPHAQUANT_STORE_PATH?.trim();
+    if (storePathOverride) {
+      activeRepo = new InMemoryRepository({ filePath: storePathOverride });
+      return;
     }
-
-    if (changed && options?.persist !== false) {
-      saveToDisk();
-    }
-
-    return { inserted, updatedToday, skippedExistingPast, skippedInvalid };
+    await activeRepo.reloadStoreFromDisk(customPath);
   },
-
-  getDailySentimentForTicker: (ticker: string): DailySentimentRecord[] => {
-    const target = ticker.trim().toUpperCase();
-    const out: DailySentimentRecord[] = [];
-    for (const rec of dailySentiment.values()) {
-      if (rec.ticker === target && rec.articleCount > 0) {
-        out.push(rec);
-      }
-    }
-    out.sort((a, b) => a.date.localeCompare(b.date));
-    return out;
-  },
-
-  getAllDailySentiment: (): DailySentimentRecord[] => {
-    const out = Array.from(dailySentiment.values()).filter(r => r.articleCount > 0);
-    out.sort((a, b) => a.date.localeCompare(b.date) || a.ticker.localeCompare(b.ticker));
-    return out;
-  },
-
-  getDailySentimentCountsByTicker: (): Record<string, number> => {
-    const counts: Record<string, number> = {};
-    for (const rec of dailySentiment.values()) {
-      if (rec.articleCount > 0) {
-        counts[rec.ticker] = (counts[rec.ticker] || 0) + 1;
-      }
-    }
-    return counts;
-  },
-
-  flushToDisk: async (): Promise<void> => {
-    await saveMutex;
-  },
-
-  reloadStoreFromDisk: async (customPath?: string): Promise<void> => {
-    await saveMutex;
-    loadFromDisk(customPath);
-  },
-
-  getStoreFilePath: (): string => activeStoreFile
+  getStoreFilePath: () => activeRepo.getStoreFilePath()
 };

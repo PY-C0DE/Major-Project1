@@ -21,7 +21,7 @@ import {
   estimateBarDailyVol
 } from './modelEngine';
 import { getClassifiedEventsForTicker } from './nlpEngine';
-import { getCurrencySymbol } from '../../utils/currency';
+import { getCurrencySymbol, inferCurrencyFromTicker } from '../../utils/currency';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
 
 export const MIN_CONFORMAL_BARS = 40;
@@ -391,6 +391,7 @@ export function runConformalPrediction(
   return {
     available: true,
     ticker,
+    currency: inferCurrencyFromTicker(ticker),
     currentPrice,
     predictedPrice,
     predictionChangePercent,

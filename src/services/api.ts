@@ -38,9 +38,9 @@ import {
   QuickWatchItem,
   SentimentScoreResult,
   ModelAuditResponse,
-  LagAnalysisResult
+  LagAnalysisResult,
+  TickerSearchResponse
 } from '../types';
-import { TICKER_CATALOG } from '../shared/tickerCatalog';
 import { generateSupportFallback } from '../utils/supportKnowledge';
 import {
   DEFAULT_CONFORMAL_CONFIDENCE,
@@ -49,42 +49,6 @@ import {
 } from '../shared/modelConfig';
 
 const API_BASE = '/api';
-
-export function searchLocalCatalog(query: string): StockSearchResult[] {
-  const q = (query || '').trim().toLowerCase();
-  if (!q) {
-    return TICKER_CATALOG.slice(0, 12).map(t => ({
-      ticker: t.ticker,
-      name: t.name,
-      exchange: t.exchange,
-      currency: t.currency,
-      price: t.basePrice,
-      sector: t.sector
-    }));
-  }
-
-  const results: StockSearchResult[] = [];
-  for (const t of TICKER_CATALOG) {
-    const tickLower = t.ticker.toLowerCase();
-    const nameLower = t.name.toLowerCase();
-    const matchesTick = tickLower === q || tickLower.replace('.ns', '') === q || tickLower.startsWith(q);
-    const matchesName = nameLower.includes(q);
-    const matchesAlias = t.aliases && t.aliases.some(a => a.toLowerCase().includes(q));
-
-    if (matchesTick || matchesName || matchesAlias) {
-      results.push({
-        ticker: t.ticker,
-        name: t.name,
-        exchange: t.exchange,
-        currency: t.currency,
-        price: t.basePrice,
-        sector: t.sector
-      });
-    }
-    if (results.length >= 15) break;
-  }
-  return results;
-}
 
 function isLikelyHtmlPayload(text: string, contentType: string): boolean {
   const trimmed = text.trimStart().toLowerCase();
@@ -144,8 +108,15 @@ async function safeParseJson<T>(res: Response, fallbackValue: T): Promise<T> {
   return fallbackValue;
 }
 
+// Firebase ID tokens live in JS memory only (never localStorage)
+let memoryFirebaseIdToken: string | null = null;
+
+export function setMemoryAuthToken(token: string | null): void {
+  memoryFirebaseIdToken = token;
+}
+
 function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem('alphaquant_token');
+  const token = memoryFirebaseIdToken || localStorage.getItem('alphaquant_token');
   const headers: HeadersInit = {
     'Content-Type': 'application/json'
   };
@@ -175,6 +146,19 @@ export const api = {
     return parseApiResponse<{ user: UserProfile; token: string }>(res, 'Invalid email or password');
   },
 
+  async syncFirebaseAuth(idToken?: string): Promise<{ user: UserProfile }> {
+    const token = idToken || memoryFirebaseIdToken;
+    const res = await fetch(`${API_BASE}/auth/firebase`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({})
+    });
+    return parseApiResponse<{ user: UserProfile }>(res, 'Failed to verify Google/Firebase session');
+  },
+
   async getCurrentUser(): Promise<UserProfile> {
     const res = await fetch(`${API_BASE}/auth/me`, {
       headers: getAuthHeaders()
@@ -201,19 +185,36 @@ export const api = {
   },
 
   // Stocks & History
+  async searchTickersMaster(params: {
+    q?: string;
+    country?: string;
+    exchange?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<TickerSearchResponse> {
+    const qs = new URLSearchParams();
+    if (params.q) qs.set('q', params.q);
+    if (params.country) qs.set('country', params.country);
+    if (params.exchange) qs.set('exchange', params.exchange);
+    if (params.page) qs.set('page', String(params.page));
+    if (params.limit) qs.set('limit', String(params.limit));
+    const res = await fetch(`${API_BASE}/tickers/search?${qs.toString()}`);
+    return parseApiResponse<TickerSearchResponse>(res, 'Failed to search global tickers');
+  },
+
   async searchStocks(query: string): Promise<StockSearchResult[]> {
     try {
       const res = await fetch(`${API_BASE}/stocks/search?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const parsed = await parseJsonTextSafe<StockSearchResult[]>(res);
-        if (parsed.ok && Array.isArray(parsed.data) && parsed.data.length > 0) {
+        if (parsed.ok && Array.isArray(parsed.data)) {
           return parsed.data;
         }
       }
     } catch {
-      // Graceful fallback to client catalog
+      // Network error
     }
-    return searchLocalCatalog(query);
+    return [];
   },
 
   async getQuote(ticker: string): Promise<StockQuote> {

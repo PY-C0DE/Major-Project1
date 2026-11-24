@@ -21,8 +21,7 @@ import {
   Layers
 } from 'lucide-react';
 import { api } from '../services/api';
-import { TICKER_CATALOG } from '../shared/tickerCatalog';
-import { StockQuote, CorrelationMatrixData } from '../types';
+import { StockQuote, CorrelationMatrixData, TickerMasterItem, TickerSearchResponse } from '../types';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { OptionsVolatilitySurface } from '../components/OptionsVolatilitySurface';
 import { ConvertedPrice } from '../components/ConvertedPrice';
@@ -37,47 +36,105 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
   const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<'screener' | 'correlation' | 'vol_surface'>('screener');
   const [selectedVolTicker, setSelectedVolTicker] = useState('NVDA');
-  const [exchangeFilter, setExchangeFilter] = useState<'ALL' | 'NSE' | 'NASDAQ' | 'US'>('ALL');
+  const [countryFilter, setCountryFilter] = useState<string>('ALL');
+  const [exchangeFilter, setExchangeFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageLimit = 24;
+
+  const [tickers, setTickers] = useState<TickerMasterItem[]>([]);
+  const [totalTickers, setTotalTickers] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [availableCountries, setAvailableCountries] = useState<string[]>([]);
+  const [availableExchanges, setAvailableExchanges] = useState<Array<{ mic: string; code: string; country: string }>>([]);
+
   const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
   const [correlationData, setCorrelationData] = useState<CorrelationMatrixData | null>(null);
   const [loading, setLoading] = useState(true);
   const [corrLoading, setCorrLoading] = useState(false);
 
+  // Debounce search query and reset page
   useEffect(() => {
-    async function loadAllQuotes() {
-      setLoading(true);
-      const map: Record<string, StockQuote> = {};
-      const initialBatch = TICKER_CATALOG.slice(0, 16);
-      
-      await Promise.all(
-        initialBatch.map(async t => {
-          try {
-            const q = await api.getQuote(t.ticker);
-            map[t.ticker] = q;
-          } catch {}
-        })
-      );
-      setQuotes({ ...map });
-      setLoading(false);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setPage(1);
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-      // Load remaining in chunks
-      const remaining = TICKER_CATALOG.slice(16);
-      for (let i = 0; i < remaining.length; i += 6) {
-        const chunk = remaining.slice(i, i + 6);
-        await Promise.all(
-          chunk.map(async t => {
-            try {
-              const q = await api.getQuote(t.ticker);
-              map[t.ticker] = q;
-            } catch {}
-          })
-        );
-        setQuotes(prev => ({ ...prev, ...map }));
+  // Fetch paginated global ticker universe from DB
+  useEffect(() => {
+    let cancelled = false;
+    async function loadUniverse() {
+      setLoading(true);
+      try {
+        const res: TickerSearchResponse = await api.searchTickersMaster({
+          q: debouncedSearch || undefined,
+          country: countryFilter === 'ALL' ? undefined : countryFilter,
+          exchange: exchangeFilter === 'ALL' ? undefined : exchangeFilter,
+          page,
+          limit: pageLimit
+        });
+        if (cancelled) return;
+        setTickers(res.items || []);
+        setTotalTickers(res.total || 0);
+        setTotalPages(res.totalPages || 1);
+        setAvailableCountries(res.filters?.countries || []);
+        setAvailableExchanges(res.filters?.exchanges || []);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setTickers([]);
+          setTotalTickers(0);
+          setTotalPages(1);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
-    loadAllQuotes();
-  }, []);
+    loadUniverse();
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearch, countryFilter, exchangeFilter, page]);
+
+  // Batch-load live quotes for visible page rows only
+  useEffect(() => {
+    let cancelled = false;
+    const missingSymbols = tickers
+      .map((t) => t.symbol)
+      .filter((sym) => !quotes[sym]);
+
+    if (missingSymbols.length === 0) return;
+
+    async function loadVisibleQuotes() {
+      for (let i = 0; i < missingSymbols.length; i += 8) {
+        if (cancelled) break;
+        const chunk = missingSymbols.slice(i, i + 8);
+        const batchResults: Record<string, StockQuote> = {};
+        await Promise.all(
+          chunk.map(async (sym) => {
+            try {
+              const q = await api.getQuote(sym);
+              batchResults[sym] = q;
+            } catch {
+              // ignore individual quote failure
+            }
+          })
+        );
+        if (!cancelled && Object.keys(batchResults).length > 0) {
+          setQuotes((prev) => ({ ...prev, ...batchResults }));
+        }
+      }
+    }
+    loadVisibleQuotes();
+    return () => {
+      cancelled = true;
+    };
+  }, [tickers]);
 
   useEffect(() => {
     if (activeTab === 'correlation' && !correlationData) {
@@ -95,23 +152,6 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
       loadCorrelation();
     }
   }, [activeTab, correlationData]);
-
-  const filtered = TICKER_CATALOG.filter(t => {
-    if (exchangeFilter === 'NSE' && !t.ticker.endsWith('.NS')) return false;
-    if (exchangeFilter === 'NASDAQ' && t.exchange !== 'NASDAQ') return false;
-    if (exchangeFilter === 'US' && t.ticker.endsWith('.NS')) return false;
-
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (
-        t.ticker.toLowerCase().includes(q) ||
-        t.name.toLowerCase().includes(q) ||
-        (t.aliases && t.aliases.some((a: string) => a.toLowerCase().includes(q))) ||
-        (t.sector && t.sector.toLowerCase().includes(q))
-      );
-    }
-    return true;
-  });
 
   const getCorrColor = (val: number) => {
     if (val >= 0.7) return 'bg-cyan-500 text-slate-950 font-bold';
@@ -132,7 +172,7 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
             Global Markets Screener & Cross-Asset Matrix
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Institutional screener spanning Indian Equities (NSE) and US Equities with macroeconomic correlation.
+            Institutional global ticker master ({totalTickers} matching equities) with ISO 10383 MIC exchange codes, native currency, and cross-asset correlation.
           </p>
         </div>
 
@@ -179,32 +219,76 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
           {/* Screener Controls */}
           <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4">
             {/* Search Input */}
-            <div className="flex items-center bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs flex-1 max-w-md shadow-xs">
+            <div className="flex items-center bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs flex-1 min-w-[240px] max-w-md shadow-xs">
               <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 mr-2.5 shrink-0" />
               <input
                 type="text"
-                placeholder="Filter by ticker or company (e.g. Reliance, Nvidia, Infosys)..."
+                placeholder="Search symbol, company, or alias (e.g. Reliance, Toyota, ASML, AAPL)..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full bg-transparent text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none"
               />
             </div>
 
-            {/* Exchange Filter Segmented Control */}
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 text-xs shadow-xs">
-              {(['ALL', 'NSE', 'US'] as const).map(ex => (
-                <button
-                  key={ex}
-                  onClick={() => setExchangeFilter(ex)}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                    exchangeFilter === ex
-                      ? 'bg-cyan-500 text-slate-950 font-bold shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
+            {/* Global Country & MIC Exchange Filters */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                <Filter className="w-3.5 h-3.5 text-slate-400" />
+                <label htmlFor="market-country-filter" className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Country:
+                </label>
+                <select
+                  id="market-country-filter"
+                  value={countryFilter}
+                  onChange={e => {
+                    setCountryFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="bg-transparent font-mono font-semibold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
                 >
-                  {ex === 'ALL' ? 'All Exchanges' : ex === 'NSE' ? 'Indian (NSE)' : 'US Equities'}
+                  <option value="ALL" className="bg-white dark:bg-slate-900">All Countries</option>
+                  {availableCountries.map(c => (
+                    <option key={c} value={c} className="bg-white dark:bg-slate-900">{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                <label htmlFor="market-exchange-filter" className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Exchange (MIC):
+                </label>
+                <select
+                  id="market-exchange-filter"
+                  value={exchangeFilter}
+                  onChange={e => {
+                    setExchangeFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="bg-transparent font-mono font-semibold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+                >
+                  <option value="ALL" className="bg-white dark:bg-slate-900">All Exchanges</option>
+                  {availableExchanges.map(ex => (
+                    <option key={ex.mic} value={ex.mic} className="bg-white dark:bg-slate-900">
+                      {ex.code} ({ex.mic} · {ex.country})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(countryFilter !== 'ALL' || exchangeFilter !== 'ALL' || searchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCountryFilter('ALL');
+                    setExchangeFilter('ALL');
+                    setSearchQuery('');
+                    setPage(1);
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium cursor-pointer"
+                >
+                  Reset
                 </button>
-              ))}
+              )}
             </div>
           </div>
 
@@ -215,7 +299,7 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 text-[10px] text-slate-500 dark:text-slate-400 uppercase">
                     <th className="py-3 px-4 font-medium font-sans">Ticker & Name</th>
-                    <th className="py-3 px-4 font-medium font-sans">Exchange</th>
+                    <th className="py-3 px-4 font-medium font-sans">Exchange / Country / Currency</th>
                     <th className="py-3 px-4 font-medium text-right">Price</th>
                     <th className="py-3 px-4 font-medium text-right">Daily Change</th>
                     <th className="py-3 px-4 font-medium text-right">P/E Ratio</th>
@@ -224,72 +308,140 @@ export const MarketsPage: React.FC<Props> = ({ onSelectTicker }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {filtered.map(t => {
-                    const quote = quotes[t.ticker];
-                    const price = quote?.price || t.basePrice;
-                    const change = quote?.change || (t.basePrice * 0.012);
-                    const changePercent = quote?.changePercent || 1.2;
-                    const isUp = change >= 0;
+                  {loading && tickers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-slate-500 dark:text-slate-400 font-sans">
+                        Loading global ticker universe...
+                      </td>
+                    </tr>
+                  ) : tickers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-slate-500 dark:text-slate-400 font-sans">
+                        No global tickers match the current search or exchange/country filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    tickers.map(t => {
+                      const quote = quotes[t.symbol];
+                      const price = quote?.price ?? t.basePrice ?? null;
+                      const change = quote?.change ?? null;
+                      const changePercent = quote?.changePercent ?? null;
+                      const isUp = (change ?? 0) >= 0;
+                      const peVal = quote?.pe ?? t.pe ?? null;
+                      const mcapVal = quote?.marketCap ?? t.marketCap ?? null;
+                      const nativeCurrency = quote?.currency || t.currency;
 
-                    return (
-                      <tr key={t.ticker} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <td className="py-3 px-4">
-                          <button
-                            onClick={() => onSelectTicker(t.ticker)}
-                            className="font-sans font-bold text-slate-900 dark:text-white hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors cursor-pointer text-left block"
-                          >
-                            {t.ticker}
-                          </button>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-sans block truncate max-w-[160px]">
-                            {t.name}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-sans text-xs">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span>{t.exchange}</span>
-                            <MarketStatusBadge
-                              ticker={t.ticker}
-                              exchange={quote?.exchange || t.exchange}
-                              exchangeTimezoneName={quote?.exchangeTimezoneName}
-                              marketPeriod={quote?.marketPeriod}
-                              compact
-                              showTime={false}
-                            />
-                            {(!quote || quote.isLive === false) && (
-                              <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                                Simulated data
+                      return (
+                        <tr key={t.symbol} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="py-3 px-4">
+                            <button
+                              onClick={() => onSelectTicker(t.symbol)}
+                              className="font-sans font-bold text-slate-900 dark:text-white hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors cursor-pointer text-left block"
+                            >
+                              {t.symbol}
+                            </button>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-sans block truncate max-w-[180px]">
+                              {t.name}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-sans text-xs">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">
+                                {t.exchangeCode || t.exchange}
                               </span>
+                              <span
+                                title={`ISO 10383 MIC: ${t.exchange} · Timezone: ${t.timezone}`}
+                                className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                              >
+                                {t.exchange}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                                {t.country}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                                {nativeCurrency}
+                              </span>
+                              <MarketStatusBadge
+                                ticker={t.symbol}
+                                exchange={quote?.exchange || t.exchangeCode || t.exchange}
+                                exchangeTimezoneName={quote?.exchangeTimezoneName || t.timezone}
+                                marketPeriod={quote?.marketPeriod}
+                                compact
+                                showTime={false}
+                              />
+                              {quote && quote.isLive === false && (
+                                <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                                  Simulated
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-bold tabular-nums">
+                            {price != null ? (
+                              <ConvertedPrice amount={price} currency={nativeCurrency} ticker={t.symbol} />
+                            ) : (
+                              <span className="text-slate-400 font-normal">—</span>
                             )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-right text-slate-900 dark:text-white font-bold tabular-nums">
-                          <ConvertedPrice amount={price} currency={t.currency} ticker={t.ticker} />
-                        </td>
-                        <td className="py-3 px-4 text-right tabular-nums">
-                          <span className={`font-semibold ${isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                            {isUp ? '+' : ''}{change.toFixed(2)} ({isUp ? '+' : ''}{changePercent.toFixed(2)}%)
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          {t.pe.toFixed(1)}x
-                        </td>
-                        <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
-                          <ConvertedPrice amount={t.marketCap / 1e9} currency={t.currency} ticker={t.ticker} decimals={1} suffix="B" />
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            onClick={() => onSelectTicker(t.ticker)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-cyan-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-cyan-700 dark:text-cyan-400 text-xs font-sans font-semibold flex items-center gap-1 mx-auto transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
-                          >
-                            <span>Analyze</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                          <td className="py-3 px-4 text-right tabular-nums">
+                            {change != null && changePercent != null ? (
+                              <span className={`font-semibold ${isUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                {isUp ? '+' : ''}{change.toFixed(2)} ({isUp ? '+' : ''}{changePercent.toFixed(2)}%)
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
+                            {peVal != null && peVal > 0 ? `${peVal.toFixed(1)}x` : <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="py-3 px-4 text-right text-slate-700 dark:text-slate-300 tabular-nums">
+                            {mcapVal != null && mcapVal > 0 ? (
+                              <ConvertedPrice amount={mcapVal / 1e9} currency={nativeCurrency} ticker={t.symbol} decimals={1} suffix="B" />
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <button
+                              onClick={() => onSelectTicker(t.symbol)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-cyan-50 dark:bg-slate-800 dark:hover:bg-slate-700 text-cyan-700 dark:text-cyan-400 text-xs font-sans font-semibold flex items-center gap-1 mx-auto transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+                            >
+                              <span>Analyze</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 text-xs font-mono">
+              <span className="text-slate-500 dark:text-slate-400">
+                Page {page} of {totalPages} · {totalTickers} global assets
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         </>

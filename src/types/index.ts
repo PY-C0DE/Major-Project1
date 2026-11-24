@@ -33,10 +33,43 @@ export interface StockSearchResult {
   ticker: string;
   name: string;
   exchange: string;
+  exchangeCode?: string;
+  country?: string;
   currency: string;
+  timezone?: string;
+  assetType?: string;
   price?: number;
   changePercent?: number;
   sector?: string;
+}
+
+export interface TickerMasterItem {
+  symbol: string;
+  name: string;
+  exchange: string; // ISO 10383 MIC code (e.g. XNSE, XNAS, XNYS, XLON)
+  exchangeCode: string; // Display exchange code (e.g. NSE, NASDAQ, NYSE, LSE)
+  country: string; // ISO 3166-1 alpha-2 country code (e.g. IN, US, GB)
+  currency: string; // ISO 4217 currency code (e.g. INR, USD, GBP)
+  timezone: string; // IANA timezone (e.g. Asia/Kolkata, America/New_York)
+  assetType: string; // EQUITY, ETF, INDEX
+  sector: string;
+  pe?: number | null;
+  marketCap?: number | null;
+  basePrice?: number | null;
+  aliases: string[];
+  active: boolean;
+}
+
+export interface TickerSearchResponse {
+  items: TickerMasterItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  filters: {
+    countries: string[];
+    exchanges: Array<{ mic: string; code: string; country: string }>;
+  };
 }
 
 export interface HistoricalBar {
@@ -104,6 +137,7 @@ export interface ConformalPrediction {
   available?: true;
   reason?: string;
   ticker: string;
+  currency?: string;
   currentPrice: number;
   predictedPrice: number;
   predictionChangePercent: number;
@@ -133,6 +167,7 @@ export interface UnavailableConformalPrediction {
   available: false;
   reason: string;
   ticker: string;
+  currency?: string;
   dataSource?: 'live' | 'synthetic';
 }
 
@@ -331,11 +366,12 @@ export interface LagAnalysisResult {
 
 export interface SentimentAblationArmMetrics {
   name: 'Price-Only (24 Factors)' | 'Price + Causal Sentiment (28 Factors)';
+  currency?: string;
   samples: number;
   distinctDates: number;
   assetsCount: number;
-  mae: number;
-  rmse: number;
+  mae: number | null;
+  rmse: number | null;
   mape: number;
   priceAccuracy: number;
   naiveMape: number;
@@ -352,6 +388,7 @@ export interface SentimentAblationArmMetrics {
 export interface SentimentAblationResult {
   available: boolean;
   reason?: string;
+  currency?: string;
   minRequiredSamples: number;
   minRequiredDates: number;
   matchedSamples: number;
@@ -362,10 +399,11 @@ export interface SentimentAblationResult {
   priceOnly?: SentimentAblationArmMetrics;
   pricePlusSentiment?: SentimentAblationArmMetrics;
   pairedDiff?: {
+    currency?: string;
     priceAccuracyDiffPct: number; // plusSentiment - priceOnly
     maeSkillDiff: number;
-    maeDiff: number; // plusSentiment - priceOnly (negative means lower error)
-    maeDiffCI95: [number, number];
+    maeDiff: number | null; // plusSentiment - priceOnly (negative means lower error); null if mixed currency
+    maeDiffCI95: [number, number] | null;
     directionalAccuracyDiffPp: number;
     directionalAccuracyDiffCI95: [number, number];
     conformalCoverageDiffPp: number;
@@ -423,6 +461,7 @@ export interface BacktestDataPoint {
 export interface AssetBreakdownItem {
   ticker: string;
   name: string;
+  currency?: string;
   dataSource: 'live' | 'synthetic';
   testWindowStart: string;
   testWindowEnd: string;
@@ -509,14 +548,15 @@ export interface ModelEvaluation {
   evaluatedAssetsCount?: number;
   skippedTickers?: SkippedTickerRecord[];
   ticker: string;
+  currency?: string;
   modelName: string;
   horizonDays: number;
-  mae: number;
-  rmse: number;
+  mae: number | null;
+  rmse: number | null;
   mape: number;
   r2: number;
-  naiveMae?: number;
-  naiveRmse?: number;
+  naiveMae?: number | null;
+  naiveRmse?: number | null;
   naiveMape?: number;
   naivePriceAccuracy?: number;
   maeSkillVsNaive?: number | null;
@@ -568,6 +608,7 @@ export interface ModelAuditResponse {
   gitCommit?: string | null;
   evaluationParams?: AuditEvaluationParams;
   dataSource: 'live' | 'synthetic' | 'mixed' | 'none';
+  currency?: string;
   evaluatedAssetsCount: number;
   skippedTickers?: SkippedTickerRecord[];
   evaluatedAt?: string;
@@ -795,6 +836,7 @@ export interface ProjectWideAccuracyResult {
   available?: boolean;
   reason?: string;
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
+  currency?: string;
   priceAccuracyPct: number;
   naivePriceAccuracyPct?: number;
   mape: number;
@@ -804,8 +846,8 @@ export interface ProjectWideAccuracyResult {
   beatNaiveCount?: number;
   beatNaiveLabel?: string;
   evaluatedAssetsCount: number;
-  mae: number;
-  rmse: number;
+  mae: number | null;
+  rmse: number | null;
   directionalAccuracyPct: number;
   conformalCoveragePct: number;
   summaryStats?: {

@@ -11,24 +11,37 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=production
-      - MONGODB_URI=mongodb://mongo:27017
-      - DATABASE_NAME=ai_stock_intelligence
+      - SQL_HOST=postgres
+      - SQL_PORT=5432
+      - SQL_USER=${SQL_USER:-alphaquant}
+      - SQL_PASSWORD=${SQL_PASSWORD:?Set SQL_PASSWORD in your .env file}
+      - SQL_DB_NAME=${SQL_DB_NAME:-alphaquant}
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in your .env file}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - ALLOW_DEMO_MODE=${ALLOW_DEMO_MODE:-false}
     depends_on:
-      - mongo
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
-  # MongoDB Persistence Database
-  mongo:
-    image: mongo:7.0
-    container_name: alphaquant_mongo
+  # PostgreSQL Persistence Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: alphaquant_postgres
     restart: always
+    environment:
+      - POSTGRES_USER=${SQL_USER:-alphaquant}
+      - POSTGRES_PASSWORD=${SQL_PASSWORD:?Set SQL_PASSWORD in your .env file}
+      - POSTGRES_DB=${SQL_DB_NAME:-alphaquant}
     ports:
-      - "27017:27017"
+      - "5432:5432"
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SQL_USER:-alphaquant} -d ${SQL_DB_NAME:-alphaquant}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
-  mongo_data:
+  postgres_data:

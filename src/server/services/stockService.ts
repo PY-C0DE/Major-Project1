@@ -4,7 +4,7 @@
  * intelligent company-name-to-ticker resolution, and resilient caching.
  */
 
-import { StockQuote, HistoricalBar, StockSearchResult, MarketIndexItem, QuickWatchItem } from '../../types';
+import { StockQuote, HistoricalBar, StockSearchResult, MarketIndexItem, QuickWatchItem, TickerSearchResponse } from '../../types';
 import { PriceBar, computeAllIndicators, ComputedBar } from '../math/indicators';
 
 import { TICKER_CATALOG, TickerMeta } from '../../shared/tickerCatalog';
@@ -17,6 +17,7 @@ import {
 } from '../../shared/macroMarkets';
 import { getCurrencySymbol, inferCurrencyFromTicker, inferExchangeFromTicker } from '../../utils/currency';
 import { getExchangeMarketStatus } from '../../utils/marketStatus';
+import { db } from '../store/db';
 export { TICKER_CATALOG };
 export type { TickerMeta };
 
@@ -92,6 +93,16 @@ export async function resolveTickerOrName(query: string): Promise<string> {
   });
   if (looseMatch) return looseMatch.ticker;
 
+  // 4b. Check global ticker_master repository before falling back to raw uppercase or Yahoo search
+  try {
+    const dbMatch = await db.resolveTickerSymbol(clean);
+    if (dbMatch?.symbol) {
+      return dbMatch.symbol;
+    }
+  } catch {
+    // Non-fatal fallback
+  }
+
   // 5. If it looks like a symbol already (no spaces, <= 10 chars, uppercase), use it directly
   if (!clean.includes(' ') && clean.length <= 10) {
     return upper;
@@ -125,9 +136,43 @@ export async function resolveTickerOrName(query: string): Promise<string> {
   return upper;
 }
 
+export async function searchTickersMaster(params: {
+  q?: string;
+  country?: string;
+  exchange?: string;
+  page?: number;
+  limit?: number;
+}): Promise<TickerSearchResponse> {
+  const response = await db.searchTickers({
+    q: params.q,
+    country: params.country,
+    exchange: params.exchange,
+    page: params.page,
+    limit: params.limit,
+    activeOnly: true
+  });
+
+  const enrichedItems = response.items.map(item => {
+    const cachedQ = quoteCache.get(item.symbol);
+    if (cachedQ) {
+      return {
+        ...item,
+        basePrice: cachedQ.data.price,
+        changePercent: cachedQ.data.changePercent
+      };
+    }
+    return item;
+  });
+
+  return {
+    ...response,
+    items: enrichedItems
+  };
+}
+
 /**
  * Searches stocks by symbol, company name, or aliases
- * Combines comprehensive pre-indexed local catalog with live Yahoo Finance global equity search,
+ * Combines the database-backed global ticker_master universe with live Yahoo Finance global equity search,
  * with strict deduplication to ensure exactly one true ticker per corporate entity.
  */
 export async function searchStocks(query: string): Promise<StockSearchResult[]> {
@@ -142,10 +187,33 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
   const results: StockSearchResult[] = [];
   const seenTickers = new Set<string>();
 
-  // 1. Search in local catalog first
-  if (!qClean) {
-    // Default list of most popular stocks
-    for (const t of TICKER_CATALOG.slice(0, 10)) {
+  // 1. Query ranked ticker_master database first
+  try {
+    const dbPage = await db.searchTickers({ q: qClean, page: 1, limit: 16, activeOnly: true });
+    for (const item of dbPage.items) {
+      if (seenTickers.has(item.symbol)) continue;
+      const catalogMatch = TICKER_CATALOG.find(t => t.ticker === item.symbol);
+      results.push({
+        ticker: item.symbol,
+        name: item.name,
+        exchange: item.exchangeCode || item.exchange,
+        exchangeCode: item.exchange,
+        country: item.country,
+        currency: item.currency,
+        timezone: item.timezone,
+        assetType: item.assetType,
+        price: catalogMatch?.basePrice ?? item.basePrice ?? undefined,
+        sector: item.sector || catalogMatch?.sector
+      });
+      seenTickers.add(item.symbol);
+    }
+  } catch {
+    // Fall back to local catalog if repository search fails
+  }
+
+  // Ensure popular defaults if DB returned empty on empty query
+  if (!qClean && results.length === 0) {
+    for (const t of TICKER_CATALOG.slice(0, 12)) {
       results.push({
         ticker: t.ticker,
         name: t.name,
@@ -159,56 +227,8 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     return results;
   }
 
-  const qLower = qClean.toLowerCase();
-
-  // Score-based local matching
-  const scoredLocal: { item: TickerMeta; score: number }[] = [];
-
-  for (const t of TICKER_CATALOG) {
-    let score = 0;
-    const tickLower = t.ticker.toLowerCase();
-    const nameLower = t.name.toLowerCase();
-
-    if (tickLower === qLower || tickLower.replace('.ns', '') === qLower) {
-      score += 100;
-    } else if (tickLower.startsWith(qLower)) {
-      score += 80;
-    }
-
-    if (nameLower === qLower) {
-      score += 90;
-    } else if (nameLower.startsWith(qLower)) {
-      score += 70;
-    } else if (nameLower.includes(qLower)) {
-      score += 50;
-    }
-
-    for (const a of t.aliases) {
-      const aLower = a.toLowerCase();
-      if (aLower === qLower) score += 85;
-      else if (aLower.startsWith(qLower)) score += 65;
-      else if (aLower.includes(qLower)) score += 40;
-    }
-
-    if (score > 0) {
-      scoredLocal.push({ item: t, score });
-    }
-  }
-
-  scoredLocal.sort((a, b) => b.score - a.score);
-
-  for (const { item: t } of scoredLocal) {
-    if (!seenTickers.has(t.ticker)) {
-      results.push({
-        ticker: t.ticker,
-        name: t.name,
-        exchange: t.exchange,
-        currency: t.currency,
-        price: t.basePrice,
-        sector: t.sector
-      });
-      seenTickers.add(t.ticker);
-    }
+  if (!qClean) {
+    return results.slice(0, 12);
   }
 
   // 2. Query Yahoo Finance Search for global equities if query is >= 2 chars
@@ -394,16 +414,24 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
   }
 
   const catalogMeta = TICKER_CATALOG.find(t => t.ticker === ticker);
+  let dbMasterMeta: Awaited<ReturnType<typeof db.getTickerBySymbol>> | undefined;
+  if (!catalogMeta) {
+    try {
+      dbMasterMeta = await db.getTickerBySymbol(ticker);
+    } catch {
+      dbMasterMeta = undefined;
+    }
+  }
   const meta: TickerMeta = catalogMeta || {
     ticker,
-    name: ticker,
-    exchange: inferExchangeFromTicker(ticker),
-    currency: inferCurrencyFromTicker(ticker),
-    basePrice: ticker.endsWith('.KS') ? 56000.0 : 150.0,
+    name: dbMasterMeta?.name || ticker,
+    exchange: dbMasterMeta?.exchangeCode || inferExchangeFromTicker(ticker),
+    currency: dbMasterMeta?.currency || inferCurrencyFromTicker(ticker),
+    basePrice: dbMasterMeta?.basePrice ?? (ticker.endsWith('.KS') ? 56000.0 : 150.0),
     pe: 24.0,
     marketCap: 10000000000,
-    sector: 'Equity',
-    aliases: []
+    sector: dbMasterMeta?.sector || 'Equity',
+    aliases: dbMasterMeta?.aliases || []
   };
 
   try {
@@ -556,16 +584,25 @@ export async function getHistoricalDataWithSource(tickerOrName: string, days = 2
     return cached.data;
   }
 
-  const meta: TickerMeta = TICKER_CATALOG.find(t => t.ticker === ticker) || {
+  const catalogHistMeta = TICKER_CATALOG.find(t => t.ticker === ticker);
+  let dbHistMeta: Awaited<ReturnType<typeof db.getTickerBySymbol>> | undefined;
+  if (!catalogHistMeta) {
+    try {
+      dbHistMeta = await db.getTickerBySymbol(ticker);
+    } catch {
+      dbHistMeta = undefined;
+    }
+  }
+  const meta: TickerMeta = catalogHistMeta || {
     ticker,
-    name: ticker,
-    exchange: inferExchangeFromTicker(ticker),
-    currency: inferCurrencyFromTicker(ticker),
-    basePrice: ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 56000.0 : 150.0,
+    name: dbHistMeta?.name || ticker,
+    exchange: dbHistMeta?.exchangeCode || inferExchangeFromTicker(ticker),
+    currency: dbHistMeta?.currency || inferCurrencyFromTicker(ticker),
+    basePrice: dbHistMeta?.basePrice ?? (ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 56000.0 : 150.0),
     pe: 24.0,
     marketCap: 10000000000,
-    sector: 'Equity',
-    aliases: []
+    sector: dbHistMeta?.sector || 'Equity',
+    aliases: dbHistMeta?.aliases || []
   };
 
   let rawBars: PriceBar[] = [];

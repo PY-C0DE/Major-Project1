@@ -21,6 +21,7 @@ import {
   getHistoricalDataWithSource,
   HistoricalDataResult,
   searchStocks,
+  searchTickersMaster,
   TICKER_CATALOG,
   resolveTickerOrName,
   getMarketIndices,
@@ -52,6 +53,8 @@ import { getEarningsCalendarData } from './src/server/services/earningsService';
 import { computeSeasonality } from './src/server/math/seasonality';
 import { getFxRates } from './src/server/services/fxService';
 import { db, StoredPrediction } from './src/server/store/db';
+import { adminAuth } from './src/lib/firebase-admin';
+import { inferCurrencyFromTicker } from './src/utils/currency';
 import { generateSupportFallback } from './src/utils/supportKnowledge';
 
 dotenv.config();
@@ -85,9 +88,9 @@ export function getJwtSecret(): string {
   return devSecret;
 }
 
-function buildSentimentMapFromDb(): Map<string, DailySentimentRecord[]> {
+async function buildSentimentMapFromDb(): Promise<Map<string, DailySentimentRecord[]>> {
   const map = new Map<string, DailySentimentRecord[]>();
-  for (const rec of db.getAllDailySentiment()) {
+  for (const rec of await db.getAllDailySentiment()) {
     const key = rec.ticker.toUpperCase();
     const list = map.get(key) || [];
     list.push(rec);
@@ -164,7 +167,34 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     next();
   });
 
-  function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  async function resolveTokenUser(token: string): Promise<{ id: string; email: string; name: string } | null> {
+    try {
+      const decoded: any = jwt.verify(token, JWT_SECRET);
+      if (decoded?.id && decoded?.email) {
+        return { id: decoded.id, email: decoded.email, name: decoded.name || decoded.email };
+      }
+    } catch {
+      // Not a valid local JWT; try Firebase Admin verification
+    }
+
+    try {
+      const firebaseDecoded = await adminAuth.verifyIdToken(token);
+      if (firebaseDecoded?.uid && firebaseDecoded?.email) {
+        const user = await db.getOrCreateFirebaseUser({
+          uid: firebaseDecoded.uid,
+          email: firebaseDecoded.email,
+          name: (firebaseDecoded.name as string | undefined) || null,
+          avatarUrl: (firebaseDecoded.picture as string | undefined) || null
+        });
+        return { id: user.id, email: user.email, name: user.name };
+      }
+    } catch {
+      // Invalid Firebase token or project mismatch
+    }
+    return null;
+  }
+
+  async function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -180,21 +210,21 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       return res.status(401).json({ error: 'Authentication required. Missing token.' });
     }
 
-    jwt.verify(token, JWT_SECRET, (err, decoded: any) => {
-      if (err) {
-        if (ALLOW_DEMO_MODE) {
-          req.user = {
-            id: 'user-alphaquant-demo-1',
-            email: 'alex.morgan@alphaquant.ai',
-            name: 'Alex Morgan, CFA'
-          };
-          return next();
-        }
-        return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+    const resolved = await resolveTokenUser(token);
+    if (!resolved) {
+      if (ALLOW_DEMO_MODE) {
+        req.user = {
+          id: 'user-alphaquant-demo-1',
+          email: 'alex.morgan@alphaquant.ai',
+          name: 'Alex Morgan, CFA'
+        };
+        return next();
       }
-      req.user = decoded;
-      next();
-    });
+      return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+    }
+
+    req.user = resolved;
+    next();
   }
 
 function sanitizeUser(user: any) {
@@ -229,7 +259,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const existing = db.getUserByEmail(cleanEmail);
+    const existing = await db.getUserByEmail(cleanEmail);
     if (existing) {
       return res.status(409).json({ error: 'User with this email already exists.' });
     }
@@ -259,7 +289,7 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
       }
     };
 
-    db.createUser(newUser);
+    await db.createUser(newUser);
 
     const token = jwt.sign(
       { id: newUser.id, email: newUser.email, name: newUser.name },
@@ -288,7 +318,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'A valid email address format is required.' });
     }
 
-    const user = db.getUserByEmail(email.trim().toLowerCase());
+    const user = await db.getUserByEmail(email.trim().toLowerCase());
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
@@ -314,15 +344,43 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   }
 });
 
-app.get('/api/auth/me', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const user = db.getUserById(req.user?.id || 'user-alphaquant-demo-1');
+app.post('/api/auth/firebase', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const headerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+    const token = headerToken || (typeof req.body?.idToken === 'string' ? req.body.idToken : '');
+    if (!token) {
+      return res.status(401).json({ error: 'Firebase ID token is required.' });
+    }
+
+    const decoded = await adminAuth.verifyIdToken(token);
+    if (!decoded?.uid || !decoded?.email) {
+      return res.status(401).json({ error: 'Firebase account must include a verified email address.' });
+    }
+
+    const user = await db.getOrCreateFirebaseUser({
+      uid: decoded.uid,
+      email: decoded.email,
+      name: (decoded.name as string | undefined) || null,
+      avatarUrl: (decoded.picture as string | undefined) || null
+    });
+
+    return res.json({ user: sanitizeUser(user) });
+  } catch (error: any) {
+    console.error('Firebase auth error:', error?.message || error);
+    return res.status(401).json({ error: 'Invalid or expired Firebase authentication token.' });
+  }
+});
+
+app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  const user = await db.getUserById(req.user?.id || 'user-alphaquant-demo-1');
   if (!user) {
     return res.status(404).json({ error: 'User profile not found.' });
   }
   return res.json(sanitizeUser(user));
 });
 
-app.put('/api/auth/profile', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.put('/api/auth/profile', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
     const {
@@ -354,7 +412,7 @@ app.put('/api/auth/profile', authenticateToken, (req: AuthenticatedRequest, res:
     if (twoFactorEnabled !== undefined) updates.twoFactorEnabled = twoFactorEnabled;
     if (notifications !== undefined) updates.notifications = notifications;
 
-    const updated = db.updateUser(userId, updates);
+    const updated = await db.updateUser(userId, updates);
     if (!updated) {
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -378,7 +436,7 @@ app.put('/api/auth/change-password', authenticateToken, async (req: Authenticate
       return res.status(400).json({ error: 'New password must be at least 8 characters long.' });
     }
 
-    const user = db.getUserById(userId);
+    const user = await db.getUserById(userId);
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
@@ -390,7 +448,7 @@ app.put('/api/auth/change-password', authenticateToken, async (req: Authenticate
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(newPassword, salt);
-    db.updateUser(userId, { passwordHash });
+    await db.updateUser(userId, { passwordHash });
 
     return res.json({ success: true, message: 'Password updated successfully.' });
   } catch (err: any) {
@@ -402,6 +460,24 @@ app.put('/api/auth/change-password', authenticateToken, async (req: Authenticate
 // -------------------------------------------------------------
 // 2. STOCK MARKET & HISTORICAL DATA ENDPOINTS
 // -------------------------------------------------------------
+
+app.get('/api/tickers/search', async (req: Request, res: Response) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    const country = typeof req.query.country === 'string' ? req.query.country : undefined;
+    const exchange = typeof req.query.exchange === 'string' ? req.query.exchange : undefined;
+    const pageRaw = parseInt((req.query.page as string) || '1', 10);
+    const limitRaw = parseInt((req.query.limit as string) || '24', 10);
+    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(100, limitRaw) : 24;
+
+    const payload = await searchTickersMaster({ q, country, exchange, page, limit });
+    return res.json(payload);
+  } catch (error: any) {
+    console.error('Error searching ticker master:', error);
+    return res.status(500).json({ error: 'Failed to search global ticker master.' });
+  }
+});
 
 app.get('/api/stocks/search', async (req: Request, res: Response) => {
   try {
@@ -493,7 +569,7 @@ app.get('/api/stocks/:ticker/seasonality', async (req: Request, res: Response) =
 // -------------------------------------------------------------
 
 async function computePooledLagResponse() {
-  const sentimentMap = buildSentimentMapFromDb();
+  const sentimentMap = await buildSentimentMapFromDb();
   const tickersWithSentiment = Array.from(sentimentMap.keys());
   const inputs: Array<{
     ticker: string;
@@ -551,8 +627,8 @@ app.get('/api/news/:ticker', async (req: Request, res: Response) => {
 });
 
 // Specific /api/sentiment sub-paths MUST be registered before /api/sentiment/:ticker
-app.get('/api/sentiment/daily-stats', (_req: Request, res: Response) => {
-  const byTicker = db.getDailySentimentCountsByTicker();
+app.get('/api/sentiment/daily-stats', async (_req: Request, res: Response) => {
+  const byTicker = await db.getDailySentimentCountsByTicker();
   const totalRecords = Object.values(byTicker).reduce((a, b) => a + b, 0);
   return res.json({
     tickersWithData: Object.keys(byTicker).length,
@@ -579,7 +655,7 @@ app.get('/api/sentiment/lag-analysis/:ticker', async (req: Request, res: Respons
       return res.json(pooled);
     }
     const ticker = await resolveTickerOrName(raw);
-    const records = db.getDailySentimentForTicker(ticker);
+    const records = await db.getDailySentimentForTicker(ticker);
     let bars: Awaited<ReturnType<typeof fetchHistoryWithSource>>['bars'] = [];
     let source: 'live' | 'synthetic' = 'live';
     try {
@@ -678,9 +754,9 @@ app.get('/api/regime/:ticker', async (req: Request, res: Response) => {
 // -------------------------------------------------------------
 
 // Specific sub-paths registered before parameterized route /:ticker to avoid route shadowing
-app.get('/api/predictions/history', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/predictions/history', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const ticker = req.query.ticker as string;
-  const history = db.getPredictionHistory(req.user?.id, ticker);
+  const history = await db.getPredictionHistory(req.user?.id, ticker);
   return res.json(history);
 });
 
@@ -746,7 +822,7 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
     const regime = detectMarketRegime(history, sym);
     const quote = await getStockQuote(sym);
     const hybrid = await getHybridNewsForTicker(sym, quote.name);
-    const fullUser = req.user?.id ? db.getUserById(req.user.id) : null;
+    const fullUser = req.user?.id ? await db.getUserById(req.user.id) : null;
     const userConf = (fullUser?.confidenceLevel ? fullUser.confidenceLevel / 100 : DEFAULT_CONFORMAL_CONFIDENCE);
 
     const liveNewsMeta = {
@@ -788,6 +864,7 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
       id: `pred-${Date.now()}`,
       userId: req.user?.id || 'user-alphaquant-demo-1',
       ticker: sym,
+      currency: pred.currency || quote.currency || inferCurrencyFromTicker(sym),
       currentPrice: pred.currentPrice,
       predictedPrice: pred.predictedPrice,
       lowerBound: pred.lowerBound,
@@ -798,7 +875,7 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
       timestamp: pred.predictionTimestamp
     };
 
-    db.addPrediction(stored);
+    await db.addPrediction(stored);
     return res.json({ ...pred, dataSource: historySource });
   } catch (error: any) {
     console.error('Error saving prediction:', error);
@@ -831,7 +908,7 @@ app.get('/api/model/metrics', async (req: Request, res: Response) => {
     const rawTicker = (req.query.ticker as string) || 'RELIANCE.NS';
     if (rawTicker.trim().toUpperCase() === 'ALL') {
       const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG, {
-        sentimentByTicker: buildSentimentMapFromDb()
+        sentimentByTicker: await buildSentimentMapFromDb()
       });
       if (!isModelEvaluationAvailable(evaluation)) {
         return res.status(503).json({
@@ -911,12 +988,12 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
         );
       }
       const evaluation = runModelEvaluation(bars, ticker, source);
-      const meta = TICKER_CATALOG.find(c => c.ticker === ticker);
+      const meta = TICKER_CATALOG.find(c => c.ticker === ticker) ?? await db.getTickerBySymbol(ticker);
       return res.json(buildModelAuditPayload(evaluation, meta?.name || ticker));
     }
 
     const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG, {
-      sentimentByTicker: buildSentimentMapFromDb()
+      sentimentByTicker: await buildSentimentMapFromDb()
     });
     const payload = buildModelAuditPayload(evaluation);
     if (!payload.available) {
@@ -1194,7 +1271,7 @@ app.post('/api/social/copy-trade', authenticateToken, async (req: AuthenticatedR
         })
       );
       const userId = req.user?.id || 'user-alphaquant-demo-1';
-      db.savePortfolio(userId, holdings);
+      await db.savePortfolio(userId, holdings);
     }
     return res.json({
       success: true,
@@ -1214,7 +1291,7 @@ app.post('/api/social/copy-trade', authenticateToken, async (req: AuthenticatedR
 app.get('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
-    const holdings = db.getPortfolio(userId);
+    const holdings = await db.getPortfolio(userId);
 
     // Refresh current prices
     const updated = await Promise.all(
@@ -1227,13 +1304,17 @@ app.get('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, r
           const pnlPercent = Number(((pnl / h.totalInvested) * 100).toFixed(2));
           return {
             ...h,
+            currency: h.currency || q.currency || inferCurrencyFromTicker(h.ticker),
             currentPrice,
             currentValue,
             pnl,
             pnlPercent
           };
         } catch {
-          return h;
+          return {
+            ...h,
+            currency: h.currency || inferCurrencyFromTicker(h.ticker)
+          };
         }
       })
     );
@@ -1267,6 +1348,7 @@ app.post('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, 
       id: `hold-${Date.now()}`,
       ticker: sym,
       companyName: quote.name,
+      currency: quote.currency || inferCurrencyFromTicker(sym),
       quantity: qty,
       avgBuyPrice: buyPrice,
       currentPrice: quote.price,
@@ -1278,7 +1360,7 @@ app.post('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, 
       notes: notes || ''
     };
 
-    db.addHolding(userId, holding);
+    await db.addHolding(userId, holding);
     return res.status(201).json(holding);
   } catch (error: any) {
     console.error('Error adding holding:', error);
@@ -1312,6 +1394,7 @@ app.post('/api/portfolio/batch', authenticateToken, async (req: AuthenticatedReq
           id: `hold-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           ticker: sym,
           companyName: quote.name,
+          currency: quote.currency || inferCurrencyFromTicker(sym),
           quantity: qty,
           avgBuyPrice: buyPrice,
           currentPrice: quote.price,
@@ -1322,14 +1405,14 @@ app.post('/api/portfolio/batch', authenticateToken, async (req: AuthenticatedReq
           purchaseDate: item.purchaseDate || new Date().toISOString().split('T')[0],
           notes: item.notes || 'Imported via External CSV/File'
         };
-        db.addHolding(userId, holding);
+        await db.addHolding(userId, holding);
         createdHoldings.push(holding);
       } catch (err) {
         console.warn(`Failed to resolve imported ticker ${item.ticker}:`, err);
       }
     }
 
-    const currentAll = db.getPortfolio(userId);
+    const currentAll = await db.getPortfolio(userId);
     return res.status(201).json({
       success: true,
       importedCount: createdHoldings.length,
@@ -1341,16 +1424,16 @@ app.post('/api/portfolio/batch', authenticateToken, async (req: AuthenticatedReq
   }
 });
 
-app.put('/api/portfolio/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.put('/api/portfolio/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
-  const updated = db.updateHolding(userId, req.params.id, req.body);
+  const updated = await db.updateHolding(userId, req.params.id, req.body);
   if (!updated) return res.status(404).json({ error: 'Holding not found.' });
   return res.json(updated);
 });
 
-app.delete('/api/portfolio/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.delete('/api/portfolio/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
-  db.deleteHolding(userId, req.params.id);
+  await db.deleteHolding(userId, req.params.id);
   return res.json({ success: true, message: 'Holding removed successfully.' });
 });
 
@@ -1362,7 +1445,7 @@ app.post('/api/portfolio/optimize', authenticateToken, async (req: Authenticated
     let holdings: any[] = req.body?.holdings;
 
     if (!holdings || !Array.isArray(holdings) || holdings.length === 0) {
-      holdings = db.getPortfolio(userId);
+      holdings = await db.getPortfolio(userId);
     }
 
     if (holdings.length === 0) {
@@ -1428,7 +1511,7 @@ app.post('/api/portfolio/correlation', authenticateToken, async (req: Authentica
     const lookbackDays = parseInt(req.body?.lookbackDays || '90', 10);
 
     if (!holdings || !Array.isArray(holdings) || holdings.length === 0) {
-      holdings = db.getPortfolio(userId);
+      holdings = await db.getPortfolio(userId);
     }
 
     if (holdings.length === 0) {
@@ -1492,7 +1575,7 @@ app.post('/api/portfolio/rebalance/apply', authenticateToken, async (req: Authen
       return res.status(400).json({ error: 'Rebalance suggestions array is required.' });
     }
 
-    const currentHoldings = db.getPortfolio(userId);
+    const currentHoldings = await db.getPortfolio(userId);
 
     for (const sug of suggestions) {
       const match = currentHoldings.find(h => h.id === sug.holdingId || h.ticker === sug.ticker);
@@ -1503,7 +1586,7 @@ app.post('/api/portfolio/rebalance/apply', authenticateToken, async (req: Authen
         const newPnl = Number((newCurrentValue - newTotalInvested).toFixed(2));
         const newPnlPercent = newTotalInvested > 0 ? Number(((newPnl / newTotalInvested) * 100).toFixed(2)) : 0;
 
-        db.updateHolding(userId, match.id, {
+        await db.updateHolding(userId, match.id, {
           quantity: newQty,
           totalInvested: newTotalInvested,
           currentValue: newCurrentValue,
@@ -1514,7 +1597,7 @@ app.post('/api/portfolio/rebalance/apply', authenticateToken, async (req: Authen
       }
     }
 
-    const updated = db.getPortfolio(userId);
+    const updated = await db.getPortfolio(userId);
     return res.json({ success: true, message: 'Portfolio successfully rebalanced to optimal weights.', holdings: updated });
   } catch (error: any) {
     console.error('Rebalance execution error:', error);
@@ -1529,7 +1612,7 @@ app.post('/api/portfolio/rebalance/apply', authenticateToken, async (req: Authen
 app.get('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
-    const tickers = db.getWatchlist(userId);
+    const tickers = await db.getWatchlist(userId);
 
     const items = await Promise.all(
       tickers.map(async (ticker, idx) => {
@@ -1576,7 +1659,7 @@ app.get('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, r
 app.get('/api/watchlist/pulse', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
-    let tickers = db.getWatchlist(userId);
+    let tickers = await db.getWatchlist(userId);
     if (!tickers || tickers.length === 0) {
       tickers = ['TATAMOTORS.NS', 'NVDA', 'RELIANCE.NS', 'AAPL', 'TCS.NS'];
     }
@@ -1667,14 +1750,14 @@ app.post('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, 
   const { ticker } = req.body;
   if (!ticker) return res.status(400).json({ error: 'Ticker symbol is required.' });
   const sym = await resolveTickerOrName(ticker);
-  const updated = db.addToWatchlist(userId, sym);
+  const updated = await db.addToWatchlist(userId, sym);
   return res.json({ success: true, watchlist: updated });
 });
 
 app.delete('/api/watchlist/:ticker', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
   const sym = await resolveTickerOrName(req.params.ticker);
-  const updated = db.removeFromWatchlist(userId, sym);
+  const updated = await db.removeFromWatchlist(userId, sym);
   return res.json({ success: true, watchlist: updated });
 });
 
@@ -1687,14 +1770,12 @@ app.get('/api/earnings/calendar', async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization;
     let userId = 'user-alphaquant-demo-1';
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.split(' ')[1];
-        const decoded: any = jwt.verify(token, JWT_SECRET);
-        if (decoded?.id) userId = decoded.id;
-      } catch {}
+      const token = authHeader.split(' ')[1];
+      const resolved = await resolveTokenUser(token);
+      if (resolved?.id) userId = resolved.id;
     }
     const watchlistOnly = req.query.watchlistOnly === 'true';
-    const userWatchlist = db.getWatchlist(userId);
+    const userWatchlist = await db.getWatchlist(userId);
     const data = await getEarningsCalendarData(userWatchlist, watchlistOnly);
     return res.json(data);
   } catch (error: any) {
@@ -1707,9 +1788,9 @@ app.get('/api/earnings/calendar', async (req: Request, res: Response) => {
 // 10. ALERTS ENDPOINTS
 // -------------------------------------------------------------
 
-app.get('/api/alerts', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.get('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
-  const alerts = db.getAlerts(userId);
+  const alerts = await db.getAlerts(userId);
   return res.json(alerts);
 });
 
@@ -1783,21 +1864,21 @@ app.post('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res
     enabled: true,
     createdAt: new Date().toISOString()
   };
-  db.createAlert(userId, newAlert);
+  await db.createAlert(userId, newAlert);
   return res.status(201).json(newAlert);
 });
 
-app.put('/api/alerts/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.put('/api/alerts/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
   const { enabled } = req.body;
-  const updated = db.toggleAlert(userId, req.params.id, Boolean(enabled));
+  const updated = await db.toggleAlert(userId, req.params.id, Boolean(enabled));
   if (!updated) return res.status(404).json({ error: 'Alert not found.' });
   return res.json(updated);
 });
 
-app.delete('/api/alerts/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+app.delete('/api/alerts/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
-  db.deleteAlert(userId, req.params.id);
+  await db.deleteAlert(userId, req.params.id);
   return res.json({ success: true, message: 'Alert removed.' });
 });
 
@@ -2050,9 +2131,9 @@ export async function startServer() {
     const warmupTimer = setTimeout(() => {
       const tickers = TICKER_CATALOG.map(t => t.ticker);
       computeProjectWideAccuracy(getHistoricalDataWithSource, tickers)
-        .then(() =>
+        .then(async () =>
           runAggregateModelEvaluation(getHistoricalDataWithSource, TICKER_CATALOG, {
-            sentimentByTicker: buildSentimentMapFromDb()
+            sentimentByTicker: await buildSentimentMapFromDb()
           })
         )
         .catch(() => {});

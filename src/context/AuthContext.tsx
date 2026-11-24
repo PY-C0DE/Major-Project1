@@ -4,8 +4,10 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { onIdTokenChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { UserProfile } from '../types';
-import { api } from '../services/api';
+import { api, setMemoryAuthToken } from '../services/api';
+import { auth, googleAuthProvider } from '../lib/firebase';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -13,6 +15,7 @@ interface AuthContextType {
   isLoading: boolean;
   isSubmitting: boolean;
   login: (email: string, pass: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (name: string, email: string, pass: string) => Promise<void>;
   logout: () => void;
   enterDemoMode: () => Promise<void>;
@@ -21,13 +24,31 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function mergeCachedUserProfile(baseUser: UserProfile): UserProfile {
+  const userSpecificKey = `alphaquant_user_profile_${baseUser.id}`;
+  const savedProfile = localStorage.getItem(userSpecificKey) || localStorage.getItem('alphaquant_user_profile');
+  if (savedProfile) {
+    try {
+      const parsed = JSON.parse(savedProfile);
+      if (parsed && parsed.id === baseUser.id) {
+        return { ...baseUser, ...parsed };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  return baseUser;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    async function initAuth() {
+    let active = true;
+
+    async function initLocalAuth() {
       const token = localStorage.getItem('alphaquant_token');
       let baseUser: UserProfile | null = null;
 
@@ -58,46 +79,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem('alphaquant_token');
       }
 
-      if (baseUser) {
-        const userSpecificKey = `alphaquant_user_profile_${baseUser.id}`;
-        const savedProfile = localStorage.getItem(userSpecificKey) || localStorage.getItem('alphaquant_user_profile');
-        if (savedProfile) {
-          try {
-            const parsed = JSON.parse(savedProfile);
-            if (parsed && parsed.id === baseUser.id) {
-              baseUser = { ...baseUser, ...parsed };
-            }
-          } catch (e) {
-            console.error(e);
+      if (active && baseUser) {
+        setUser(mergeCachedUserProfile(baseUser));
+      }
+      if (active) {
+        setIsLoading(false);
+      }
+    }
+
+    initLocalAuth();
+
+    const unsubscribe = onIdTokenChanged(auth, async (fbUser) => {
+      if (!active) return;
+      if (!fbUser) {
+        setMemoryAuthToken(null);
+        return;
+      }
+      try {
+        const idToken = await fbUser.getIdToken();
+        setMemoryAuthToken(idToken);
+        if (!localStorage.getItem('alphaquant_logged_out')) {
+          const { user: syncedUser } = await api.syncFirebaseAuth(idToken);
+          if (active && syncedUser) {
+            setUser(mergeCachedUserProfile(syncedUser));
           }
         }
+      } catch (err) {
+        console.warn('Firebase token sync error:', err);
+      } finally {
+        if (active) setIsLoading(false);
       }
+    });
 
-      setUser(baseUser);
-      setIsLoading(false);
-    }
-    initAuth();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, pass: string) => {
     setIsSubmitting(true);
     try {
+      setMemoryAuthToken(null);
       const { user: authedUser, token } = await api.login(email, pass);
       localStorage.setItem('alphaquant_token', token);
       localStorage.removeItem('alphaquant_logged_out');
-      
-      const userSpecificKey = `alphaquant_user_profile_${authedUser.id}`;
-      const savedProfile = localStorage.getItem(userSpecificKey) || localStorage.getItem('alphaquant_user_profile');
-      let mergedUser = authedUser;
-      if (savedProfile) {
-        try {
-          const parsed = JSON.parse(savedProfile);
-          if (parsed.id === authedUser.id) {
-            mergedUser = { ...authedUser, ...parsed };
-          }
-        } catch {}
-      }
-      localStorage.setItem(userSpecificKey, JSON.stringify(mergedUser));
+
+      const mergedUser = mergeCachedUserProfile(authedUser);
+      localStorage.setItem(`alphaquant_user_profile_${authedUser.id}`, JSON.stringify(mergedUser));
+      setUser(mergedUser);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    setIsSubmitting(true);
+    try {
+      const cred = await signInWithPopup(auth, googleAuthProvider);
+      const idToken = await cred.user.getIdToken();
+      setMemoryAuthToken(idToken);
+      localStorage.removeItem('alphaquant_token');
+      localStorage.removeItem('alphaquant_logged_out');
+      const { user: syncedUser } = await api.syncFirebaseAuth(idToken);
+      const mergedUser = mergeCachedUserProfile(syncedUser);
+      localStorage.setItem(`alphaquant_user_profile_${syncedUser.id}`, JSON.stringify(mergedUser));
       setUser(mergedUser);
     } finally {
       setIsSubmitting(false);
@@ -107,11 +153,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (name: string, email: string, pass: string) => {
     setIsSubmitting(true);
     try {
+      setMemoryAuthToken(null);
       const { user: registeredUser, token } = await api.register(name, email, pass);
       localStorage.setItem('alphaquant_token', token);
       localStorage.removeItem('alphaquant_logged_out');
-      const userSpecificKey = `alphaquant_user_profile_${registeredUser.id}`;
-      localStorage.setItem(userSpecificKey, JSON.stringify(registeredUser));
+      localStorage.setItem(`alphaquant_user_profile_${registeredUser.id}`, JSON.stringify(registeredUser));
       setUser(registeredUser);
     } finally {
       setIsSubmitting(false);
@@ -119,9 +165,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    // End active token session, but keep persistent user data in database and local cache
+    setMemoryAuthToken(null);
     localStorage.removeItem('alphaquant_token');
     localStorage.setItem('alphaquant_logged_out', 'true');
+    signOut(auth).catch(() => {});
     setUser(null);
   };
 
@@ -193,6 +240,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isLoading,
         isSubmitting,
         login,
+        loginWithGoogle,
         register,
         logout,
         enterDemoMode,

@@ -261,7 +261,7 @@ export async function collectAndPersistLiveSentimentForTicker(
 ): Promise<{
   liveNewsItems: NewsItem[];
   dailyRecords: DailySentimentRecord[];
-  upsertStats: ReturnType<typeof db.upsertDailySentiment>;
+  upsertStats: Awaited<ReturnType<typeof db.upsertDailySentiment>>;
 }> {
   const rawLive = await fetchLiveNewsForTicker(ticker, companyName, {
     bypassCache: options?.bypassCache,
@@ -269,7 +269,7 @@ export async function collectAndPersistLiveSentimentForTicker(
   });
   const liveNewsItems = await scoreRawLiveArticles(ticker, rawLive);
   const dailyRecords = buildDailySentimentRecordsFromLiveArticles(ticker, liveNewsItems);
-  const upsertStats = db.upsertDailySentiment(dailyRecords, {
+  const upsertStats = await db.upsertDailySentiment(dailyRecords, {
     persist: options?.persistToDisk ?? true
   });
   return { liveNewsItems, dailyRecords, upsertStats };
@@ -310,7 +310,7 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
   // Task 2: Append daily per-ticker aggregate from live articles ONLY (never baseline templates)
   const dailyRecords = buildDailySentimentRecordsFromLiveArticles(ticker, liveNewsItems);
   if (dailyRecords.length > 0) {
-    db.upsertDailySentiment(dailyRecords);
+    await db.upsertDailySentiment(dailyRecords);
   }
 
   const liveScore = computeCredibilityWeightedMeanScore(liveNewsItems);
