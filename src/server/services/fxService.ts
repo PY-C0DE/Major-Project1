@@ -4,11 +4,15 @@
  * with 60-second in-memory caching and resilient baseline fallbacks.
  */
 
+import { getMarketDataProvider } from '../providers/marketDataProvider';
+
 export interface FxRatesResponse {
   base: 'USD';
   rates: Record<string, number>; // Units of currency per 1 USD
   timestamp: string;
+  fetchedAt: string;
   isLive: boolean;
+  dataSource: 'live' | 'synthetic';
   source: string;
 }
 
@@ -49,26 +53,6 @@ const SUPPORTED_FX_PAIRS: { code: string; symbol: string }[] = [
 let cachedFx: { data: FxRatesResponse; fetchedAt: number } | null = null;
 const FX_TTL_MS = 60 * 1000; // 60 seconds live refresh
 
-async function fetchYahooFxRate(symbol: string): Promise<number | null> {
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      signal: AbortSignal.timeout(3500)
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    const meta = json?.chart?.result?.[0]?.meta;
-    const price = meta?.regularMarketPrice || meta?.chartPreviousClose;
-    if (typeof price === 'number' && isFinite(price) && price > 0) {
-      return price;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export async function getFxRates(): Promise<FxRatesResponse> {
   const now = Date.now();
   if (cachedFx && now - cachedFx.fetchedAt < FX_TTL_MS) {
@@ -77,10 +61,11 @@ export async function getFxRates(): Promise<FxRatesResponse> {
 
   const rates: Record<string, number> = { ...FALLBACK_USD_RATES };
   let liveHits = 0;
+  const provider = getMarketDataProvider();
 
   const settled = await Promise.all(
     SUPPORTED_FX_PAIRS.map(async (pair) => {
-      const rate = await fetchYahooFxRate(pair.symbol);
+      const rate = await provider.getFxRate(pair.symbol);
       return { code: pair.code, rate };
     })
   );
@@ -92,12 +77,15 @@ export async function getFxRates(): Promise<FxRatesResponse> {
     }
   }
 
+  const fetchedAt = new Date().toISOString();
   const result: FxRatesResponse = {
     base: 'USD',
     rates,
-    timestamp: new Date().toISOString(),
+    timestamp: fetchedAt,
+    fetchedAt,
     isLive: liveHits > 0,
-    source: liveHits > 0 ? 'Yahoo Finance Spot FX' : 'Reference FX Baseline'
+    dataSource: liveHits > 0 ? 'live' : 'synthetic',
+    source: liveHits > 0 ? `MarketDataProvider (${provider.name})` : 'Reference FX Baseline (synthetic fallback)'
   };
 
   cachedFx = { data: result, fetchedAt: now };

@@ -50,6 +50,7 @@ async function main() {
   console.log(`Evaluated At      : ${audit.evaluatedAt}`);
   console.log(`Git Commit        : ${audit.gitCommit ?? 'null (unavailable)'}`);
   console.log(`Data Source       : ${audit.dataSource}`);
+  console.log(`Data Provider     : ${audit.dataProvider ?? 'n/a'}`);
   console.log(`Currency Scope    : ${audit.currency ?? 'n/a'}`);
   console.log(`Assets Evaluated  : ${audit.evaluatedAssetsCount} / ${TICKER_CATALOG.length} (skipped: ${audit.skippedTickers?.length ?? 0})`);
   console.log(`Test Window       : ${audit.testWindowStart} -> ${audit.testWindowEnd} (n = ${audit.totalTestPredictions})`);

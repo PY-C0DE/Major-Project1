@@ -7,6 +7,7 @@
 import { NewsItem, ClassifiedFinancialEvent, SentimentSource, DailySentimentRecord } from '../../types';
 import { fetchLiveNewsForTicker, RawLiveArticle } from '../services/liveNewsService';
 import { analyzeKeywordSentiment, scoreHeadlinesWithFinbert } from './finbertSentiment';
+import { alignTimestampToTradingDate } from './exchangeCalendar';
 import { db } from '../store/db';
 
 export { analyzeKeywordSentiment };
@@ -96,20 +97,30 @@ function summarizeSourceKind(items: Array<{ sentimentSource?: SentimentSource }>
 
 /**
  * Aggregates ONLY real live news items (`isLive === true`) into per-(ticker, YYYY-MM-DD)
- * credibility-weighted daily sentiment records. Zero-article days are omitted (never 0-filled).
+ * credibility-weighted daily sentiment records aligned to the ticker's exchange-local trading calendar.
+ * Articles published after exchange close, on weekends, or on exchange holidays advance to the next
+ * open trading session so causal sentiment aligns without same-day return lookahead.
+ * Zero-article days are omitted (never 0-filled).
  */
 export function buildDailySentimentRecordsFromLiveArticles(
   ticker: string,
-  liveItems: NewsItem[]
+  liveItems: NewsItem[],
+  options?: { exchange?: string; alignToTradingSession?: boolean; respectMarketClose?: boolean }
 ): DailySentimentRecord[] {
   const byDate = new Map<string, NewsItem[]>();
   const upperTicker = ticker.trim().toUpperCase();
+  const useExchangeCalendar = options?.alignToTradingSession !== false;
+  const respectClose = options?.respectMarketClose !== false;
 
   for (const item of liveItems) {
     if (!item.isLive || !item.publishedAt) continue;
     const parsed = new Date(item.publishedAt);
     if (isNaN(parsed.getTime())) continue;
-    const isoDate = parsed.toISOString().slice(0, 10);
+    const isoDate = useExchangeCalendar
+      ? alignTimestampToTradingDate(parsed, options?.exchange || upperTicker, {
+          respectMarketClose: respectClose
+        }).tradingDate
+      : parsed.toISOString().slice(0, 10);
     const list = byDate.get(isoDate) || [];
     list.push(item);
     byDate.set(isoDate, list);
@@ -193,6 +204,8 @@ export function getNewsForTicker(ticker: string, companyName: string): NewsItem[
       verificationScore: verification.verificationScore,
       sourceCredibility: verification.sourceCredibility,
       isLive: false,
+      dataSource: 'synthetic',
+      fetchedAt: new Date(now).toISOString(),
       sentimentSource: 'lexicon'
     };
   });
@@ -216,6 +229,7 @@ export async function scoreRawLiveArticles(
 ): Promise<NewsItem[]> {
   if (!rawLive || rawLive.length === 0) return [];
 
+  const fetchedAt = new Date().toISOString();
   const scoredList = await scoreHeadlinesWithFinbert(
     rawLive.map((item) => ({
       headline: item.title,
@@ -244,6 +258,8 @@ export async function scoreRawLiveArticles(
       verificationScore: verification.verificationScore,
       sourceCredibility: verification.sourceCredibility,
       isLive: true,
+      dataSource: 'live',
+      fetchedAt,
       sentimentSource: tone.sentimentSource
     };
   });

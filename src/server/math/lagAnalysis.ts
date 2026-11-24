@@ -23,6 +23,7 @@ import {
   LagCorrelationPoint
 } from '../../types';
 import { BOOTSTRAP_SEED, mulberry32 } from './evaluation';
+import { alignSentimentRecordsToExchangeCalendar } from './exchangeCalendar';
 
 export const LAG_WINDOW_MIN = -5;
 export const LAG_WINDOW_MAX = 5;
@@ -220,7 +221,14 @@ export function alignSentimentAndReturns(
     dateToIdx.set(sortedBars[i].date, i);
   }
 
-  const sortedSentiment = [...sentimentRecords]
+  // Remap any weekend/exchange-holiday daily sentiment onto its next exchange trading day
+  // while preserving records whose dates already correspond directly to bars.
+  const firstTicker = sentimentRecords.find((r) => r?.ticker)?.ticker;
+  const calendarAligned = firstTicker
+    ? alignSentimentRecordsToExchangeCalendar(sentimentRecords, firstTicker)
+    : sentimentRecords;
+
+  const sortedSentiment = [...calendarAligned]
     .filter((r) => r && r.articleCount > 0 && Number.isFinite(r.credibilityWeightedNetScore))
     .sort((a, b) => a.date.localeCompare(b.date));
 

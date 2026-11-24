@@ -4,6 +4,8 @@
  * with in-memory TTL caching, HTML entity sanitation, and multi-source deduplication.
  */
 
+import { getMarketDataProvider } from '../providers/marketDataProvider';
+
 export interface RawLiveArticle {
   title: string;
   summary: string;
@@ -112,36 +114,15 @@ function parseGoogleNewsRss(xmlText: string): RawLiveArticle[] {
 }
 
 /**
- * Fetches real-time articles from Yahoo Finance search/news endpoint
+ * Fetches real-time articles via active MarketDataProvider
  */
 async function fetchYahooFinanceNews(ticker: string, companyName: string, newsCount = 8): Promise<RawLiveArticle[]> {
-  const cleanTicker = ticker.replace('.NS', '').replace('.BO', '');
-  const query = companyName && companyName.length > 2 ? companyName : cleanTicker;
-  const endpoint = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=1&newsCount=${newsCount}`;
-
   try {
-    const res = await fetch(endpoint, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
-      },
-      signal: AbortSignal.timeout(6000)
+    const res = await getMarketDataProvider().getNews(ticker, companyName, {
+      bypassCache: true,
+      maxArticles: newsCount
     });
-
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!data.news || !Array.isArray(data.news)) return [];
-
-    return data.news.map((item: any) => ({
-      title: cleanHtmlText(item.title || ''),
-      summary: cleanHtmlText(item.summary || `Live financial market coverage from ${item.publisher || 'Yahoo Finance'}`),
-      source: item.publisher || 'Yahoo Finance',
-      url: item.link || `https://finance.yahoo.com/quote/${ticker}`,
-      publishedAt: item.providerPublishTime
-        ? new Date(item.providerPublishTime * 1000).toISOString()
-        : new Date().toISOString(),
-      isLive: true as const
-    })).filter((a: RawLiveArticle) => a.title.length > 10);
+    return res.articles;
   } catch {
     return [];
   }

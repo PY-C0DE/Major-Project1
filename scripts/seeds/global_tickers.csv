@@ -113,3 +113,28 @@ Z74.SI,Singapore Telecommunications Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Te
 PETR4.SA,Petróleo Brasileiro S.A. (Petrobras),BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Energy,"petrobras",true
 VALE3.SA,Vale S.A.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Metals & Mining,"vale",true
 ITUB4.SA,Itaú Unibanco Holding S.A.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Banking & Financials,"itau|itau unibanco",true
+247540.KQ,Ecopro BM Co. Ltd.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Battery Materials,"ecopro bm",true
+091990.KQ,Celltrion Healthcare Co.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Biotechnology,"celltrion healthcare",true
+600519.SS,Kweichow Moutai Co. Ltd.,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Beverages,"moutai|kweichow moutai",true
+601318.SS,Ping An Insurance Group Co.,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Insurance & Financials,"ping an",true
+300750.SZ,Contemporary Amperex Technology (CATL),XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Battery & EV,"catl",true
+002594.SZ,BYD Company Limited (Shenzhen),XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Automobile & EV,"byd shenzhen",true
+ITX.MC,Industria de Diseño Textil (Inditex),XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Apparel & Retail,"inditex|zara",true
+SAN.MC,Banco Santander S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Banking & Financials,"santander|banco santander",true
+IBE.MC,Iberdrola S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Utilities & Renewables,"iberdrola",true
+RACE.MI,Ferrari N.V. (Milan),XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Luxury Automobile,"ferrari",true
+ENEL.MI,Enel S.p.A.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Utilities & Energy,"enel",true
+ISP.MI,Intesa Sanpaolo S.p.A.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Banking & Financials,"intesa sanpaolo",true
+ATCO-A.ST,Atlas Copco AB,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrial Machinery,"atlas copco",true
+VOLV-B.ST,AB Volvo,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Commercial Vehicles,"volvo",true
+EQNR.OL,Equinor ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,"equinor",true
+DNB.OL,DNB Bank ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Banking & Financials,"dnb",true
+NOKIA.HE,Nokia Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Telecom Equipment,"nokia",true
+KNEBV.HE,KONE Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Industrial Machinery,"kone",true
+ABI.BR,Anheuser-Busch InBev SA/NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Consumer Beverages,"ab inbev|budweiser",true
+NPN.JO,Naspers Limited,XJSE,JSE,ZA,ZAR,Africa/Johannesburg,EQUITY,Consumer Internet,"naspers",true
+FSR.JO,FirstRand Limited,XJSE,JSE,ZA,ZAR,Africa/Johannesburg,EQUITY,Banking & Financials,"firstrand|fnb",true
+WALMEX.MX,Wal-Mart de México S.A.B.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Retail,"walmex|walmart mexico",true
+AMXB.MX,América Móvil S.A.B. de C.V.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Telecommunications,"america movil",true
+BBCA.JK,Bank Central Asia Tbk PT,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Banking & Financials,"bca|bank central asia",true
+TLKM.JK,Telkom Indonesia Tbk PT,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Telecommunications,"telkom indonesia",true

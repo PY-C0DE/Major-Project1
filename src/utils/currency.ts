@@ -24,7 +24,9 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   SEK: 'kr ',
   NOK: 'kr ',
   DKK: 'kr ',
-  ZAR: 'R '
+  ZAR: 'R ',
+  MXN: 'Mex$',
+  IDR: 'Rp '
 };
 
 /**
@@ -50,6 +52,8 @@ export function inferCurrencyFromTicker(ticker?: string): string {
   if (t.endsWith('.OL')) return 'NOK';
   if (t.endsWith('.CO')) return 'DKK';
   if (t.endsWith('.JO')) return 'ZAR';
+  if (t.endsWith('.MX')) return 'MXN';
+  if (t.endsWith('.JK')) return 'IDR';
   return 'USD';
 }
 
@@ -80,6 +84,9 @@ export function inferExchangeFromTicker(ticker?: string): string {
   if (t.endsWith('.SA')) return 'B3';
   if (t.endsWith('.ST') || t.endsWith('.HE') || t.endsWith('.CO')) return 'NASDAQ NORDIC';
   if (t.endsWith('.OL')) return 'OSLO';
+  if (t.endsWith('.JO')) return 'JSE';
+  if (t.endsWith('.MX')) return 'BMV';
+  if (t.endsWith('.JK')) return 'IDX';
   return 'NASDAQ';
 }
 

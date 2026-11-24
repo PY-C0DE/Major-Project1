@@ -40,6 +40,8 @@ import {
 import { MIN_CONFORMAL_BARS } from './conformal';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
 import { inferCurrencyFromTicker } from '../../utils/currency';
+import { alignSentimentRecordsToExchangeCalendar } from './exchangeCalendar';
+import { getMarketDataProvider } from '../providers/marketDataProvider';
 
 export function computeModelFeatureImportance(
   ensembleModel: ReturnType<typeof fitEnsembleModel>,
@@ -1337,7 +1339,8 @@ export function evaluateSentimentAblationOnSeries(
     const testStartIndex = n - testSize;
     if (testStartIndex < 25) continue;
 
-    const sentimentMatrix = buildCausalSentimentFeatureMatrix(bars, records);
+    const alignedRecords = alignSentimentRecordsToExchangeCalendar(records, asset.ticker);
+    const sentimentMatrix = buildCausalSentimentFeatureMatrix(bars, alignedRecords);
     let hasMatchedTestBar = false;
     for (let i = testStartIndex; i < n; i++) {
       if (sentimentMatrix[i - 1]?.[3] === 0) {
@@ -1652,6 +1655,9 @@ export async function runAggregateModelEvaluation(
     const barsByTicker = new Map<string, ComputedBar[]>();
     const batchSize = 5;
 
+    const providerSet = new Set<string>();
+    const licenceSet = new Set<string>();
+
     for (let i = 0; i < universe.length; i += batchSize) {
       const batch = universe.slice(i, i + batchSize);
       const batchFetched = await Promise.all(
@@ -1664,14 +1670,21 @@ export async function runAggregateModelEvaluation(
               : { ticker: t, skipped: cached.skipped };
           }
           try {
-            const { bars, source } = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
+            const normalized = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
+            const { bars, source } = normalized;
             if (source === 'synthetic') {
               return { ticker: t, skipped: { ticker: t, reason: 'synthetic_data' as const, barsCount: bars?.length ?? 0 } };
             }
             if (!bars || bars.length < MIN_CONFORMAL_BARS) {
               return { ticker: t, skipped: { ticker: t, reason: 'insufficient_history' as const, barsCount: bars?.length ?? 0 } };
             }
-            return { ticker: t, bars, source };
+            return {
+              ticker: t,
+              bars,
+              source,
+              provider: normalized.provider,
+              providerLicence: normalized.providerLicence
+            };
           } catch {
             return { ticker: t, skipped: { ticker: t, reason: 'fetch_error' as const } };
           }
@@ -1680,6 +1693,8 @@ export async function runAggregateModelEvaluation(
 
       for (const item of batchFetched) {
         if ('evaluation' in item && item.evaluation) {
+          if (item.evaluation.dataProvider) providerSet.add(item.evaluation.dataProvider);
+          if (item.evaluation.dataProviderLicence) licenceSet.add(item.evaluation.dataProviderLicence);
           evaluations.push(item.evaluation);
         } else if ('skipped' in item && item.skipped) {
           skippedTickers.push(item.skipped);
@@ -1687,6 +1702,14 @@ export async function runAggregateModelEvaluation(
           barsByTicker.set(item.ticker, item.bars);
           await yieldToEventLoop();
           const evaluation = runModelEvaluation(item.bars, item.ticker, item.source);
+          if (item.provider) {
+            evaluation.dataProvider = item.provider;
+            providerSet.add(item.provider);
+          }
+          if (item.providerLicence) {
+            evaluation.dataProviderLicence = item.providerLicence;
+            licenceSet.add(item.providerLicence);
+          }
           evaluations.push(evaluation);
           if (cacheEpoch === epochAtStart) {
             let map = perFetcherEvalCache.get(fetchHistory);
@@ -1704,11 +1727,19 @@ export async function runAggregateModelEvaluation(
       }
     }
 
+  const activeProvider = getMarketDataProvider();
+  const resolvedProviderName =
+    providerSet.size > 0 ? Array.from(providerSet).join(', ') : activeProvider.name;
+  const resolvedLicenceNote =
+    licenceSet.size > 0 ? Array.from(licenceSet).join(' | ') : activeProvider.licenceNote;
+
   if (evaluations.length === 0) {
     return {
       available: false,
       reason: 'No live market data',
       dataSource: 'none',
+      dataProvider: resolvedProviderName,
+      dataProviderLicence: resolvedLicenceNote,
       evaluatedAssetsCount: 0,
       skippedTickers,
       ticker: 'ALL'
@@ -2004,6 +2035,8 @@ export async function runAggregateModelEvaluation(
   const result: ModelEvaluation = {
     available: true,
     dataSource: 'live',
+    dataProvider: resolvedProviderName,
+    dataProviderLicence: resolvedLicenceNote,
     evaluatedAssetsCount: evaluations.length,
     skippedTickers,
     ticker: 'ALL',
@@ -2065,6 +2098,9 @@ export function buildModelAuditPayload(
 ): ModelAuditResponse {
   const gitCommit = resolveGitCommit();
   const evaluationParams = getEvaluationParams();
+  const fallbackProvider = getMarketDataProvider();
+  const dataProvider = evaluation.dataProvider || fallbackProvider.name;
+  const dataProviderLicence = evaluation.dataProviderLicence || fallbackProvider.licenceNote;
 
   if (!isModelEvaluationAvailable(evaluation)) {
     return {
@@ -2073,6 +2109,8 @@ export function buildModelAuditPayload(
       gitCommit,
       evaluationParams,
       dataSource: evaluation.dataSource || 'none',
+      dataProvider,
+      dataProviderLicence,
       evaluatedAssetsCount: 0,
       skippedTickers: evaluation.skippedTickers || [],
       evaluatedAt: new Date().toISOString()
@@ -2085,6 +2123,8 @@ export function buildModelAuditPayload(
       gitCommit,
       evaluationParams,
       dataSource: evaluation.dataSource || 'live',
+      dataProvider,
+      dataProviderLicence,
       currency: evaluation.currency,
       evaluatedAssetsCount: evaluation.evaluatedAssetsCount || evaluation.assetBreakdown?.length || 0,
       skippedTickers: evaluation.skippedTickers || [],
@@ -2117,6 +2157,8 @@ export function buildModelAuditPayload(
     gitCommit,
     evaluationParams,
     dataSource: evaluation.dataSource || 'live',
+    dataProvider,
+    dataProviderLicence,
     currency: evalCurrency,
     evaluatedAssetsCount: 1,
     skippedTickers: evaluation.skippedTickers || [],

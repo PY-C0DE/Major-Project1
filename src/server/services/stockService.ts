@@ -1,11 +1,12 @@
 /**
  * Stock Data Service
  * Provides live quotes, historical OHLCV bars, ticker & company name search,
- * intelligent company-name-to-ticker resolution, and resilient caching.
+ * intelligent company-name-to-ticker resolution, and resilient caching
+ * backed by the pluggable MarketDataProvider abstraction.
  */
 
-import { StockQuote, HistoricalBar, StockSearchResult, MarketIndexItem, QuickWatchItem, TickerSearchResponse } from '../../types';
-import { PriceBar, computeAllIndicators, ComputedBar } from '../math/indicators';
+import { StockQuote, StockSearchResult, MarketIndexItem, QuickWatchItem, TickerSearchResponse } from '../../types';
+import { ComputedBar } from '../math/indicators';
 
 import { TICKER_CATALOG, TickerMeta } from '../../shared/tickerCatalog';
 import {
@@ -16,26 +17,26 @@ import {
   resolveIndicesForMarkets
 } from '../../shared/macroMarkets';
 import { getCurrencySymbol, inferCurrencyFromTicker, inferExchangeFromTicker } from '../../utils/currency';
-import { getExchangeMarketStatus } from '../../utils/marketStatus';
 import { db } from '../store/db';
+import {
+  getMarketDataProvider,
+  MarketHistoryFetchResult
+} from '../providers/marketDataProvider';
+
 export { TICKER_CATALOG };
 export type { TickerMeta };
 
-// In-memory cache with 2 minute TTL for quotes and 5 minutes for history
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-}
-export interface HistoricalDataResult {
+export interface HistoricalDataResult extends MarketHistoryFetchResult {
   bars: ComputedBar[];
   source: 'live' | 'synthetic';
 }
 
-const quoteCache = new Map<string, CacheEntry<StockQuote>>();
-const historyCache = new Map<string, CacheEntry<HistoricalDataResult>>();
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
 const searchCache = new Map<string, CacheEntry<StockSearchResult[]>>();
-const QUOTE_TTL_MS = 2 * 60 * 1000;
-const HISTORY_TTL_MS = 5 * 60 * 1000;
 const SEARCH_TTL_MS = 5 * 60 * 1000;
 
 /**
@@ -51,6 +52,33 @@ export const LEGACY_TICKER_MAP: Record<string, string> = {
   'ZOMATO.NS': 'ETERNAL.NS',
   'ZOMATO': 'ETERNAL.NS',
 };
+
+/**
+ * Resolves metadata for a ticker from TICKER_CATALOG -> ticker_master DB -> exchange inference.
+ */
+async function resolveTickerMeta(ticker: string): Promise<TickerMeta> {
+  const catalogMeta = TICKER_CATALOG.find(t => t.ticker === ticker);
+  if (catalogMeta) return catalogMeta;
+
+  let dbMasterMeta: Awaited<ReturnType<typeof db.getTickerBySymbol>> | undefined;
+  try {
+    dbMasterMeta = await db.getTickerBySymbol(ticker);
+  } catch {
+    dbMasterMeta = undefined;
+  }
+
+  return {
+    ticker,
+    name: dbMasterMeta?.name || ticker,
+    exchange: dbMasterMeta?.exchangeCode || inferExchangeFromTicker(ticker),
+    currency: dbMasterMeta?.currency || inferCurrencyFromTicker(ticker),
+    basePrice: dbMasterMeta?.basePrice ?? (ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 56000.0 : 150.0),
+    pe: 24.0,
+    marketCap: 10000000000,
+    sector: dbMasterMeta?.sector || 'Equity',
+    aliases: dbMasterMeta?.aliases || []
+  };
+}
 
 /**
  * Intelligent company-name-to-ticker resolver
@@ -93,7 +121,7 @@ export async function resolveTickerOrName(query: string): Promise<string> {
   });
   if (looseMatch) return looseMatch.ticker;
 
-  // 4b. Check global ticker_master repository before falling back to raw uppercase or Yahoo search
+  // 4b. Check global ticker_master repository before falling back to raw uppercase or provider search
   try {
     const dbMatch = await db.resolveTickerSymbol(clean);
     if (dbMatch?.symbol) {
@@ -108,28 +136,15 @@ export async function resolveTickerOrName(query: string): Promise<string> {
     return upper;
   }
 
-  // 6. Asynchronously resolve unknown company names via Yahoo Finance Search API
+  // 6. Asynchronously resolve unknown company names via active MarketDataProvider
   try {
-    const yUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(clean)}&quotesCount=3&newsCount=0`;
-    const res = await fetch(yUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-    });
-    const cType = res.headers.get('content-type') || '';
-    if (res.ok && cType.includes('application/json')) {
-      const data = await res.json();
-      const firstQuote = data?.quotes?.find((q: any) => q.symbol && (q.quoteType === 'EQUITY' || !q.quoteType));
-      if (firstQuote?.symbol) {
-        let sym = firstQuote.symbol;
-        if (LEGACY_TICKER_MAP[sym]) sym = LEGACY_TICKER_MAP[sym];
-        return sym;
-      }
-      if (data?.quotes?.[0]?.symbol) {
-        let sym = data.quotes[0].symbol;
-        if (LEGACY_TICKER_MAP[sym]) sym = LEGACY_TICKER_MAP[sym];
-        return sym;
-      }
+    const searchRes = await getMarketDataProvider().search(clean, 3);
+    const equityMatch = searchRes.items.find(q => q.ticker && (q.quoteType === 'EQUITY' || !q.quoteType));
+    const chosen = equityMatch?.ticker || searchRes.items[0]?.ticker;
+    if (chosen) {
+      return LEGACY_TICKER_MAP[chosen] || chosen;
     }
-  } catch (err) {
+  } catch {
     // Fall back to upper string
   }
 
@@ -143,7 +158,7 @@ export async function searchTickersMaster(params: {
   page?: number;
   limit?: number;
 }): Promise<TickerSearchResponse> {
-  const response = await db.searchTickers({
+  return db.searchTickers({
     q: params.q,
     country: params.country,
     exchange: params.exchange,
@@ -151,28 +166,11 @@ export async function searchTickersMaster(params: {
     limit: params.limit,
     activeOnly: true
   });
-
-  const enrichedItems = response.items.map(item => {
-    const cachedQ = quoteCache.get(item.symbol);
-    if (cachedQ) {
-      return {
-        ...item,
-        basePrice: cachedQ.data.price,
-        changePercent: cachedQ.data.changePercent
-      };
-    }
-    return item;
-  });
-
-  return {
-    ...response,
-    items: enrichedItems
-  };
 }
 
 /**
  * Searches stocks by symbol, company name, or aliases
- * Combines the database-backed global ticker_master universe with live Yahoo Finance global equity search,
+ * Combines the database-backed global ticker_master universe with live MarketDataProvider discovery,
  * with strict deduplication to ensure exactly one true ticker per corporate entity.
  */
 export async function searchStocks(query: string): Promise<StockSearchResult[]> {
@@ -211,7 +209,6 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     // Fall back to local catalog if repository search fails
   }
 
-  // Ensure popular defaults if DB returned empty on empty query
   if (!qClean && results.length === 0) {
     for (const t of TICKER_CATALOG.slice(0, 12)) {
       results.push({
@@ -231,87 +228,54 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
     return results.slice(0, 12);
   }
 
-  // 2. Query Yahoo Finance Search for global equities if query is >= 2 chars
+  // 2. Query active MarketDataProvider search for global equities if query is >= 2 chars
   if (qClean.length >= 2) {
     try {
-      const yUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(qClean)}&quotesCount=10&newsCount=0`;
-      const res = await fetch(yUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-      });
+      const remote = await getMarketDataProvider().search(qClean, 10);
+      for (const item of remote.items) {
+        let sym = item.ticker;
+        if (!sym) continue;
 
-      const cType = res.headers.get('content-type') || '';
-      if (res.ok && cType.includes('application/json')) {
-        const data = await res.json();
-        const quotes = data?.quotes || [];
-
-        for (const item of quotes) {
-          let sym = item.symbol;
-          if (!sym) continue;
-
-          // Migrate legacy delisted symbols
-          if (LEGACY_TICKER_MAP[sym]) {
-            sym = LEGACY_TICKER_MAP[sym];
-          }
-
-          // Filter out derivatives, options, indices, and auxiliary block deal symbols
-          if (
-            sym.includes('=') ||
-            sym.includes('^') ||
-            sym.includes('-BL.') ||
-            sym.includes('-BZ.') ||
-            sym.includes('-SM.')
-          ) {
-            continue;
-          }
-
-          // Filter out delisted legacy symbols
-          if (sym === 'TATAMOTORS.NS' || sym === 'ZOMATO.NS' || sym === 'TATAMTRDVR.NS') {
-            continue;
-          }
-
-          // Filter out BSE (.BO) duplicate if NSE (.NS) counterpart exists in catalog or results
-          if (sym.endsWith('.BO')) {
-            const nseEquivalent = sym.replace('.BO', '.NS');
-            if (seenTickers.has(nseEquivalent) || TICKER_CATALOG.some(t => t.ticker === nseEquivalent)) {
-              continue;
-            }
-          }
-
-          if (seenTickers.has(sym)) continue;
-
-          const matchingCatalog = TICKER_CATALOG.find(t => t.ticker === sym);
-          const name = matchingCatalog ? matchingCatalog.name : (item.shortname || item.longname || item.name || sym);
-          const exchange = matchingCatalog?.exchange || item.exchDisp || item.exchange || inferExchangeFromTicker(sym);
-          const currency = matchingCatalog?.currency || inferCurrencyFromTicker(sym);
-          const price = matchingCatalog?.basePrice;
-
-          results.push({
-            ticker: sym,
-            name,
-            exchange,
-            currency,
-            price,
-            sector: matchingCatalog?.sector || item.sector || item.industry || 'Public Equity'
-          });
-          seenTickers.add(sym);
+        if (LEGACY_TICKER_MAP[sym]) {
+          sym = LEGACY_TICKER_MAP[sym];
         }
-      }
-    } catch (err) {
-      // Yahoo finance network error: local results already included
-    }
-  }
 
-  // Attach live prices from cache if present
-  for (const r of results) {
-    const cachedQ = quoteCache.get(r.ticker);
-    if (cachedQ) {
-      r.price = cachedQ.data.price;
-      r.changePercent = cachedQ.data.changePercent;
-    } else if (r.price === undefined) {
-      const cat = TICKER_CATALOG.find(t => t.ticker === r.ticker);
-      if (cat) {
-        r.price = cat.basePrice;
+        if (
+          sym.includes('=') ||
+          sym.includes('^') ||
+          sym.includes('-BL.') ||
+          sym.includes('-BZ.') ||
+          sym.includes('-SM.')
+        ) {
+          continue;
+        }
+
+        if (sym === 'TATAMOTORS.NS' || sym === 'ZOMATO.NS' || sym === 'TATAMTRDVR.NS') {
+          continue;
+        }
+
+        if (sym.endsWith('.BO')) {
+          const nseEquivalent = sym.replace('.BO', '.NS');
+          if (seenTickers.has(nseEquivalent) || TICKER_CATALOG.some(t => t.ticker === nseEquivalent)) {
+            continue;
+          }
+        }
+
+        if (seenTickers.has(sym)) continue;
+
+        const matchingCatalog = TICKER_CATALOG.find(t => t.ticker === sym);
+        results.push({
+          ticker: sym,
+          name: matchingCatalog ? matchingCatalog.name : item.name,
+          exchange: matchingCatalog?.exchange || item.exchange || inferExchangeFromTicker(sym),
+          currency: matchingCatalog?.currency || item.currency || inferCurrencyFromTicker(sym),
+          price: matchingCatalog?.basePrice,
+          sector: matchingCatalog?.sector || item.sector || 'Public Equity'
+        });
+        seenTickers.add(sym);
       }
+    } catch {
+      // Provider search error: local database matches still returned
     }
   }
 
@@ -319,347 +283,35 @@ export async function searchStocks(query: string): Promise<StockSearchResult[]> 
   return results.slice(0, 16);
 }
 
-function hashString(str: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0) / 4294967296;
-}
-
-function getDeterministicDailyReturn(ticker: string, dateStr: string): number {
-  const r1 = hashString(`${ticker}_ret_${dateStr}`);
-  const r2 = hashString(`${ticker}_vol_${dateStr}`);
-  // Mean drift +0.0003 with realistic 1.2% daily volatility
-  const shock = (r1 - 0.492) * 2 * 0.012 * (0.85 + 0.3 * r2);
-  return Math.max(-0.045, Math.min(0.045, shock + 0.0003));
-}
-
 /**
- * Generates synthetic deterministic historical OHLCV series anchored directly to the true asset price.
- * Eliminates random walk drift jumps across days and anchors yesterday and today's bars consistently.
- */
-function generateSyntheticHistory(meta: TickerMeta, days = 250, targetClosePrice?: number): PriceBar[] {
-  const anchorPrice = targetClosePrice || meta.basePrice;
-  const now = new Date();
-
-  // Collect the last `days` valid weekday trading dates up to today
-  const tradingDates: string[] = [];
-  const cur = new Date(now.getTime());
-  cur.setUTCHours(12, 0, 0, 0);
-
-  while (tradingDates.length < days) {
-    const day = cur.getUTCDay();
-    if (day !== 0 && day !== 6) { // skip Saturday and Sunday
-      const yyyy = cur.getUTCFullYear();
-      const mm = String(cur.getUTCMonth() + 1).padStart(2, '0');
-      const dd = String(cur.getUTCDate()).padStart(2, '0');
-      tradingDates.push(`${yyyy}-${mm}-${dd}`);
-    }
-    cur.setUTCDate(cur.getUTCDate() - 1);
-  }
-
-  // tradingDates[0] is today (latest), tradingDates[1] is yesterday, ..., tradingDates[days - 1] is oldest
-  // Compute price series backward from today's anchorPrice
-  const closes: number[] = new Array(tradingDates.length);
-  closes[0] = anchorPrice;
-
-  for (let i = 0; i < tradingDates.length - 1; i++) {
-    const todayDate = tradingDates[i];
-    const ret = getDeterministicDailyReturn(meta.ticker, todayDate);
-    // Since close[i] = close[i + 1] * (1 + ret), close[i + 1] = close[i] / (1 + ret)
-    closes[i + 1] = closes[i] / (1 + ret);
-  }
-
-  // Build the chronological bars array
-  const bars: PriceBar[] = [];
-  for (let i = tradingDates.length - 1; i >= 0; i--) {
-    const dateStr = tradingDates[i];
-    const close = closes[i];
-    const prevClose = i < tradingDates.length - 1 ? closes[i + 1] : close * 0.998;
-    const open = Number(prevClose.toFixed(2));
-
-    const rHigh = hashString(`${meta.ticker}_high_${dateStr}`);
-    const rLow = hashString(`${meta.ticker}_low_${dateStr}`);
-    const rVol = hashString(`${meta.ticker}_vol_${dateStr}`);
-
-    const maxOC = Math.max(open, close);
-    const minOC = Math.min(open, close);
-    const high = Number((maxOC * (1 + rHigh * 0.012)).toFixed(2));
-    const low = Number((minOC * (1 - rLow * 0.012)).toFixed(2));
-    const volume = Math.floor(1000000 + rVol * 3000000);
-
-    bars.push({
-      date: dateStr,
-      open,
-      high,
-      low,
-      close: Number(close.toFixed(2)),
-      volume
-    });
-  }
-
-  return bars;
-}
-
-/**
- * Fetches real stock quote with live Yahoo Finance v8 chart API
+ * Fetches stock quote via active MarketDataProvider with explicit provenance (`dataSource`, `fetchedAt`, `provider`).
  */
 export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
   const ticker = await resolveTickerOrName(tickerOrName);
-  const cached = quoteCache.get(ticker);
-  if (cached && Date.now() - cached.timestamp < QUOTE_TTL_MS) {
-    return cached.data;
-  }
-
-  const catalogMeta = TICKER_CATALOG.find(t => t.ticker === ticker);
-  let dbMasterMeta: Awaited<ReturnType<typeof db.getTickerBySymbol>> | undefined;
-  if (!catalogMeta) {
-    try {
-      dbMasterMeta = await db.getTickerBySymbol(ticker);
-    } catch {
-      dbMasterMeta = undefined;
-    }
-  }
-  const meta: TickerMeta = catalogMeta || {
-    ticker,
-    name: dbMasterMeta?.name || ticker,
-    exchange: dbMasterMeta?.exchangeCode || inferExchangeFromTicker(ticker),
-    currency: dbMasterMeta?.currency || inferCurrencyFromTicker(ticker),
-    basePrice: dbMasterMeta?.basePrice ?? (ticker.endsWith('.KS') ? 56000.0 : 150.0),
-    pe: 24.0,
-    marketCap: 10000000000,
-    sector: dbMasterMeta?.sector || 'Equity',
-    aliases: dbMasterMeta?.aliases || []
+  const meta = await resolveTickerMeta(ticker);
+  const res = await getMarketDataProvider().getQuote(ticker, meta);
+  return {
+    ...res.quote,
+    dataSource: res.dataSource,
+    fetchedAt: res.fetchedAt,
+    provider: res.provider
   };
-
-  try {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      signal: AbortSignal.timeout(4500)
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const result = data?.chart?.result?.[0];
-      if (result) {
-        const metaInfo = result.meta;
-        const currentPrice = metaInfo.regularMarketPrice || metaInfo.chartPreviousClose || meta.basePrice;
-        const prevClose = metaInfo.chartPreviousClose || currentPrice * 0.99;
-        const change = currentPrice - prevClose;
-        const changePercent = (change / (prevClose || 1)) * 100;
-
-        const rawExch = catalogMeta?.exchange || metaInfo.exchangeName || meta.exchange;
-        const statusMeta = getExchangeMarketStatus({
-          ticker,
-          exchange: rawExch,
-          exchangeTimezoneName: metaInfo.exchangeTimezoneName
-        });
-        const periods = metaInfo.currentTradingPeriod;
-
-        const quote: StockQuote = {
-          ticker,
-          name: metaInfo.shortName || metaInfo.longName || meta.name,
-          price: Number(currentPrice.toFixed(2)),
-          change: Number(change.toFixed(2)),
-          changePercent: Number(changePercent.toFixed(2)),
-          open: Number((metaInfo.regularMarketDayHigh ? metaInfo.regularMarketDayHigh * 0.99 : currentPrice).toFixed(2)),
-          high: Number((metaInfo.regularMarketDayHigh || currentPrice * 1.01).toFixed(2)),
-          low: Number((metaInfo.regularMarketDayLow || currentPrice * 0.99).toFixed(2)),
-          previousClose: Number(prevClose.toFixed(2)),
-          high52: Number((metaInfo.fiftyTwoWeekHigh || currentPrice * 1.25).toFixed(2)),
-          low52: Number((metaInfo.fiftyTwoWeekLow || currentPrice * 0.8).toFixed(2)),
-          volume: metaInfo.regularMarketVolume || 1200000,
-          pe: meta.pe,
-          marketCap: meta.marketCap,
-          currency: metaInfo.currency || meta.currency,
-          exchange: statusMeta.exchangeLabel,
-          lastUpdated: new Date().toISOString(),
-          isLive: true,
-          exchangeTimezoneName: metaInfo.exchangeTimezoneName || statusMeta.timezone,
-          marketPeriod: periods?.regular ? {
-            regularStart: periods.regular.start,
-            regularEnd: periods.regular.end,
-            preStart: periods.pre?.start,
-            preEnd: periods.pre?.end,
-            postStart: periods.post?.start,
-            postEnd: periods.post?.end,
-            tzShort: periods.regular.timezone || statusMeta.tzAbbr
-          } : undefined
-        };
-
-        quoteCache.set(ticker, { data: quote, timestamp: Date.now() });
-        return quote;
-      }
-    }
-  } catch (err) {
-    // Network or rate-limit: fall through to resilient fallback quote
-  }
-
-  // 1. If we already have a live quote cached (even if older than TTL), preserve the real live price!
-  if (cached && cached.data && cached.data.isLive) {
-    return {
-      ...cached.data,
-      lastUpdated: new Date().toISOString()
-    };
-  }
-
-  // 2. If live historical bars were cached from Yahoo Finance, anchor to the latest real market close
-  const cachedBars = historyCache.get(`${ticker}_250`) || historyCache.get(`${ticker}_30`);
-  if (cachedBars && cachedBars.data.source === 'live' && cachedBars.data.bars.length > 0) {
-    const barsList = cachedBars.data.bars;
-    const lastBar = barsList[barsList.length - 1];
-    const prevBar = barsList.length > 1 ? barsList[barsList.length - 2] : null;
-    const currentPrice = lastBar.close;
-    const prevClose = prevBar ? prevBar.close : lastBar.open;
-    const change = Number((currentPrice - prevClose).toFixed(2));
-    const changePercent = Number(((change / (prevClose || 1)) * 100).toFixed(2));
-
-    const quote: StockQuote = {
-      ticker,
-      name: meta.name,
-      price: currentPrice,
-      change,
-      changePercent,
-      open: lastBar.open,
-      high: lastBar.high,
-      low: lastBar.low,
-      previousClose: prevClose,
-      high52: Number((currentPrice * 1.25).toFixed(2)),
-      low52: Number((currentPrice * 0.8).toFixed(2)),
-      volume: lastBar.volume,
-      pe: meta.pe,
-      marketCap: meta.marketCap,
-      currency: meta.currency,
-      exchange: meta.exchange,
-      lastUpdated: new Date().toISOString(),
-      isLive: true
-    };
-    quoteCache.set(ticker, { data: quote, timestamp: Date.now() });
-    return quote;
-  }
-
-  // 3. Resilient catalog fallback quote with short 5-second retry TTL
-  const currentPrice = meta.basePrice;
-  const change = Number((meta.basePrice * 0.0125).toFixed(2));
-  const changePercent = 1.25;
-
-  const quote: StockQuote = {
-    ticker,
-    name: meta.name,
-    price: currentPrice,
-    change,
-    changePercent,
-    open: Number((currentPrice * 0.995).toFixed(2)),
-    high: Number((currentPrice * 1.018).toFixed(2)),
-    low: Number((currentPrice * 0.991).toFixed(2)),
-    previousClose: Number((currentPrice - change).toFixed(2)),
-    high52: Number((currentPrice * 1.28).toFixed(2)),
-    low52: Number((currentPrice * 0.78).toFixed(2)),
-    volume: 1850000,
-    pe: meta.pe,
-    marketCap: meta.marketCap,
-    currency: meta.currency,
-    exchange: meta.exchange,
-    lastUpdated: new Date().toISOString(),
-    isLive: false
-  };
-
-  // Cache fallback for only 5 seconds so next request retries live API immediately
-  quoteCache.set(ticker, { data: quote, timestamp: Date.now() - QUOTE_TTL_MS + 5000 });
-  return quote;
 }
 
 /**
- * Fetches real historical OHLCV bars and computes full technical indicators,
- * returning explicit provenance (`'live' | 'synthetic'`).
+ * Fetches historical OHLCV bars and computes full technical indicators via MarketDataProvider,
+ * returning explicit provenance (`'live' | 'synthetic'`, `fetchedAt`, `provider`).
  */
 export async function getHistoricalDataWithSource(tickerOrName: string, days = 250): Promise<HistoricalDataResult> {
   const ticker = await resolveTickerOrName(tickerOrName);
-  const cacheKey = `${ticker}_${days}`;
-  const cached = historyCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < HISTORY_TTL_MS) {
-    return cached.data;
-  }
-
-  const catalogHistMeta = TICKER_CATALOG.find(t => t.ticker === ticker);
-  let dbHistMeta: Awaited<ReturnType<typeof db.getTickerBySymbol>> | undefined;
-  if (!catalogHistMeta) {
-    try {
-      dbHistMeta = await db.getTickerBySymbol(ticker);
-    } catch {
-      dbHistMeta = undefined;
-    }
-  }
-  const meta: TickerMeta = catalogHistMeta || {
+  const meta = await resolveTickerMeta(ticker);
+  const res = await getMarketDataProvider().getHistory(ticker, days, meta);
+  return {
+    ...res,
     ticker,
-    name: dbHistMeta?.name || ticker,
-    exchange: dbHistMeta?.exchangeCode || inferExchangeFromTicker(ticker),
-    currency: dbHistMeta?.currency || inferCurrencyFromTicker(ticker),
-    basePrice: dbHistMeta?.basePrice ?? (ticker.endsWith('.KS') || ticker.endsWith('.KQ') ? 56000.0 : 150.0),
-    pe: 24.0,
-    marketCap: 10000000000,
-    sector: dbHistMeta?.sector || 'Equity',
-    aliases: dbHistMeta?.aliases || []
+    dataSource: res.dataSource || res.source,
+    fetchedAt: res.fetchedAt || new Date().toISOString()
   };
-
-  let rawBars: PriceBar[] = [];
-
-  try {
-    const range = days <= 30 ? '1mo' : days <= 90 ? '3mo' : days <= 180 ? '6mo' : days <= 365 ? '1y' : days <= 730 ? '2y' : '5y';
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=${range}`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-      signal: AbortSignal.timeout(5000)
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const result = data?.chart?.result?.[0];
-      if (result) {
-        const timestamps = result.timestamp || [];
-        const quote = result.indicators?.quote?.[0] || {};
-        const opens = quote.open || [];
-        const highs = quote.high || [];
-        const lows = quote.low || [];
-        const closes = quote.close || [];
-        const volumes = quote.volume || [];
-
-        for (let i = 0; i < timestamps.length; i++) {
-          const c = closes[i];
-          if (c !== null && c !== undefined && !isNaN(c)) {
-            const d = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
-            rawBars.push({
-              date: d,
-              open: Number((opens[i] ?? c).toFixed(2)),
-              high: Number((highs[i] ?? c).toFixed(2)),
-              low: Number((lows[i] ?? c).toFixed(2)),
-              close: Number(c.toFixed(2)),
-              volume: Math.floor(volumes[i] ?? 1000000)
-            });
-          }
-        }
-      }
-    }
-  } catch (err) {
-    // Network fallback handled explicitly below with synthetic provenance
-  }
-
-  let source: 'live' | 'synthetic' = 'live';
-  if (rawBars.length < 30) {
-    source = 'synthetic';
-    const cachedPrice = quoteCache.get(ticker)?.data.price;
-    rawBars = generateSyntheticHistory(meta, days, cachedPrice);
-  }
-
-  const computed = computeAllIndicators(rawBars);
-  const result: HistoricalDataResult = { bars: computed, source };
-  // Cache synthetic fallback briefly (30s) so live data can recover quickly
-  const cacheTimestamp = source === 'synthetic' ? Date.now() - HISTORY_TTL_MS + 30_000 : Date.now();
-  historyCache.set(cacheKey, { data: result, timestamp: cacheTimestamp });
-  return result;
 }
 
 /**
@@ -670,31 +322,10 @@ export async function getHistoricalData(tickerOrName: string, days = 250): Promi
   return bars;
 }
 
-const indexSymbolCache = new Map<string, { timestamp: number; data: MarketIndexItem }>();
-const INDICES_CACHE_TTL = 45 * 1000;
-
-function buildFallbackIndex(cfg: MacroIndexConfig): MarketIndexItem {
-  const isUp = cfg.fallbackChange >= 0;
-  return {
-    name: cfg.name,
-    symbol: cfg.symbol,
-    region: cfg.region,
-    val: cfg.fallbackPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-    change: `${isUp ? '+' : ''}${cfg.fallbackChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-    pct: `${isUp ? '+' : ''}${cfg.fallbackPct.toFixed(2)}%`,
-    up: isUp,
-    price: cfg.fallbackPrice,
-    changeValue: cfg.fallbackChange,
-    isLive: false
-  };
-}
-
 export async function getMarketIndices(options?: {
   markets?: string[];
   symbols?: string[];
 }): Promise<MarketIndexItem[]> {
-  const now = Date.now();
-
   let targetConfigs: MacroIndexConfig[];
   if (options?.symbols && options.symbols.length > 0) {
     const symSet = options.symbols.map((s) => s.trim().toUpperCase());
@@ -709,55 +340,8 @@ export async function getMarketIndices(options?: {
     targetConfigs = resolveIndicesForMarkets(DEFAULT_MARKET_IDS);
   }
 
-  const results = await Promise.all(
-    targetConfigs.map(async (cfg) => {
-      const cached = indexSymbolCache.get(cfg.symbol);
-      if (cached && now - cached.timestamp < INDICES_CACHE_TTL) {
-        return cached.data;
-      }
-
-      try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cfg.symbol)}?interval=1d&range=1d`;
-        const res = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-          signal: AbortSignal.timeout(3500)
-        });
-        if (res.ok) {
-          const json = await res.json();
-          const meta = json?.chart?.result?.[0]?.meta;
-          if (meta) {
-            const price = meta.regularMarketPrice || meta.chartPreviousClose || cfg.fallbackPrice;
-            const prev = meta.chartPreviousClose || price;
-            const diff = price - prev;
-            const pct = prev > 0 ? (diff / prev) * 100 : 0;
-            const isUp = diff >= 0;
-
-            const item: MarketIndexItem = {
-              name: cfg.name,
-              symbol: cfg.symbol,
-              region: cfg.region,
-              val: price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-              change: `${isUp ? '+' : ''}${diff.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-              pct: `${isUp ? '+' : ''}${pct.toFixed(2)}%`,
-              up: isUp,
-              price: Number(price.toFixed(2)),
-              changeValue: Number(diff.toFixed(2)),
-              isLive: true
-            };
-            indexSymbolCache.set(cfg.symbol, { timestamp: Date.now(), data: item });
-            return item;
-          }
-        }
-      } catch {
-        // network fallback below
-      }
-
-      if (cached) return cached.data;
-      return buildFallbackIndex(cfg);
-    })
-  );
-
-  return results;
+  const provider = getMarketDataProvider();
+  return Promise.all(targetConfigs.map((cfg) => provider.getIndexQuote(cfg.symbol, cfg)));
 }
 
 const QUICK_WATCH_DEFS = [
@@ -793,7 +377,10 @@ export async function getQuickWatchQuotes(): Promise<QuickWatchItem[]> {
           up: isUp,
           sector: def.sector,
           currency: q.currency,
-          isLive: q.isLive
+          isLive: q.isLive,
+          dataSource: q.dataSource || (q.isLive ? 'live' : 'synthetic'),
+          fetchedAt: q.fetchedAt || q.lastUpdated,
+          provider: q.provider
         } as QuickWatchItem;
       } catch {
         const cat = TICKER_CATALOG.find(t => t.ticker === def.ticker);
@@ -809,7 +396,10 @@ export async function getQuickWatchQuotes(): Promise<QuickWatchItem[]> {
           up: true,
           sector: def.sector,
           currency: def.currency,
-          isLive: false
+          isLive: false,
+          dataSource: 'synthetic',
+          fetchedAt: new Date().toISOString(),
+          provider: 'simulated-fallback'
         } as QuickWatchItem;
       }
     })

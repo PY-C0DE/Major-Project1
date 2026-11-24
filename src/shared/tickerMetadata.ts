@@ -62,18 +62,34 @@ export const EXCHANGE_MIC_MAP: Record<string, ExchangeMicInfo> = {
   XSHE: { mic: 'XSHE', code: 'SZSE', country: 'CN', currency: 'CNY', timezone: 'Asia/Shanghai' },
   'NASDAQ NORDIC': { mic: 'XSTO', code: 'NASDAQ NORDIC', country: 'SE', currency: 'SEK', timezone: 'Europe/Stockholm' },
   XSTO: { mic: 'XSTO', code: 'NASDAQ NORDIC', country: 'SE', currency: 'SEK', timezone: 'Europe/Stockholm' },
-  XCSE: { mic: 'XCSE', code: 'NASDAQ NORDIC', country: 'DK', currency: 'DKK', timezone: 'Europe/Copenhagen' }
+  XCSE: { mic: 'XCSE', code: 'NASDAQ NORDIC', country: 'DK', currency: 'DKK', timezone: 'Europe/Copenhagen' },
+  XHEL: { mic: 'XHEL', code: 'NASDAQ NORDIC', country: 'FI', currency: 'EUR', timezone: 'Europe/Helsinki' },
+  OSLO: { mic: 'XOSL', code: 'OSLO', country: 'NO', currency: 'NOK', timezone: 'Europe/Oslo' },
+  XOSL: { mic: 'XOSL', code: 'OSLO', country: 'NO', currency: 'NOK', timezone: 'Europe/Oslo' },
+  XBRU: { mic: 'XBRU', code: 'EURONEXT', country: 'BE', currency: 'EUR', timezone: 'Europe/Brussels' },
+  JSE: { mic: 'XJSE', code: 'JSE', country: 'ZA', currency: 'ZAR', timezone: 'Africa/Johannesburg' },
+  XJSE: { mic: 'XJSE', code: 'JSE', country: 'ZA', currency: 'ZAR', timezone: 'Africa/Johannesburg' },
+  BMV: { mic: 'XMEX', code: 'BMV', country: 'MX', currency: 'MXN', timezone: 'America/Mexico_City' },
+  XMEX: { mic: 'XMEX', code: 'BMV', country: 'MX', currency: 'MXN', timezone: 'America/Mexico_City' },
+  IDX: { mic: 'XIDX', code: 'IDX', country: 'ID', currency: 'IDR', timezone: 'Asia/Jakarta' },
+  XIDX: { mic: 'XIDX', code: 'IDX', country: 'ID', currency: 'IDR', timezone: 'Asia/Jakarta' }
 };
 
 export function resolveExchangeMicInfo(symbol: string, exchangeHint?: string, currencyHint?: string): ExchangeMicInfo {
   const upperSymbol = symbol.trim().toUpperCase();
 
-  // Suffix overrides for multi-country Euronext / Nordic exchanges
+  // Suffix overrides for multi-country Euronext / Nordic / global exchanges
   if (upperSymbol.endsWith('.AS')) {
     return EXCHANGE_MIC_MAP.XAMS;
   }
+  if (upperSymbol.endsWith('.BR')) {
+    return EXCHANGE_MIC_MAP.XBRU;
+  }
   if (upperSymbol.endsWith('.CO')) {
     return EXCHANGE_MIC_MAP.XCSE;
+  }
+  if (upperSymbol.endsWith('.HE')) {
+    return EXCHANGE_MIC_MAP.XHEL;
   }
 
   const hintKey = exchangeHint?.trim().toUpperCase();

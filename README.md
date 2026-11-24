@@ -215,6 +215,11 @@ openssl rand -hex 32
 | `SQL_USER` | PostgreSQL database user | Unset |
 | `SQL_PASSWORD` | PostgreSQL database password | Unset |
 | `SQL_DB_NAME` | PostgreSQL database name | Unset |
+| `SQL_SSL` | Set `true`/`require` to force TLS or `false` to disable. Remote TCP hosts enable TLS automatically. Certificate verification (`rejectUnauthorized: true`) is ON by default. | Auto (remote TCP = `true` verified) |
+| `SQL_SSL_CA` | Optional CA PEM certificate path or inline PEM string for custom/self-signed Postgres servers. | Unset |
+| `SQL_SSL_REJECT_UNAUTHORIZED` | Set to `false` ONLY to disable Postgres TLS certificate verification (emits a runtime security warning). | `true` (verified) |
+| `MARKET_DATA_PROVIDER` | Active `MarketDataProvider`: `yahoo` (public Yahoo Finance v8/v1) or `twelvedata` (commercial API). Recorded in `audit.json`. | `yahoo` |
+| `TWELVE_DATA_API_KEY` | Commercial API key used when `MARKET_DATA_PROVIDER=twelvedata`. | Unset |
 | `JWT_SECRET` | **Required in production** (`NODE_ENV=production`). Must be at least 32 characters and not a public placeholder. | Ephemeral (dev) / Required (prod) |
 | `ALLOW_DEMO_MODE` | Server-side flag (`true` / `false`). When `true`, requests without a valid JWT fall back to the demo user account. | `false` |
 | `VITE_DEMO_MODE` | Client-side flag (`true` / `false`). Enables automatic demo-session fallback in the frontend when unauthenticated. | `false` |
@@ -226,7 +231,7 @@ Schema migrations are checked into `drizzle/`. With PostgreSQL running and `SQL_
 # Push/apply Drizzle schema (users, portfolios, watchlists, alerts, prediction_history, daily_sentiment, ticker_master)
 npx drizzle-kit push --config=src/db/drizzle.config.ts
 
-# Seed ticker_master from the 62-equity catalog + scripts/seeds/global_tickers.csv
+# Seed ticker_master from the 62-equity catalog + extended global CSV (30 exchanges)
 npm run db:import-tickers
 
 # One-off idempotent migration from a legacy data/alphaquant_store.json snapshot into PostgreSQL

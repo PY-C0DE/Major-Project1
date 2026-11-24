@@ -16,7 +16,10 @@ export interface StockQuote {
   currency: string;
   exchange: string;
   lastUpdated: string;
+  fetchedAt?: string;
   isLive?: boolean;
+  dataSource?: 'live' | 'synthetic';
+  provider?: string;
   exchangeTimezoneName?: string;
   marketPeriod?: {
     regularStart?: number;
@@ -263,6 +266,8 @@ export interface NewsItem {
   verificationScore: number; // 0 to 1
   sourceCredibility: number; // 0 to 1
   isLive?: boolean;
+  dataSource?: 'live' | 'synthetic';
+  fetchedAt?: string;
   sentimentSource?: SentimentSource;
 }
 
@@ -277,6 +282,9 @@ export interface MarketIndexItem {
   price: number;
   changeValue: number;
   isLive?: boolean;
+  dataSource?: 'live' | 'synthetic';
+  fetchedAt?: string;
+  provider?: string;
 }
 
 export interface QuickWatchItem {
@@ -290,6 +298,9 @@ export interface QuickWatchItem {
   sector: string;
   currency: string;
   isLive?: boolean;
+  dataSource?: 'live' | 'synthetic';
+  fetchedAt?: string;
+  provider?: string;
 }
 
 export interface SentimentScoreResult {
@@ -545,6 +556,8 @@ export interface ModelEvaluation {
   available?: boolean;
   reason?: string;
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
+  dataProvider?: string;
+  dataProviderLicence?: string;
   evaluatedAssetsCount?: number;
   skippedTickers?: SkippedTickerRecord[];
   ticker: string;
@@ -597,6 +610,8 @@ export interface UnavailableEvaluation {
   available: false;
   reason: string;
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
+  dataProvider?: string;
+  dataProviderLicence?: string;
   evaluatedAssetsCount: number;
   skippedTickers?: SkippedTickerRecord[];
   ticker?: string;
@@ -608,6 +623,8 @@ export interface ModelAuditResponse {
   gitCommit?: string | null;
   evaluationParams?: AuditEvaluationParams;
   dataSource: 'live' | 'synthetic' | 'mixed' | 'none';
+  dataProvider?: string;
+  dataProviderLicence?: string;
   currency?: string;
   evaluatedAssetsCount: number;
   skippedTickers?: SkippedTickerRecord[];

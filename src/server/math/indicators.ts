@@ -11,6 +11,7 @@ export interface PriceBar {
   low: number;
   close: number;
   volume: number;
+  source?: 'live' | 'synthetic';
 }
 
 export interface ComputedBar extends PriceBar {

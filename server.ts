@@ -541,8 +541,10 @@ app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
     const days = parseInt((req.query.days as string) || '250', 10);
-    const { bars, source } = await fetchHistoryWithSource(ticker, days);
+    const { bars, source, provider, fetchedAt } = await fetchHistoryWithSource(ticker, days);
     res.setHeader('X-Data-Source', source);
+    if (provider) res.setHeader('X-Data-Provider', provider);
+    if (fetchedAt) res.setHeader('X-Fetched-At', fetchedAt);
     return res.json(bars.map(b => ({ ...b, source })));
   } catch (error: any) {
     console.error(`Error fetching history for ${req.params.ticker}:`, error);
@@ -947,10 +949,14 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
       const ticker = await resolveTickerOrName(rawTicker);
       let bars: Awaited<ReturnType<typeof fetchHistoryWithSource>>['bars'] = [];
       let source: 'live' | 'synthetic' = 'live';
+      let providerName: string | undefined;
+      let providerLicence: string | undefined;
       try {
         const fetched = await fetchHistoryWithSource(ticker, 730);
         bars = fetched.bars;
         source = fetched.source;
+        providerName = fetched.provider;
+        providerLicence = fetched.providerLicence;
       } catch {
         return res.status(503).json(
           buildModelAuditPayload({
@@ -969,6 +975,8 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
             available: false,
             reason: 'No live market data',
             dataSource: 'synthetic',
+            dataProvider: providerName,
+            dataProviderLicence: providerLicence,
             evaluatedAssetsCount: 0,
             skippedTickers: [{ ticker, reason: 'synthetic_data', barsCount: bars.length }],
             ticker
@@ -981,6 +989,8 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
             available: false,
             reason: `Insufficient history (need >= ${MIN_CONFORMAL_BARS} bars)`,
             dataSource: 'live',
+            dataProvider: providerName,
+            dataProviderLicence: providerLicence,
             evaluatedAssetsCount: 0,
             skippedTickers: [{ ticker, reason: 'insufficient_history', barsCount: bars.length }],
             ticker
@@ -988,6 +998,8 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
         );
       }
       const evaluation = runModelEvaluation(bars, ticker, source);
+      if (providerName) evaluation.dataProvider = providerName;
+      if (providerLicence) evaluation.dataProviderLicence = providerLicence;
       const meta = TICKER_CATALOG.find(c => c.ticker === ticker) ?? await db.getTickerBySymbol(ticker);
       return res.json(buildModelAuditPayload(evaluation, meta?.name || ticker));
     }
