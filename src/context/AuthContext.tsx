@@ -20,6 +20,7 @@ interface AuthContextType {
   logout: () => void;
   enterDemoMode: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => void;
+  refreshProfile: () => Promise<UserProfile | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -232,6 +233,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshProfile = async (): Promise<UserProfile | null> => {
+    try {
+      const fresh = await api.getCurrentUser();
+      const merged = mergeCachedUserProfile({ ...fresh, emailVerified: fresh.emailVerified });
+      if (merged.id) {
+        localStorage.setItem(`alphaquant_user_profile_${merged.id}`, JSON.stringify(merged));
+      }
+      setUser(merged);
+      return merged;
+    } catch {
+      return null;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -244,7 +259,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         logout,
         enterDemoMode,
-        updateProfile
+        updateProfile,
+        refreshProfile
       }}
     >
       {children}

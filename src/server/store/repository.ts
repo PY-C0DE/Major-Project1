@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import {
   AlertRule,
   DailySentimentRecord,
@@ -12,6 +12,7 @@ import {
 import { getDb, AlphaQuantDrizzleDb } from '../../db/index.ts';
 import {
   alerts as alertsTable,
+  authTokens as authTokensTable,
   dailySentiment as dailySentimentTable,
   portfolios as portfoliosTable,
   predictionHistory as predictionHistoryTable,
@@ -21,6 +22,26 @@ import {
 } from '../../db/schema.ts';
 import { getSeededCatalogTickers } from '../../shared/tickerMetadata';
 import { inferCurrencyFromTicker } from '../../utils/currency';
+
+export type AuthTokenPurpose = 'email_verification' | 'password_reset';
+
+export interface AuthTokenRecord {
+  id: string;
+  userId: string;
+  purpose: AuthTokenPurpose;
+  tokenHash: string;
+  expiresAt: string;
+  usedAt?: string | null;
+}
+
+export interface UserDataExport {
+  exportedAt: string;
+  user: UserProfile;
+  portfolio: PortfolioHolding[];
+  watchlist: string[];
+  alerts: AlertRule[];
+  predictionHistory: StoredPrediction[];
+}
 
 export interface UserAccount extends UserProfile {
   passwordHash: string;
@@ -80,6 +101,20 @@ export interface DatabaseRepository {
   }): Promise<UserAccount>;
   createUser(user: UserAccount): Promise<UserAccount>;
   updateUser(userId: string, updates: Partial<UserAccount>): Promise<UserAccount | null>;
+  deleteUser(userId: string): Promise<boolean>;
+  exportUserData(userId: string): Promise<UserDataExport | null>;
+
+  // Auth Tokens (Email Verification & Password Reset)
+  createAuthToken(token: {
+    id: string;
+    userId: string;
+    purpose: AuthTokenPurpose;
+    tokenHash: string;
+    expiresAt: string;
+  }): Promise<AuthTokenRecord>;
+  consumeAuthToken(purpose: AuthTokenPurpose, tokenHash: string, nowIso?: string): Promise<AuthTokenRecord | null>;
+  markEmailVerified(userId: string): Promise<UserAccount | null>;
+  updateUserPassword(userId: string, passwordHash: string): Promise<UserAccount | null>;
 
   // Portfolios
   getPortfolio(userId: string): Promise<PortfolioHolding[]>;
@@ -140,6 +175,7 @@ export const defaultUser: UserAccount = {
   uid: null,
   name: 'Alex Morgan, CFA',
   email: 'alex.morgan@alphaquant.ai',
+  emailVerified: true,
   createdAt: '2026-01-15T09:00:00.000Z',
   passwordHash: '$2b$10$6RaciIhx/9S4Iq8gYWq5A.1T6UV2ZAU.bCwvO/UBx06i1PzpM91kq', // bcrypt hash for 'demo1234'
   isDemoUser: true,
@@ -481,6 +517,7 @@ export class InMemoryRepository implements DatabaseRepository {
   private predictionHistory: StoredPrediction[] = [];
   private dailySentiment = new Map<string, DailySentimentRecord>();
   private tickerMaster = new Map<string, TickerMasterItem>();
+  private authTokens = new Map<string, AuthTokenRecord>();
   private activeStoreFile: string | null;
   private saveMutex = Promise.resolve();
 
@@ -499,6 +536,7 @@ export class InMemoryRepository implements DatabaseRepository {
     this.alerts = new Map(defaultAlerts.map(([k, v]) => [k, v.map((a) => ({ ...a }))]));
     this.predictionHistory = defaultPredictions.map((p) => ({ ...p }));
     this.dailySentiment = new Map();
+    this.authTokens = new Map();
     this.tickerMaster = new Map();
     for (const item of getSeededCatalogTickers()) {
       this.tickerMaster.set(item.symbol, item);
@@ -676,6 +714,82 @@ export class InMemoryRepository implements DatabaseRepository {
     this.users.set(updatedUser.email.toLowerCase(), updatedUser);
     this.saveToDisk();
     return updatedUser;
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    const existing = await this.getUserById(userId);
+    if (!existing) return false;
+
+    this.users.delete(existing.email.toLowerCase());
+    this.portfolios.delete(userId);
+    this.watchlists.delete(userId);
+    this.alerts.delete(userId);
+    this.predictionHistory = this.predictionHistory.filter((p) => p.userId !== userId);
+    for (const [hash, token] of this.authTokens.entries()) {
+      if (token.userId === userId) {
+        this.authTokens.delete(hash);
+      }
+    }
+    this.saveToDisk();
+    return true;
+  }
+
+  async exportUserData(userId: string): Promise<UserDataExport | null> {
+    const user = await this.getUserById(userId);
+    if (!user) return null;
+    const { passwordHash: _pw, uid: _uid, ...safeProfile } = user;
+    return {
+      exportedAt: new Date().toISOString(),
+      user: safeProfile,
+      portfolio: (await this.getPortfolio(userId)).map((h) => ({ ...h })),
+      watchlist: [...(await this.getWatchlist(userId))],
+      alerts: (await this.getAlerts(userId)).map((a) => ({ ...a })),
+      predictionHistory: (await this.getPredictionHistory(userId)).map((p) => ({ ...p }))
+    };
+  }
+
+  async createAuthToken(input: {
+    id: string;
+    userId: string;
+    purpose: AuthTokenPurpose;
+    tokenHash: string;
+    expiresAt: string;
+  }): Promise<AuthTokenRecord> {
+    const rec: AuthTokenRecord = {
+      id: input.id,
+      userId: input.userId,
+      purpose: input.purpose,
+      tokenHash: input.tokenHash,
+      expiresAt: input.expiresAt,
+      usedAt: null
+    };
+    this.authTokens.set(input.tokenHash, rec);
+    return { ...rec };
+  }
+
+  async consumeAuthToken(
+    purpose: AuthTokenPurpose,
+    tokenHash: string,
+    nowIso = new Date().toISOString()
+  ): Promise<AuthTokenRecord | null> {
+    const rec = this.authTokens.get(tokenHash);
+    if (!rec || rec.purpose !== purpose || rec.usedAt) {
+      return null;
+    }
+    if (Date.parse(rec.expiresAt) <= Date.parse(nowIso)) {
+      return null;
+    }
+    rec.usedAt = nowIso;
+    this.authTokens.set(tokenHash, rec);
+    return { ...rec };
+  }
+
+  async markEmailVerified(userId: string): Promise<UserAccount | null> {
+    return this.updateUser(userId, { emailVerified: true });
+  }
+
+  async updateUserPassword(userId: string, passwordHash: string): Promise<UserAccount | null> {
+    return this.updateUser(userId, { passwordHash });
   }
 
   async getPortfolio(userId: string): Promise<PortfolioHolding[]> {
@@ -1045,6 +1159,7 @@ export class PostgresRepository implements DatabaseRepository {
               id: defaultUser.id,
               uid: defaultUser.uid || null,
               email: defaultUser.email.toLowerCase(),
+              emailVerified: Boolean(defaultUser.emailVerified ?? true),
               name: defaultUser.name,
               passwordHash: defaultUser.passwordHash,
               createdAt: defaultUser.createdAt,
@@ -1174,6 +1289,7 @@ export class PostgresRepository implements DatabaseRepository {
       id: row.id,
       uid: row.uid ?? null,
       email: row.email,
+      emailVerified: Boolean(row.emailVerified),
       name: row.name,
       passwordHash: row.passwordHash,
       createdAt: row.createdAt,
@@ -1328,6 +1444,7 @@ export class PostgresRepository implements DatabaseRepository {
           id: newId,
           uid: profile.uid,
           email: normalizedEmail,
+          emailVerified: true,
           name: profile.name || normalizedEmail.split('@')[0],
           passwordHash: '',
           createdAt: new Date().toISOString(),
@@ -1385,6 +1502,7 @@ export class PostgresRepository implements DatabaseRepository {
           id: user.id,
           uid: user.uid ?? null,
           email: user.email.trim().toLowerCase(),
+          emailVerified: Boolean(user.emailVerified),
           name: user.name,
           passwordHash: user.passwordHash,
           createdAt: user.createdAt,
@@ -1425,6 +1543,7 @@ export class PostgresRepository implements DatabaseRepository {
       const updatePatch: Partial<typeof usersTable.$inferInsert> = {};
       if (updates.name !== undefined) updatePatch.name = updates.name;
       if (updates.email !== undefined) updatePatch.email = updates.email.trim().toLowerCase();
+      if (updates.emailVerified !== undefined) updatePatch.emailVerified = updates.emailVerified;
       if (updates.uid !== undefined) updatePatch.uid = updates.uid;
       if (updates.passwordHash !== undefined) updatePatch.passwordHash = updates.passwordHash;
       if (updates.avatarUrl !== undefined) updatePatch.avatarUrl = updates.avatarUrl;
@@ -1449,6 +1568,123 @@ export class PostgresRepository implements DatabaseRepository {
     } catch (err) {
       throw new Error(`Database error updating user ${userId}`, { cause: err });
     }
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    await this.ensureSeeded();
+    try {
+      const deleted = await this.db
+        .delete(usersTable)
+        .where(eq(usersTable.id, userId))
+        .returning({ id: usersTable.id });
+      return deleted.length > 0;
+    } catch (err) {
+      throw new Error(`Database error deleting user ${userId}`, { cause: err });
+    }
+  }
+
+  async exportUserData(userId: string): Promise<UserDataExport | null> {
+    const user = await this.getUserById(userId);
+    if (!user) return null;
+    const [portfolio, watchlist, alerts, predictionHistory] = await Promise.all([
+      this.getPortfolio(userId),
+      this.getWatchlist(userId),
+      this.getAlerts(userId),
+      this.getPredictionHistory(userId)
+    ]);
+    const { passwordHash: _pw, uid: _uid, ...safeProfile } = user;
+    return {
+      exportedAt: new Date().toISOString(),
+      user: safeProfile,
+      portfolio,
+      watchlist,
+      alerts,
+      predictionHistory
+    };
+  }
+
+  async createAuthToken(input: {
+    id: string;
+    userId: string;
+    purpose: AuthTokenPurpose;
+    tokenHash: string;
+    expiresAt: string;
+  }): Promise<AuthTokenRecord> {
+    await this.ensureSeeded();
+    try {
+      const [inserted] = await this.db
+        .insert(authTokensTable)
+        .values({
+          id: input.id,
+          userId: input.userId,
+          purpose: input.purpose,
+          tokenHash: input.tokenHash,
+          expiresAt: input.expiresAt,
+          usedAt: null
+        })
+        .returning();
+      return {
+        id: inserted.id,
+        userId: inserted.userId,
+        purpose: inserted.purpose as AuthTokenPurpose,
+        tokenHash: inserted.tokenHash,
+        expiresAt: inserted.expiresAt,
+        usedAt: inserted.usedAt
+      };
+    } catch (err) {
+      throw new Error('Database error creating auth token', { cause: err });
+    }
+  }
+
+  async consumeAuthToken(
+    purpose: AuthTokenPurpose,
+    tokenHash: string,
+    nowIso = new Date().toISOString()
+  ): Promise<AuthTokenRecord | null> {
+    await this.ensureSeeded();
+    try {
+      const [existing] = await this.db
+        .select()
+        .from(authTokensTable)
+        .where(
+          and(
+            eq(authTokensTable.tokenHash, tokenHash),
+            eq(authTokensTable.purpose, purpose),
+            isNull(authTokensTable.usedAt)
+          )
+        )
+        .limit(1);
+
+      if (!existing || Date.parse(existing.expiresAt) <= Date.parse(nowIso)) {
+        return null;
+      }
+
+      const [updated] = await this.db
+        .update(authTokensTable)
+        .set({ usedAt: nowIso })
+        .where(and(eq(authTokensTable.id, existing.id), isNull(authTokensTable.usedAt)))
+        .returning();
+
+      if (!updated) return null;
+      return {
+        id: updated.id,
+        userId: updated.userId,
+        purpose: updated.purpose as AuthTokenPurpose,
+        tokenHash: updated.tokenHash,
+        expiresAt: updated.expiresAt,
+        usedAt: updated.usedAt
+      };
+    } catch (err) {
+      throw new Error('Database error consuming auth token', { cause: err });
+    }
+  }
+
+  async markEmailVerified(userId: string): Promise<UserAccount | null> {
+    return this.updateUser(userId, { emailVerified: true });
+  }
+
+  async updateUserPassword(userId: string, passwordHash: string): Promise<UserAccount | null> {
+    return this.updateUser(userId, { passwordHash });
   }
 
   async getPortfolio(userId: string): Promise<PortfolioHolding[]> {
@@ -2050,6 +2286,7 @@ export class PostgresRepository implements DatabaseRepository {
             id: user.id,
             uid: user.uid ?? null,
             email: user.email.trim().toLowerCase(),
+            emailVerified: Boolean(user.emailVerified),
             name: user.name,
             passwordHash: user.passwordHash,
             createdAt: user.createdAt,

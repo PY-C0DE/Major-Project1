@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { PortfolioOptimizationResult, PortfolioHolding } from '../types';
+import { DisclaimerBanner } from './DisclaimerBanner';
 
 interface Props {
   isOpen: boolean;
@@ -106,9 +107,10 @@ export const AIPortfolioOptimizerModal: React.FC<Props> = ({
 
   const handleRemoveTicker = (sym: string) => {
     if (basket.length <= 2) {
-      alert('Portfolio basket requires at least 2 assets for optimization.');
+      setErrorMessage('Portfolio basket requires at least 2 assets for optimization.');
       return;
     }
+    setErrorMessage(null);
     setBasket(basket.filter(t => t !== sym));
   };
 
@@ -380,6 +382,8 @@ export const AIPortfolioOptimizerModal: React.FC<Props> = ({
               </div>
             </>
           ) : null}
+
+          <DisclaimerBanner compact context="recommendation" />
         </div>
       </div>
     </div>,

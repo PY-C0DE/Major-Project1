@@ -100,20 +100,29 @@ Consistent Light and Dark theme styling across all pages, D3/Recharts visualizat
 | **Drift Monitor** | `DriftMonitorPage.tsx` | Two-sample KS drift test statistics, baseline vs. live return CDF comparison, and safety status monitoring. |
 | **Alerts** | `AlertsPage.tsx` | VaR, volatility, RSI-14, price threshold, and regime/drift alert creation and management. |
 | **Investor Guide** | `InvestorGuidePage.tsx` | Interactive educational reference explaining split-conformal intervals, rule-based market regimes, Greeks, and quantitative risk metrics. |
-| **Account & Settings** | `AccountPage.tsx` | Profile management, preferred home currency, language, theme, and password settings. |
+| **Account & Settings** | `AccountPage.tsx` | Profile management, email verification workflow, GDPR JSON data export, permanent account deletion (`DELETE MY ACCOUNT`), preferred home currency, language, theme, and password settings. |
+| **Legal & Disclosures** | `LegalPage.tsx` | Publicly accessible Terms of Service & Privacy Policy skeletons with configurable operator legal placeholders (`GET /api/compliance/config`). |
 
 ---
 
 ## 5. REST API Route Directory (`server.ts`)
 
 ```
-# Authentication & User Preferences
+# Authentication, Email Verification, Password Reset & GDPR Data Controls
 POST   /api/auth/register                 # Create user account with salted bcrypt hash
 POST   /api/auth/login                    # Authenticate & issue JWT session token
 POST   /api/auth/firebase                 # Verify Firebase ID token & sync PostgreSQL user record
+POST   /api/auth/verify-email/request     # Dispatch email verification link/token (returns 503 if mail provider unset)
+POST   /api/auth/verify-email/confirm     # Confirm email verification via single-use SHA-256 hashed token
+GET    /api/auth/verify-email?token=...   # One-click email verification confirmation endpoint
+POST   /api/auth/forgot-password          # Dispatch password reset link/token (returns 503 if mail provider unset)
+POST   /api/auth/reset-password           # Consume single-use reset token & update bcrypt password hash
 GET    /api/auth/me                       # Retrieve authenticated user profile
 PUT    /api/auth/profile                  # Update profile, language, or home currency preferences
 PUT    /api/auth/change-password          # Update account password
+GET    /api/account/export                # Export user profile, portfolio, watchlist, alerts & predictions as JSON
+DELETE /api/account                       # Permanently delete user account & associated data (requires confirmation)
+GET    /api/compliance/config             # Configurable financial disclaimer text & legal operator placeholders
 
 # Global Ticker Master, Market Data, FX & Seasonality
 GET    /api/tickers/search?q=&country=&exchange= # Ranked, paginated ticker_master search (MIC, country, currency, timezone)
@@ -180,12 +189,14 @@ POST   /api/social/copy-trade             # Execute simulated copy-trade allocat
 POST   /api/copilot/chat                  # Quantitative research copilot endpoint
 POST   /api/support/chat                  # Platform support assistant endpoint
 
-# Operational Probes & Background Job Queue
+# Operational Probes & Durable Background Job Queue
 GET    /healthz                           # Liveness probe (service uptime JSON)
-GET    /readyz                            # Readiness probe (PostgreSQL connectivity + provider + queue stats)
+GET    /readyz                            # Readiness probe (PostgreSQL connectivity + provider + queue backend ping)
 POST   /api/jobs                          # Enqueue async background job (type: audit | backfill | refit)
 GET    /api/jobs                          # List background jobs & queue statistics (JWT protected)
-GET    /api/jobs/:id                      # Retrieve job status, progress & result (JWT protected)
+GET    /api/jobs/failed                   # List terminally failed background jobs with failure reasons (JWT protected)
+POST   /api/jobs/:id/retry                # Re-enqueue a failed background job for execution (JWT protected)
+GET    /api/jobs/:id                      # Retrieve job status, attempt count, progress & result (JWT protected)
 ```
 
 ---
@@ -196,7 +207,7 @@ GET    /api/jobs/:id                      # Retrieve job status, progress & resu
 - **Backend & Persistence**: Node.js + Express (`server.ts`), **PostgreSQL + Drizzle ORM** (`src/db/schema.ts`, migrations in `drizzle/`), `pg`, `tsx`, and `yahoo-finance2`. Uses a pluggable `DatabaseRepository` interface (`PostgresRepository` in production/Postgres-configured environments; `InMemoryRepository` for isolated unit/HTTP tests).
 - **Quantitative & NLP Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Regime Filtering, Cosine KNN Analogs, Split-Conformal Prediction Intervals (90% default coverage), Two-Sample KS Drift Test, Rule-Based Trend/Volatility Regime Classifier, `@xenova/transformers` FinBERT sentiment (`Xenova/finbert`) with keyword lexicon fallback, Sentiment-Price Lag Analysis (`lagAnalysis.ts`), Black-Scholes Greeks, and Markowitz MVO.
 - **Multi-Currency Safety**: Every price, conformal bound, portfolio holding, prediction history record, and evaluation carries its ISO 4217 currency code. Cross-currency aggregates set `currency = 'MIXED'` and omit unit-incompatible raw `MAE`/`RMSE`/`ΔMAE` averages (`null`) while keeping scale-free metrics (`Price Accuracy`, `MAPE`, `MAE/RMSE Skill`, `Directional Accuracy`).
-- **Security, Hardening & Session**: `helmet` security headers, explicit CORS origin allowlist (`CORS_ALLOWED_ORIGINS`), `express-rate-limit` tiered throttling, `zod` schema validation (`src/server/middleware/validation.ts`), structured JSON logging with `X-Request-Id` (`src/server/middleware/logger.ts`), async `BackgroundJobQueue` (`src/server/jobs/jobQueue.ts`), `bcryptjs` password hashing, stateless JWT auth, and Firebase Admin verification. Exchange holiday calendars use `date-holidays` paired with official exchange closure rules (`exchangeCalendar.ts`, failing loudly via `MissingExchangeHolidayDataError` outside verified years; retrieved `2026-11-24`, documented in `CHANGELOG.md`).
+- **Security, Hardening & Session**: `helmet` security headers, explicit CORS origin allowlist (`CORS_ALLOWED_ORIGINS`), `express-rate-limit` tiered throttling, `zod` schema validation (`src/server/middleware/validation.ts`), structured JSON logging with `X-Request-Id` (`src/server/middleware/logger.ts`), durable `BullMQ` + `ioredis` job queue with exponential retries and dev-only in-process fallback (`src/server/jobs/jobQueue.ts`), `nodemailer` / Resend transactional mail delivery (`src/server/services/mailService.ts`), `bcryptjs` password hashing, single-use expiring `auth_tokens`, stateless JWT auth, and Firebase Admin verification. Exchange holiday calendars use `date-holidays` paired with official exchange closure rules (`exchangeCalendar.ts`, failing loudly via `MissingExchangeHolidayDataError` outside verified years; retrieved `2026-11-24`, documented in `CHANGELOG.md`).
 
 ---
 
@@ -231,6 +242,13 @@ openssl rand -hex 32
 | `ALLOW_DEMO_MODE` | Server-side flag (`true` / `false`). When `true`, requests without a valid JWT fall back to the demo user account. | `false` |
 | `VITE_DEMO_MODE` | Client-side flag (`true` / `false`). Enables automatic demo-session fallback in the frontend when unauthenticated. | `false` |
 | `GEMINI_API_KEY` | Optional Google Gemini API key used by `/api/support/chat` and `/api/copilot/chat`. | Unset |
+| `MAIL_FROM` / `SMTP_*` / `RESEND_API_KEY` | Mail transport for verification & password reset emails. When unconfigured, mail auth routes return HTTP `503`. | Unset (503) |
+| `APP_BASE_URL` | External origin used when constructing email verification and password reset links. | `http://localhost:3000` |
+| `JOB_QUEUE_BACKEND` | Queue driver: `bullmq` (durable Redis) or `in-memory` (dev only; fails closed in production unless `ALLOW_IN_PROCESS_JOB_QUEUE=true`). | `in-memory` (dev) |
+| `REDIS_URL` | Redis connection URL used by BullMQ + `ioredis` (also included in `docker-compose.yml`). | Unset |
+| `JOB_MAX_ATTEMPTS` / `JOB_RETRY_DELAY_MS` | Retry attempts and base exponential backoff delay (ms) for background jobs. | `3` / `1000` |
+| `COMPLIANCE_DISCLAIMER_TEXT` / `VITE_DISCLAIMER_TEXT` | Configurable financial research disclaimer displayed across forecast, interval, and recommendation views. | Built-in notice |
+| `COMPLIANCE_OPERATOR_LEGAL_ENTITY` / `COMPLIANCE_OPERATOR_ADDRESS` / `COMPLIANCE_OPERATOR_CONTACT_EMAIL` / `COMPLIANCE_DPO_EMAIL` / `COMPLIANCE_JURISDICTION` | Legal operator details surfaced in Terms of Service and Privacy Policy (`LegalPage.tsx`). | Operator bracket placeholders |
 
 ### 3. Initialize Schema, Seed Global Tickers & Migrate Legacy JSON Store
 Schema migrations are checked into `drizzle/`. With PostgreSQL running and `SQL_*` configured:
@@ -253,12 +271,13 @@ Open **http://localhost:3000** in your browser. Express API routes and Vite fron
 
 ### 5. Verify Build, Types, Sentiment Backfill, Audit & Automated Tests
 ```bash
-npm run lint               # Run TypeScript type checks (tsc --noEmit)
-npm test                   # Run all unit & real-app HTTP tests (tests/*.test.ts)
-npm run backfill:sentiment # Backfill idempotent daily FinBERT/lexicon sentiment store from news feeds
-npm run audit              # Generate reproducible audit-output/audit.json & audit.csv (with ablation)
-npm run build              # Build production frontend bundle to dist/
-npm start                  # Start full-stack server via tsx server.ts
+npm run lint                  # Run TypeScript type checks (tsc --noEmit)
+npm test                      # Run all unit & real-app HTTP tests (tests/*.test.ts)
+npm run backfill:sentiment    # Backfill idempotent daily FinBERT/lexicon sentiment store from news feeds
+npm run audit                 # Generate reproducible audit-output/audit.json & audit.csv (62-ticker catalog)
+npm run audit -- --universe   # Audit all active equities in ticker_master with country/exchange breakdowns & skipped list
+npm run build                 # Build production frontend bundle to dist/
+npm start                     # Start full-stack server via tsx server.ts
 ```
 
 ### 6. Docker & Docker Compose Deployment (with PostgreSQL)

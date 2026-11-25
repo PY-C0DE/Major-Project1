@@ -41,11 +41,13 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { AnimatedQuantCard } from '../components/AnimatedQuantCard';
+import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import { AuthModalMode } from '../components/AuthModal';
 import { DEFAULT_CONFORMAL_COVERAGE_PCT, CONFORMAL_COVERAGE_PCT_LEVELS } from '../shared/modelConfig';
 
 interface Props {
   onEnterApp: () => void;
-  onOpenAuth: (mode: 'login' | 'register') => void;
+  onOpenAuth: (mode: AuthModalMode) => void;
   onSelectFeature?: (tab: string) => void;
   onOpenTour?: () => void;
 }
@@ -643,6 +645,7 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
                       ? 'Distribution shift detected (p < 0.05). Automated fail-safe automatically expands conformal intervals to prevent losses.'
                       : 'Two-sample test confirms stationary residuals. Predictions maintain standard calibration.'}
                   </p>
+                  <DisclaimerBanner compact context="interval" />
                 </div>
               </div>
             );
@@ -1128,8 +1131,34 @@ export const LandingPage: React.FC<Props> = ({ onEnterApp, onOpenAuth, onSelectF
 
       {/* Footer */}
       <footer className="py-8 bg-white dark:bg-slate-950 border-t border-slate-200 dark:border-slate-900 text-center text-xs text-slate-500 font-mono">
-        <div className="max-w-7xl mx-auto px-4">
-          AlphaQuant AI Platform · Educational & Research Quantitative System · Built for institutional financial software evaluation
+        <div className="max-w-7xl mx-auto px-4 space-y-4">
+          <div className="text-left">
+            <DisclaimerBanner context="general" />
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-4 pt-1">
+            <span>
+              AlphaQuant AI Platform · Educational &amp; Research Quantitative System · Built for institutional financial software evaluation
+            </span>
+            {onSelectFeature && (
+              <span className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onSelectFeature('legal-terms')}
+                  className="text-cyan-600 dark:text-cyan-400 hover:underline font-semibold cursor-pointer"
+                >
+                  Terms of Service
+                </button>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => onSelectFeature('legal-privacy')}
+                  className="text-cyan-600 dark:text-cyan-400 hover:underline font-semibold cursor-pointer"
+                >
+                  Privacy Policy
+                </button>
+              </span>
+            )}
+          </div>
         </div>
       </footer>
     </div>

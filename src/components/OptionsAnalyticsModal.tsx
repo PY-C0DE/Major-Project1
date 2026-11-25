@@ -30,6 +30,7 @@ import { useTheme } from '../context/ThemeContext';
 import { OptionsChainResponse } from '../types';
 import { OptionsVolatilitySurface } from './OptionsVolatilitySurface';
 import { OptionsIVSmileMispricing } from './OptionsIVSmileMispricing';
+import { DisclaimerBanner } from './DisclaimerBanner';
 
 interface Props {
   isOpen: boolean;
@@ -474,6 +475,8 @@ export const OptionsAnalyticsModal: React.FC<Props> = ({
               )}
             </>
           )}
+
+          <DisclaimerBanner compact context="interval" />
         </div>
       </div>
     </div>,

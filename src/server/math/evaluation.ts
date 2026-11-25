@@ -23,7 +23,8 @@ import {
   ModelAuditResponse,
   DailySentimentRecord,
   SentimentAblationResult,
-  SentimentAblationArmMetrics
+  SentimentAblationArmMetrics,
+  UniverseBreakdownMetrics
 } from '../../types';
 import type { HistoricalDataResult } from '../services/stockService';
 import {
@@ -912,6 +913,7 @@ export function runModelEvaluation(
     summaryStats,
     directionalStats,
     dailyHits,
+    gitCommit: resolveGitCommit(),
     evaluatedAt: new Date().toISOString(),
     comparison,
     backtestSeries,
@@ -1620,11 +1622,249 @@ export async function runSentimentAblationEvaluation(
 let cachedAggregateEvaluation: { data: ModelEvaluation; sentimentSig: string; timestamp: number; epoch: number } | null = null;
 const AGGREGATE_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+export interface UniverseTickerMeta {
+  name?: string;
+  country?: string;
+  exchange?: string;
+  exchangeCode?: string;
+}
+
+function inferCountryAndExchangeFallback(ticker: string): { country: string; exchange: string } {
+  const t = ticker.toUpperCase();
+  if (t.endsWith('.NS')) return { country: 'IN', exchange: 'XNSE' };
+  if (t.endsWith('.BO')) return { country: 'IN', exchange: 'XBOM' };
+  if (t.endsWith('.L')) return { country: 'GB', exchange: 'XLON' };
+  if (t.endsWith('.KS')) return { country: 'KR', exchange: 'XKRX' };
+  if (t.endsWith('.KQ')) return { country: 'KR', exchange: 'XKOS' };
+  if (t.endsWith('.T')) return { country: 'JP', exchange: 'XTKS' };
+  if (t.endsWith('.HK')) return { country: 'HK', exchange: 'XHKG' };
+  if (t.endsWith('.DE')) return { country: 'DE', exchange: 'XETR' };
+  if (t.endsWith('.PA')) return { country: 'FR', exchange: 'XPAR' };
+  if (t.endsWith('.AS')) return { country: 'NL', exchange: 'XAMS' };
+  if (t.endsWith('.SW')) return { country: 'CH', exchange: 'XSWX' };
+  if (t.endsWith('.TO')) return { country: 'CA', exchange: 'XTSE' };
+  if (t.endsWith('.AX')) return { country: 'AU', exchange: 'XASX' };
+  return { country: 'US', exchange: 'XNAS' };
+}
+
+export function computeBreakdownStatsForEvaluations(
+  subset: ModelEvaluation[],
+  key: string,
+  label: string
+): UniverseBreakdownMetrics {
+  const count = subset.length;
+  const distinctCurrencies = Array.from(
+    new Set(subset.map((e) => e.currency || inferCurrencyFromTicker(e.ticker)))
+  ).sort();
+  const isMixedCurrency = distinctCurrencies.length > 1;
+  const currency = distinctCurrencies.length === 1 ? distinctCurrencies[0] : 'MIXED';
+
+  const avgMape = count > 0 ? subset.reduce((acc, e) => acc + e.mape, 0) / count : 0;
+  const avgPriceAccuracy = 100 - avgMape;
+  const avgNaiveMape =
+    count > 0 ? subset.reduce((acc, e) => acc + (e.naiveMape ?? e.mape), 0) / count : 0;
+  const avgNaivePriceAccuracy = 100 - avgNaiveMape;
+
+  const maeVals = subset
+    .map((e) => e.mae)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  const naiveMaeVals = subset
+    .map((e) => e.naiveMae ?? e.mae)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  const rmseVals = subset
+    .map((e) => e.rmse)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  const naiveRmseVals = subset
+    .map((e) => e.naiveRmse ?? e.rmse)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+
+  const avgMae =
+    !isMixedCurrency && count > 0 && maeVals.length === count
+      ? Number((maeVals.reduce((a, b) => a + b, 0) / count).toFixed(4))
+      : null;
+  const avgNaiveMae =
+    !isMixedCurrency && count > 0 && naiveMaeVals.length === count
+      ? Number((naiveMaeVals.reduce((a, b) => a + b, 0) / count).toFixed(4))
+      : null;
+  const avgRmse =
+    !isMixedCurrency && count > 0 && rmseVals.length === count
+      ? Number((rmseVals.reduce((a, b) => a + b, 0) / count).toFixed(4))
+      : null;
+  const avgNaiveRmse =
+    !isMixedCurrency && count > 0 && naiveRmseVals.length === count
+      ? Number((naiveRmseVals.reduce((a, b) => a + b, 0) / count).toFixed(4))
+      : null;
+
+  const maeSkillVals = subset
+    .map((e) => e.maeSkillVsNaive)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  const rmseSkillVals = subset
+    .map((e) => e.rmseSkillVsNaive)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+
+  const maeSkillVsNaive =
+    maeSkillVals.length > 0
+      ? Number((maeSkillVals.reduce((a, b) => a + b, 0) / maeSkillVals.length).toFixed(6))
+      : null;
+  const rmseSkillVsNaive =
+    rmseSkillVals.length > 0
+      ? Number((rmseSkillVals.reduce((a, b) => a + b, 0) / rmseSkillVals.length).toFixed(6))
+      : null;
+
+  const beatNaiveCount = subset.filter(
+    (e) => e.naiveMae != null && e.mae != null && e.mae < e.naiveMae
+  ).length;
+  const avgConformalCoverage =
+    count > 0
+      ? Number(
+          (subset.reduce((acc, e) => acc + (e.conformalCoverage ?? 90), 0) / count).toFixed(1)
+        )
+      : 0;
+  const avgDir =
+    count > 0
+      ? Number((subset.reduce((acc, e) => acc + e.directionalAccuracy, 0) / count).toFixed(1))
+      : 0;
+
+  const pooledTotal = subset.reduce(
+    (acc, e) => acc + (e.directionalStats?.totalTestPredictions ?? e.totalBacktestSamples),
+    0
+  );
+  const pooledModelHits = subset.reduce(
+    (acc, e) =>
+      acc +
+      (e.directionalStats?.modelHits ??
+        Math.round((e.directionalAccuracy / 100) * e.totalBacktestSamples)),
+    0
+  );
+  const pooledAlwaysUpHits = subset.reduce(
+    (acc, e) =>
+      acc +
+      (e.directionalStats?.alwaysUpHits ??
+        Math.round(((e.alwaysUpAccuracy ?? 50) / 100) * e.totalBacktestSamples)),
+    0
+  );
+  const pooledDirPct =
+    pooledTotal > 0 ? Number(((pooledModelHits / pooledTotal) * 100).toFixed(2)) : 0;
+  const pooledAlwaysUpRate = pooledTotal > 0 ? pooledAlwaysUpHits / pooledTotal : 0.5;
+  const boot = computeDateClusteredBootstrapCI(subset.map((e) => e.dailyHits || []));
+
+  let signTestWins = 0;
+  let signTestLosses = 0;
+  let signTestTies = 0;
+  for (const e of subset) {
+    const mHits = e.directionalStats?.modelHits;
+    const aHits = e.directionalStats?.alwaysUpHits;
+    if (mHits !== undefined && aHits !== undefined) {
+      if (mHits > aHits) signTestWins++;
+      else if (mHits < aHits) signTestLosses++;
+      else signTestTies++;
+    } else {
+      const mAcc = e.directionalAccuracy;
+      const aAcc = e.alwaysUpAccuracy ?? 0;
+      if (mAcc > aAcc) signTestWins++;
+      else if (mAcc < aAcc) signTestLosses++;
+      else signTestTies++;
+    }
+  }
+
+  return {
+    key,
+    label,
+    assetsCount: count,
+    tickers: subset.map((e) => e.ticker),
+    currencies: distinctCurrencies,
+    currency,
+    mae: avgMae,
+    naiveMae: avgNaiveMae,
+    rmse: avgRmse,
+    naiveRmse: avgNaiveRmse,
+    mape: Number(avgMape.toFixed(4)),
+    naiveMape: Number(avgNaiveMape.toFixed(4)),
+    priceAccuracy: Number(avgPriceAccuracy.toFixed(4)),
+    naivePriceAccuracy: Number(avgNaivePriceAccuracy.toFixed(4)),
+    maeSkillVsNaive,
+    rmseSkillVsNaive,
+    conformalCoverage: avgConformalCoverage,
+    directionalAccuracy: avgDir,
+    alwaysUpAccuracy: Number((pooledAlwaysUpRate * 100).toFixed(2)),
+    beatNaiveCount,
+    beatNaiveLabel: `${beatNaiveCount} of ${count}`,
+    directionalStats: {
+      totalTestPredictions: pooledTotal,
+      modelHits: pooledModelHits,
+      alwaysUpHits: pooledAlwaysUpHits,
+      pooledDirectionalAccuracyPct: pooledDirPct,
+      pooledAlwaysUpAccuracyPct: Number((pooledAlwaysUpRate * 100).toFixed(2)),
+      wilson95CI: computeWilson95Interval(pooledModelHits, pooledTotal),
+      binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(
+        pooledModelHits,
+        pooledTotal,
+        pooledAlwaysUpRate
+      ),
+      directionalEdgeVsAlwaysUpPct: boot.pointEdgePct,
+      directionalEdgeVsAlwaysUp95CI: boot.ci95,
+      bootstrapProbEdgePositive: boot.probEdgePositive,
+      bootstrapResamples: boot.resamples,
+      bootstrapSeed: boot.seed,
+      signTestWins,
+      signTestLosses,
+      signTestTies,
+      signTestPValue: computeTwoSidedSignTestPValue(signTestWins, signTestLosses)
+    }
+  };
+}
+
+export function computeCountryAndExchangeBreakdowns(
+  evaluations: ModelEvaluation[],
+  tickerMetaLookup?: Map<string, UniverseTickerMeta>
+): {
+  countryBreakdowns: Record<string, UniverseBreakdownMetrics>;
+  exchangeBreakdowns: Record<string, UniverseBreakdownMetrics>;
+} {
+  const byCountry = new Map<string, ModelEvaluation[]>();
+  const byExchange = new Map<string, ModelEvaluation[]>();
+
+  for (const e of evaluations) {
+    const meta = tickerMetaLookup?.get(e.ticker.toUpperCase());
+    const fallback = inferCountryAndExchangeFallback(e.ticker);
+    const country = (meta?.country || fallback.country || 'UNKNOWN').toUpperCase();
+    const exchange = (meta?.exchangeCode || meta?.exchange || fallback.exchange || 'UNKNOWN').toUpperCase();
+
+    const cList = byCountry.get(country) || [];
+    cList.push(e);
+    byCountry.set(country, cList);
+
+    const xList = byExchange.get(exchange) || [];
+    xList.push(e);
+    byExchange.set(exchange, xList);
+  }
+
+  const countryBreakdowns: Record<string, UniverseBreakdownMetrics> = {};
+  for (const key of Array.from(byCountry.keys()).sort()) {
+    countryBreakdowns[key] = computeBreakdownStatsForEvaluations(byCountry.get(key)!, key, key);
+  }
+
+  const exchangeBreakdowns: Record<string, UniverseBreakdownMetrics> = {};
+  for (const key of Array.from(byExchange.keys()).sort()) {
+    exchangeBreakdowns[key] = computeBreakdownStatsForEvaluations(byExchange.get(key)!, key, key);
+  }
+
+  return { countryBreakdowns, exchangeBreakdowns };
+}
+
 export async function runAggregateModelEvaluation(
   fetchHistory: HistoryWithSourceFetcher,
   catalog: Array<{ ticker: string; name: string }>,
-  options?: { sentimentByTicker?: Map<string, DailySentimentRecord[]> }
+  options?: {
+    sentimentByTicker?: Map<string, DailySentimentRecord[]>;
+    tickerMetaLookup?: Map<string, UniverseTickerMeta>;
+    universeMode?: 'catalog' | 'ticker_master';
+    includeBreakdowns?: boolean;
+  }
 ): Promise<ModelEvaluation | UnavailableEvaluation> {
+  const universeMode: 'catalog' | 'ticker_master' = options?.universeMode ?? 'catalog';
+  const includeBreakdowns = Boolean(options?.includeBreakdowns || universeMode === 'ticker_master');
+
   const sentimentSig = options?.sentimentByTicker
     ? Array.from(options.sentimentByTicker.entries())
         .map(([k, v]) => `${k}:${v.length}:${v[v.length - 1]?.date || ''}`)
@@ -1632,7 +1872,9 @@ export async function runAggregateModelEvaluation(
         .join('|')
     : '';
 
+  const canUseCatalogCache = universeMode === 'catalog' && !includeBreakdowns;
   if (
+    canUseCatalogCache &&
     cachedAggregateEvaluation &&
     cachedAggregateEvaluation.epoch === cacheEpoch &&
     cachedAggregateEvaluation.sentimentSig === sentimentSig &&
@@ -1641,14 +1883,14 @@ export async function runAggregateModelEvaluation(
     return cachedAggregateEvaluation.data;
   }
 
-  const existingInFlight = inFlightAggregate.get(fetchHistory);
+  const existingInFlight = canUseCatalogCache ? inFlightAggregate.get(fetchHistory) : undefined;
   if (existingInFlight && existingInFlight.epoch === cacheEpoch) {
     return existingInFlight.promise;
   }
 
   const epochAtStart = cacheEpoch;
   const runPromise = (async (): Promise<ModelEvaluation | UnavailableEvaluation> => {
-    // Evaluate ALL unique tickers in the catalog using >= 2 years of daily history, concurrency-limited
+    // Evaluate ALL unique tickers in the target universe using >= 2 years of daily history, concurrency-limited
     const universe = Array.from(new Set(catalog.map(c => c.ticker)));
     const evaluations: ModelEvaluation[] = [];
     const skippedTickers: SkippedTickerRecord[] = [];
@@ -1674,10 +1916,17 @@ export async function runAggregateModelEvaluation(
           try {
             const normalized = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
             const { bars, source } = normalized;
+            const meta = options?.tickerMetaLookup?.get(t.toUpperCase());
+            const skippedMeta = meta
+              ? {
+                  ...(meta.country ? { country: meta.country } : {}),
+                  ...(meta.exchangeCode || meta.exchange ? { exchange: meta.exchangeCode || meta.exchange } : {})
+                }
+              : {};
             if (source === 'synthetic') {
               return {
                 ticker: t,
-                skipped: { ticker: t, reason: 'synthetic_data' as const, barsCount: bars?.length ?? 0 },
+                skipped: { ticker: t, reason: 'synthetic_data' as const, barsCount: bars?.length ?? 0, ...skippedMeta },
                 fallbackFrom: normalized.fallbackFrom,
                 warning: normalized.warning
               };
@@ -1685,7 +1934,7 @@ export async function runAggregateModelEvaluation(
             if (!bars || bars.length < MIN_CONFORMAL_BARS) {
               return {
                 ticker: t,
-                skipped: { ticker: t, reason: 'insufficient_history' as const, barsCount: bars?.length ?? 0 },
+                skipped: { ticker: t, reason: 'insufficient_history' as const, barsCount: bars?.length ?? 0, ...skippedMeta },
                 fallbackFrom: normalized.fallbackFrom,
                 warning: normalized.warning
               };
@@ -1700,7 +1949,16 @@ export async function runAggregateModelEvaluation(
               warning: normalized.warning
             };
           } catch {
-            return { ticker: t, skipped: { ticker: t, reason: 'fetch_error' as const } };
+            const meta = options?.tickerMetaLookup?.get(t.toUpperCase());
+            return {
+              ticker: t,
+              skipped: {
+                ticker: t,
+                reason: 'fetch_error' as const,
+                ...(meta?.country ? { country: meta.country } : {}),
+                ...(meta?.exchangeCode || meta?.exchange ? { exchange: meta.exchangeCode || meta.exchange } : {})
+              }
+            };
           }
         })
       );
@@ -1715,7 +1973,18 @@ export async function runAggregateModelEvaluation(
           if (item.evaluation.providerWarning) providerWarningSet.add(item.evaluation.providerWarning);
           evaluations.push(item.evaluation);
         } else if ('skipped' in item && item.skipped) {
-          skippedTickers.push(item.skipped);
+          const meta = options?.tickerMetaLookup?.get(item.skipped.ticker.toUpperCase());
+          if (meta && (!item.skipped.country || !item.skipped.exchange)) {
+            skippedTickers.push({
+              ...item.skipped,
+              ...(meta.country && !item.skipped.country ? { country: meta.country } : {}),
+              ...((meta.exchangeCode || meta.exchange) && !item.skipped.exchange
+                ? { exchange: meta.exchangeCode || meta.exchange }
+                : {})
+            });
+          } else {
+            skippedTickers.push(item.skipped);
+          }
         } else if ('bars' in item && item.bars) {
           barsByTicker.set(item.ticker, item.bars);
           await yieldToEventLoop();
@@ -1978,7 +2247,7 @@ export async function runAggregateModelEvaluation(
   }) : [];
 
   const assetBreakdown: AssetBreakdownItem[] = evaluations.map(e => {
-    const meta = catalog.find(c => c.ticker === e.ticker);
+    const meta = options?.tickerMetaLookup?.get(e.ticker.toUpperCase()) ?? catalog.find(c => c.ticker === e.ticker);
     const eNaiveMape = e.naiveMape ?? e.mape;
     return {
       ticker: e.ticker,
@@ -2066,8 +2335,14 @@ export async function runAggregateModelEvaluation(
     sentimentAblation = evaluateSentimentAblationOnSeries(ablationInputs);
   }
 
+  const breakdowns = includeBreakdowns
+    ? computeCountryAndExchangeBreakdowns(evaluations, options?.tickerMetaLookup)
+    : undefined;
+
   const result: ModelEvaluation = {
     available: true,
+    gitCommit: resolveGitCommit(),
+    universeMode,
     dataSource: 'live',
     dataProvider: resolvedProviderName,
     dataProviderLicence: resolvedLicenceNote,
@@ -2108,22 +2383,32 @@ export async function runAggregateModelEvaluation(
     backtestSeries: compositeBacktestSeries,
     assetBreakdown,
     featureImportance: aggregatedFeatureImportance,
-    ...(sentimentAblation ? { sentimentAblation } : {})
+    ...(sentimentAblation ? { sentimentAblation } : {}),
+    ...(breakdowns
+      ? {
+          countryBreakdowns: breakdowns.countryBreakdowns,
+          exchangeBreakdowns: breakdowns.exchangeBreakdowns
+        }
+      : {})
   };
 
-    if (cacheEpoch === epochAtStart) {
+    if (canUseCatalogCache && cacheEpoch === epochAtStart) {
       cachedAggregateEvaluation = { data: result, sentimentSig, timestamp: Date.now(), epoch: epochAtStart };
     }
     return result;
   })();
 
-  inFlightAggregate.set(fetchHistory, { epoch: epochAtStart, promise: runPromise });
+  if (canUseCatalogCache) {
+    inFlightAggregate.set(fetchHistory, { epoch: epochAtStart, promise: runPromise });
+  }
   try {
     return await runPromise;
   } finally {
-    const cur = inFlightAggregate.get(fetchHistory);
-    if (cur?.promise === runPromise) {
-      inFlightAggregate.delete(fetchHistory);
+    if (canUseCatalogCache) {
+      const cur = inFlightAggregate.get(fetchHistory);
+      if (cur?.promise === runPromise) {
+        inFlightAggregate.delete(fetchHistory);
+      }
     }
   }
 }
@@ -2159,6 +2444,7 @@ export function buildModelAuditPayload(
     return {
       available: true,
       gitCommit,
+      ...(evaluation.universeMode ? { universeMode: evaluation.universeMode } : {}),
       evaluationParams,
       dataSource: evaluation.dataSource || 'live',
       dataProvider,
@@ -2184,6 +2470,8 @@ export function buildModelAuditPayload(
       directionalStats: evaluation.directionalStats,
       comparison: evaluation.comparison,
       assets: evaluation.assetBreakdown || [],
+      ...(evaluation.countryBreakdowns ? { countryBreakdowns: evaluation.countryBreakdowns } : {}),
+      ...(evaluation.exchangeBreakdowns ? { exchangeBreakdowns: evaluation.exchangeBreakdowns } : {}),
       ...(evaluation.sentimentAblation ? { sentimentAblation: evaluation.sentimentAblation } : {})
     };
   }

@@ -16,11 +16,21 @@ services:
       - SQL_USER=${SQL_USER:-alphaquant}
       - SQL_PASSWORD=${SQL_PASSWORD:?Set SQL_PASSWORD in your .env file}
       - SQL_DB_NAME=${SQL_DB_NAME:-alphaquant}
+      - JOB_QUEUE_BACKEND=bullmq
+      - REDIS_URL=redis://redis:6379
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in your .env file}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - ALLOW_DEMO_MODE=${ALLOW_DEMO_MODE:-false}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - MAIL_FROM=${MAIL_FROM:-}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -43,5 +53,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # Redis (Durable BullMQ Job Queue)
+  redis:
+    image: redis:7-alpine
+    container_name: alphaquant_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:
+  redis_data:

@@ -36,6 +36,7 @@ import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { AutomatedBacktestResult } from '../types';
 import { AutomatedBacktestStrategyId, DEFAULT_BACKTEST_STRATEGY } from '../shared/modelConfig';
+import { DisclaimerBanner } from './DisclaimerBanner';
 
 interface Props {
   isOpen: boolean;
@@ -404,6 +405,8 @@ export const AutomatedBacktestingModal: React.FC<Props> = ({
               </div>
             </>
           )}
+
+          <DisclaimerBanner compact context="forecast" />
         </div>
       </div>
     </div>,

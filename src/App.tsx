@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
-import { AuthModal } from './components/AuthModal';
+import { AuthModal, AuthModalMode } from './components/AuthModal';
 import { CustomerChatbot } from './components/CustomerChatbot';
 import { OptionsAnalyticsModal } from './components/OptionsAnalyticsModal';
 import { AutomatedBacktestingModal } from './components/AutomatedBacktestingModal';
@@ -26,6 +26,7 @@ import { SocialCopyTradeModal } from './components/SocialCopyTradeModal';
 import { AIPortfolioOptimizerModal } from './components/AIPortfolioOptimizerModal';
 import { ProductTourModal } from './components/ProductTourModal';
 import { NewInvestorGuideModal } from './components/NewInvestorGuideModal';
+import { CookieConsentBanner } from './components/CookieConsentBanner';
 
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -39,6 +40,7 @@ import { DriftMonitorPage } from './pages/DriftMonitorPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { AccountPage } from './pages/AccountPage';
 import { InvestorGuidePage } from './pages/InvestorGuidePage';
+import { LegalPage } from './pages/LegalPage';
 
 function AppContent() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -46,7 +48,8 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [selectedTicker, setSelectedTicker] = useState<string>('RELIANCE.NS');
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<AuthModalMode>('login');
+  const [authTokenFromUrl, setAuthTokenFromUrl] = useState<string>('');
   const [portfolioAddTicker, setPortfolioAddTicker] = useState<string | undefined>(undefined);
 
   // Institutional Terminal Modals
@@ -58,17 +61,39 @@ function AppContent() {
   const [tourModalOpen, setTourModalOpen] = useState<boolean>(false);
   const [guideModalOpen, setGuideModalOpen] = useState<boolean>(false);
 
+  const isPublicLegalTab = activeTab === 'legal-terms' || activeTab === 'legal-privacy';
+
+  // Detect email verification or password reset tokens in URL search params
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const verifyToken = params.get('verifyToken');
+    const resetToken = params.get('resetToken');
+    if (verifyToken) {
+      setAuthTokenFromUrl(verifyToken);
+      setAuthMode('verify');
+      setAuthModalOpen(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (resetToken) {
+      setAuthTokenFromUrl(resetToken);
+      setAuthMode('reset');
+      setAuthModalOpen(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // When authentication status changes to true from false, default to dashboard
   useEffect(() => {
     if (isAuthenticated && activeTab === 'home') {
       setActiveTab('dashboard');
-    } else if (!isAuthenticated) {
+    } else if (!isAuthenticated && activeTab !== 'legal-terms' && activeTab !== 'legal-privacy') {
       setActiveTab('home');
     }
   }, [isAuthenticated]);
 
   const handleSelectTicker = (ticker: string) => {
     if (!isAuthenticated) {
+      setAuthTokenFromUrl('');
       setAuthMode('login');
       setAuthModalOpen(true);
       return;
@@ -77,13 +102,15 @@ function AppContent() {
     setActiveTab('analysis');
   };
 
-  const handleOpenAuth = (mode: 'login' | 'register') => {
+  const handleOpenAuth = (mode: AuthModalMode) => {
+    setAuthTokenFromUrl('');
     setAuthMode(mode);
     setAuthModalOpen(true);
   };
 
   const handleOpenAddHolding = (ticker: string) => {
     if (!isAuthenticated) {
+      setAuthTokenFromUrl('');
       setAuthMode('login');
       setAuthModalOpen(true);
       return;
@@ -93,7 +120,9 @@ function AppContent() {
   };
 
   const handleTabChange = (tab: string) => {
-    if (!isAuthenticated && tab !== 'home') {
+    const publicTabs = new Set(['home', 'legal-terms', 'legal-privacy']);
+    if (!isAuthenticated && !publicTabs.has(tab)) {
+      setAuthTokenFromUrl('');
       setAuthMode('login');
       setAuthModalOpen(true);
       return;
@@ -138,7 +167,7 @@ function AppContent() {
   // Universal Layout: Top Navbar (with theme toggle, brand, links & auth actions) is ALWAYS visible.
   // Home page is displayed first; other features (Dashboard, Watchlist, Portfolio, etc.) require Login or Sign Up.
   return (
-    <div className={`${!isAuthenticated || activeTab === 'home' ? 'min-h-screen' : 'h-screen max-h-screen overflow-hidden'} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300`}>
+    <div className={`${!isAuthenticated || activeTab === 'home' || isPublicLegalTab ? 'min-h-screen' : 'h-screen max-h-screen overflow-hidden'} bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors duration-300`}>
       {/* Top Bar Navigation (Includes Dark Mode / Light Mode toggle and Auth triggers) */}
       <Navbar
         activeTab={activeTab}
@@ -154,7 +183,17 @@ function AppContent() {
       />
 
       {/* Main Viewport */}
-      {!isAuthenticated || activeTab === 'home' ? (
+      {isPublicLegalTab ? (
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto w-full pb-20">
+          <LegalPage
+            initialDoc={activeTab === 'legal-privacy' ? 'privacy' : 'terms'}
+            onSwitchDoc={(doc) => setActiveTab(doc === 'privacy' ? 'legal-privacy' : 'legal-terms')}
+            onBack={() => setActiveTab(isAuthenticated ? 'dashboard' : 'home')}
+            isAuthenticated={isAuthenticated}
+            onNavigateAccount={() => setActiveTab('account')}
+          />
+        </main>
+      ) : !isAuthenticated || activeTab === 'home' ? (
         <div className="flex-1 flex flex-col">
           <LandingPage
             onEnterApp={() => {
@@ -236,7 +275,11 @@ function AppContent() {
 
               {activeTab === 'alerts' && <AlertsPage />}
 
-              {activeTab === 'account' && <AccountPage />}
+              {activeTab === 'account' && (
+                <AccountPage
+                  onNavigateLegal={(doc) => handleTabChange(doc === 'privacy' ? 'legal-privacy' : 'legal-terms')}
+                />
+              )}
 
               {activeTab === 'guide' && <InvestorGuidePage onSelectTicker={handleSelectTicker} />}
             </div>
@@ -387,8 +430,17 @@ function AppContent() {
       {/* Global Auth Modal */}
       <AuthModal
         isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
+        onClose={() => {
+          setAuthModalOpen(false);
+          setAuthTokenFromUrl('');
+        }}
         defaultMode={authMode}
+        initialToken={authTokenFromUrl}
+      />
+
+      {/* Cookie / Privacy Consent Banner */}
+      <CookieConsentBanner
+        onOpenLegal={(doc) => handleTabChange(doc === 'privacy' ? 'legal-privacy' : 'legal-terms')}
       />
 
       {/* Floating AlphaBot Copilot Quantitative Chat Assistant */}

@@ -252,6 +252,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <LogOut className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
           <span className="truncate">Sign Out</span>
         </button>
+
+        <div className="flex items-center justify-center gap-2 pt-1 text-[10px] font-mono text-slate-400 dark:text-slate-500">
+          <button
+            type="button"
+            onClick={() => setActiveTab('legal-terms')}
+            className="hover:text-cyan-500 hover:underline cursor-pointer"
+          >
+            Terms
+          </button>
+          <span>·</span>
+          <button
+            type="button"
+            onClick={() => setActiveTab('legal-privacy')}
+            className="hover:text-cyan-500 hover:underline cursor-pointer"
+          >
+            Privacy
+          </button>
+        </div>
       </div>
     </aside>
   );

@@ -179,3 +179,40 @@ export const createBackgroundJobSchema = z.object({
   tickers: z.array(z.string().trim().min(1).max(40)).max(100).optional(),
   maxArticles: z.coerce.number().int().min(1).max(50).optional()
 });
+
+export const verifyEmailRequestSchema = z.object({
+  email: z.string().trim().email('A valid email address format is required.').optional()
+});
+
+export const verifyEmailConfirmSchema = z.object({
+  token: z
+    .string({ message: 'Verification token is required.' })
+    .trim()
+    .min(16, 'Invalid or malformed verification token.')
+    .max(256)
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z
+    .string({ message: 'A valid email address is required.' })
+    .trim()
+    .email('A valid email address format is required.')
+});
+
+export const resetPasswordSchema = z.object({
+  token: z
+    .string({ message: 'Reset token is required.' })
+    .trim()
+    .min(16, 'Invalid or malformed password reset token.')
+    .max(256),
+  newPassword: z
+    .string({ message: 'New password is required.' })
+    .min(8, 'New password must be at least 8 characters long.')
+    .max(128)
+});
+
+export const deleteAccountSchema = z.object({
+  confirmText: z.literal('DELETE MY ACCOUNT', {
+    message: 'Type "DELETE MY ACCOUNT" exactly to confirm permanent deletion.'
+  })
+});

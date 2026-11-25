@@ -39,7 +39,8 @@ import {
   SentimentScoreResult,
   ModelAuditResponse,
   LagAnalysisResult,
-  TickerSearchResponse
+  TickerSearchResponse,
+  ComplianceConfig
 } from '../types';
 import { generateSupportFallback } from '../utils/supportKnowledge';
 import {
@@ -182,6 +183,82 @@ export const api = {
       body: JSON.stringify({ currentPassword, newPassword })
     });
     return parseApiResponse<{ success: boolean; message: string }>(res, 'Failed to change password');
+  },
+
+  async requestEmailVerification(email?: string): Promise<{
+    sent: boolean;
+    alreadyVerified?: boolean;
+    provider?: string;
+    message: string;
+  }> {
+    const res = await fetch(`${API_BASE}/auth/verify-email/request`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(email ? { email } : {})
+    });
+    return parseApiResponse(res, 'Failed to request email verification');
+  },
+
+  async confirmEmailVerification(token: string): Promise<{
+    verified: boolean;
+    user: UserProfile;
+    message: string;
+  }> {
+    const res = await fetch(`${API_BASE}/auth/verify-email/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    return parseApiResponse(res, 'Failed to confirm email verification');
+  },
+
+  async forgotPassword(email: string): Promise<{
+    sent: boolean;
+    provider?: string;
+    message: string;
+  }> {
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    return parseApiResponse(res, 'Failed to send password reset instructions');
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword })
+    });
+    return parseApiResponse(res, 'Failed to reset password');
+  },
+
+  async getComplianceConfig(): Promise<ComplianceConfig> {
+    const res = await fetch(`${API_BASE}/compliance/config`);
+    return parseApiResponse<ComplianceConfig>(res, 'Failed to load compliance configuration');
+  },
+
+  async exportAccountData(): Promise<Record<string, unknown>> {
+    const res = await fetch(`${API_BASE}/account/export`, {
+      headers: getAuthHeaders()
+    });
+    return parseApiResponse<Record<string, unknown>>(res, 'Failed to export account data');
+  },
+
+  async deleteAccount(confirmText: 'DELETE MY ACCOUNT'): Promise<{
+    success: boolean;
+    message: string;
+  }> {
+    const res = await fetch(`${API_BASE}/account`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ confirmText })
+    });
+    return parseApiResponse<{ success: boolean; message: string }>(res, 'Failed to delete user account');
   },
 
   // Stocks & History

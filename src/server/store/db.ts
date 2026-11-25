@@ -7,14 +7,24 @@
 
 import { hasPostgresConfig } from '../../db/index.ts';
 import {
+  AuthTokenPurpose,
+  AuthTokenRecord,
   DatabaseRepository,
   InMemoryRepository,
   PostgresRepository,
   StoredPrediction,
-  UserAccount
+  UserAccount,
+  UserDataExport
 } from './repository';
 
-export type { StoredPrediction, UserAccount, DatabaseRepository };
+export type {
+  AuthTokenPurpose,
+  AuthTokenRecord,
+  StoredPrediction,
+  UserAccount,
+  UserDataExport,
+  DatabaseRepository
+};
 export { InMemoryRepository, PostgresRepository };
 
 function createDefaultRepository(): DatabaseRepository {
@@ -74,6 +84,21 @@ export const db = {
   }) => activeRepo.getOrCreateFirebaseUser(profile),
   createUser: (user: UserAccount) => activeRepo.createUser(user),
   updateUser: (userId: string, updates: Partial<UserAccount>) => activeRepo.updateUser(userId, updates),
+  deleteUser: (userId: string) => activeRepo.deleteUser(userId),
+  exportUserData: (userId: string) => activeRepo.exportUserData(userId),
+
+  createAuthToken: (token: {
+    id: string;
+    userId: string;
+    purpose: AuthTokenPurpose;
+    tokenHash: string;
+    expiresAt: string;
+  }) => activeRepo.createAuthToken(token),
+  consumeAuthToken: (purpose: AuthTokenPurpose, tokenHash: string, nowIso?: string) =>
+    activeRepo.consumeAuthToken(purpose, tokenHash, nowIso),
+  markEmailVerified: (userId: string) => activeRepo.markEmailVerified(userId),
+  updateUserPassword: (userId: string, passwordHash: string) =>
+    activeRepo.updateUserPassword(userId, passwordHash),
 
   getPortfolio: (userId: string) => activeRepo.getPortfolio(userId),
   savePortfolio: (userId: string, holdings: Parameters<DatabaseRepository['savePortfolio']>[1]) =>

@@ -16,6 +16,7 @@ export const users = pgTable('users', {
   id: text('id').primaryKey(),
   uid: text('uid').unique(),
   email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').default(false).notNull(),
   name: text('name').notNull(),
   passwordHash: text('password_hash').notNull(),
   createdAt: text('created_at').notNull(),
@@ -166,11 +167,32 @@ export const tickerMaster = pgTable(
   ]
 );
 
+export const authTokens = pgTable(
+  'auth_tokens',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: text('purpose').notNull(), // 'email_verification' | 'password_reset'
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: text('expires_at').notNull(),
+    usedAt: text('used_at'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => [
+    uniqueIndex('auth_tokens_hash_uq').on(table.tokenHash),
+    index('auth_tokens_user_id_idx').on(table.userId),
+    index('auth_tokens_purpose_idx').on(table.purpose)
+  ]
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   portfolios: many(portfolios),
   watchlists: many(watchlists),
   alerts: many(alerts),
-  predictionHistory: many(predictionHistory)
+  predictionHistory: many(predictionHistory),
+  authTokens: many(authTokens)
 }));
 
 export const portfoliosRelations = relations(portfolios, ({ one }) => ({
@@ -197,6 +219,13 @@ export const alertsRelations = relations(alerts, ({ one }) => ({
 export const predictionHistoryRelations = relations(predictionHistory, ({ one }) => ({
   user: one(users, {
     fields: [predictionHistory.userId],
+    references: [users.id]
+  })
+}));
+
+export const authTokensRelations = relations(authTokens, ({ one }) => ({
+  user: one(users, {
+    fields: [authTokens.userId],
     references: [users.id]
   })
 }));

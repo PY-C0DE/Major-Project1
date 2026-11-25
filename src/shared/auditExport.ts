@@ -60,12 +60,17 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
   const ep = audit.evaluationParams;
   const skipped = audit.skippedTickers || [];
   const skippedSummary = skipped.length > 0
-    ? skipped.map((s) => `${s.ticker}(${s.reason}${s.barsCount !== undefined ? `:${s.barsCount}` : ''})`).join('; ')
+    ? skipped
+        .map((s) => {
+          const metaParts = [s.country, s.exchange].filter(Boolean).join('/');
+          return `${s.ticker}(${s.reason}${s.barsCount !== undefined ? `:${s.barsCount}` : ''}${metaParts ? `,${metaParts}` : ''})`;
+        })
+        .join('; ')
     : 'none';
 
   const metadataLines = [
     `# Reproducible Audit Metadata (${scopeLabel})`,
-    `# evaluatedAt=${audit.evaluatedAt ?? 'n/a'}, gitCommit=${audit.gitCommit ?? 'null'}, dataSource=${audit.dataSource}, dataProvider=${audit.dataProvider ?? 'n/a'}, fallbackFrom=${audit.fallbackFrom ?? 'none'}, currency=${audit.currency ?? 'n/a'}, evaluatedAssetsCount=${audit.evaluatedAssetsCount}, skippedCount=${skipped.length}`,
+    `# evaluatedAt=${audit.evaluatedAt ?? 'n/a'}, universeMode=${audit.universeMode ?? 'catalog'}, gitCommit=${audit.gitCommit ?? 'null'}, dataSource=${audit.dataSource}, dataProvider=${audit.dataProvider ?? 'n/a'}, fallbackFrom=${audit.fallbackFrom ?? 'none'}, currency=${audit.currency ?? 'n/a'}, evaluatedAssetsCount=${audit.evaluatedAssetsCount}, skippedCount=${skipped.length}`,
     ...(audit.providerWarning ? [`# providerWarning: ${audit.providerWarning}`] : []),
     ...(ep
       ? [
@@ -93,6 +98,26 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
       : [])
   ];
 
+  const breakdownLines: string[] = [];
+  if (audit.countryBreakdowns) {
+    for (const [country, b] of Object.entries(audit.countryBreakdowns)) {
+      const maeStr = b.mae != null ? b.mae.toFixed(4) : 'n/a(mixed)';
+      const nMaeStr = b.naiveMae != null ? b.naiveMae.toFixed(4) : 'n/a(mixed)';
+      breakdownLines.push(
+        `# Country Breakdown [${country}]: assets=${b.assetsCount}, currency=${b.currency}, priceAcc=${b.priceAccuracy.toFixed(2)}% vs naive=${b.naivePriceAccuracy.toFixed(2)}%, MAE=${maeStr} vs naiveMAE=${nMaeStr}, maeSkill=${b.maeSkillVsNaive ?? 'n/a'}, coverage=${b.conformalCoverage}%, dirAcc=${b.directionalAccuracy}%`
+      );
+    }
+  }
+  if (audit.exchangeBreakdowns) {
+    for (const [exchange, b] of Object.entries(audit.exchangeBreakdowns)) {
+      const maeStr = b.mae != null ? b.mae.toFixed(4) : 'n/a(mixed)';
+      const nMaeStr = b.naiveMae != null ? b.naiveMae.toFixed(4) : 'n/a(mixed)';
+      breakdownLines.push(
+        `# Exchange Breakdown [${exchange}]: assets=${b.assetsCount}, currency=${b.currency}, priceAcc=${b.priceAccuracy.toFixed(2)}% vs naive=${b.naivePriceAccuracy.toFixed(2)}%, MAE=${maeStr} vs naiveMAE=${nMaeStr}, maeSkill=${b.maeSkillVsNaive ?? 'n/a'}, coverage=${b.conformalCoverage}%, dirAcc=${b.directionalAccuracy}%`
+      );
+    }
+  }
+
   const sa = audit.sentimentAblation;
   const ablationLines = sa
     ? sa.available && sa.priceOnly && sa.pricePlusSentiment && sa.pairedDiff
@@ -110,6 +135,7 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
   return [
     ...metadataLines,
     ...summaryLines,
+    ...breakdownLines,
     ...ablationLines,
     headers.join(','),
     ...rows.map((r) => r.map(escapeCsvCell).join(','))

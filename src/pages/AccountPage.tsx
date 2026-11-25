@@ -49,8 +49,12 @@ import { AvatarModal } from '../components/AvatarModal';
 import { SYSTEM_AVATARS } from '../assets/avatars';
 import avatarImg from '../assets/images/avatar_lead_quant_1791318574843.jpg';
 
-export const AccountPage: React.FC = () => {
-  const { user, logout, updateProfile } = useAuth();
+interface AccountPageProps {
+  onNavigateLegal?: (doc: 'terms' | 'privacy') => void;
+}
+
+export const AccountPage: React.FC<AccountPageProps> = ({ onNavigateLegal }) => {
+  const { user, logout, updateProfile, refreshProfile } = useAuth();
   const { theme, setTheme } = useTheme();
   const { setHomeCurrency } = useFx();
 
@@ -98,6 +102,14 @@ export const AccountPage: React.FC = () => {
   const [predictionHistory, setPredictionHistory] = useState<any[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Email verification & GDPR controls state
+  const [sendingVerification, setSendingVerification] = useState(false);
+  const [verifyTokenInput, setVerifyTokenInput] = useState('');
+  const [confirmingVerification, setConfirmingVerification] = useState(false);
+  const [exportingData, setExportingData] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     async function loadHistory() {
@@ -202,28 +214,75 @@ export const AccountPage: React.FC = () => {
     showToast('Notification & alarm preferences saved.');
   };
 
-  const handleExportData = () => {
-    const exportPayload = {
-      userProfile: user,
-      preferences: {
-        currency,
-        exchange,
-        confidenceLevel,
-        theme
-      },
-      predictionsCount: predictionHistory.length,
-      predictionHistory,
-      exportedAt: new Date().toISOString()
-    };
+  const handleSendVerificationEmail = async () => {
+    try {
+      setSendingVerification(true);
+      const res = await api.requestEmailVerification();
+      if (res.alreadyVerified) {
+        await refreshProfile();
+        showToast('Your email address is already verified.');
+      } else {
+        showToast(res.message || 'Verification email sent. Check your inbox.');
+      }
+    } catch (err: any) {
+      showError(err?.message || 'Unable to send verification email.');
+    } finally {
+      setSendingVerification(false);
+    }
+  };
 
-    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `alphaquant-account-${user?.id || 'export'}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Account data exported to JSON.');
+  const handleConfirmEmailToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verifyTokenInput.trim()) {
+      showError('Please enter your verification token.');
+      return;
+    }
+    try {
+      setConfirmingVerification(true);
+      const res = await api.confirmEmailVerification(verifyTokenInput.trim());
+      setVerifyTokenInput('');
+      await refreshProfile();
+      showToast(res.message || 'Email verified successfully.');
+    } catch (err: any) {
+      showError(err?.message || 'Verification failed or token expired.');
+    } finally {
+      setConfirmingVerification(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    try {
+      setExportingData(true);
+      const exportPayload = await api.exportAccountData();
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `alphaquant-gdpr-export-${user?.id || 'account'}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Complete account data exported to JSON.');
+    } catch (err: any) {
+      showError(err?.message || 'Failed to export account data.');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleDeleteAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (deleteConfirmText !== 'DELETE MY ACCOUNT') {
+      showError('Please type "DELETE MY ACCOUNT" exactly to confirm permanent deletion.');
+      return;
+    }
+    try {
+      setDeletingAccount(true);
+      await api.deleteAccount(deleteConfirmText);
+      logout();
+    } catch (err: any) {
+      showError(err?.message || 'Failed to delete account.');
+      setDeletingAccount(false);
+    }
   };
 
   return (
@@ -288,10 +347,25 @@ export const AccountPage: React.FC = () => {
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800/60 font-semibold">
                   Institutional Client
                 </span>
+                {user?.emailVerified ? (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                    Email Verified
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('security')}
+                    className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 flex items-center gap-1 cursor-pointer hover:opacity-90"
+                  >
+                    <AlertTriangle className="w-3 h-3 text-amber-500" />
+                    Verify Email
+                  </button>
+                )}
                 {twoFactorEnabled && (
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                    2FA Verified
+                    2FA Active
                   </span>
                 )}
                 <button
@@ -519,9 +593,19 @@ export const AccountPage: React.FC = () => {
                     value={user?.email || 'user@alphaquant.ai'}
                     className="w-full bg-transparent focus:outline-none cursor-not-allowed"
                   />
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 shrink-0">
-                    Verified
-                  </span>
+                  {user?.emailVerified ? (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 shrink-0">
+                      Verified
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('security')}
+                      className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 shrink-0 cursor-pointer"
+                    >
+                      Unverified
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -874,6 +958,64 @@ export const AccountPage: React.FC = () => {
             </div>
           </form>
 
+          {/* Email Verification Card */}
+          <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 transition-colors">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className={`p-2.5 rounded-xl border shrink-0 mt-0.5 ${
+                  user?.emailVerified
+                    ? 'bg-emerald-100 dark:bg-emerald-950/70 border-emerald-200 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-amber-100 dark:bg-amber-950/70 border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400'
+                }`}>
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Email Verification
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-lg leading-relaxed">
+                    Verify ownership of <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">{user?.email}</span> to enable account recovery and delivery of security alerts.
+                  </p>
+                  <div className={`mt-2 text-[11px] font-mono font-semibold ${
+                    user?.emailVerified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    Status: {user?.emailVerified ? 'Verified' : 'Pending Verification'}
+                  </div>
+                </div>
+              </div>
+
+              {!user?.emailVerified && (
+                <button
+                  type="button"
+                  disabled={sendingVerification}
+                  onClick={handleSendVerificationEmail}
+                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {sendingVerification ? 'Sending...' : 'Send Verification Email'}
+                </button>
+              )}
+            </div>
+
+            {!user?.emailVerified && (
+              <form onSubmit={handleConfirmEmailToken} className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 text-xs">
+                <input
+                  type="text"
+                  placeholder="Paste verification token from email"
+                  value={verifyTokenInput}
+                  onChange={(e) => setVerifyTokenInput(e.target.value)}
+                  className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono focus:outline-none focus:border-cyan-500"
+                />
+                <button
+                  type="submit"
+                  disabled={confirmingVerification}
+                  className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  {confirmingVerification ? 'Verifying...' : 'Confirm Token'}
+                </button>
+              </form>
+            )}
+          </div>
+
           {/* Two-Factor Authentication Card */}
           <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-4 transition-colors">
             <div className="flex items-start gap-3.5">
@@ -1063,11 +1205,13 @@ export const AccountPage: React.FC = () => {
                 </h3>
               </div>
               <button
+                type="button"
+                disabled={exportingData}
                 onClick={handleExportData}
-                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Export Audit (JSON)</span>
+                <span>{exportingData ? 'Exporting...' : 'Export All Account Data (JSON)'}</span>
               </button>
             </div>
 
@@ -1119,32 +1263,92 @@ export const AccountPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Danger Zone */}
-          <div className="p-6 rounded-2xl bg-rose-500/5 border border-rose-500/20 space-y-3">
-            <h3 className="text-sm font-bold text-rose-700 dark:text-rose-400 font-display">
-              Data Management & Reset
-            </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              Permanently clear saved local prediction history or reset platform parameters back to institutional defaults.
-            </p>
-            <div className="flex flex-wrap items-center gap-3 pt-1">
+          {/* Danger Zone: Export, Local Reset & Account Deletion */}
+          <div className="p-6 rounded-2xl bg-rose-500/5 border border-rose-500/20 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-rose-700 dark:text-rose-400 font-display">
+                  Data Rights, Privacy & Account Deletion
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mt-0.5">
+                  Download a complete GDPR/CCPA archive of your profile, portfolio, watchlists, alerts, and forecast audit logs, or permanently delete your account.
+                </p>
+              </div>
+              {onNavigateLegal && (
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => onNavigateLegal('terms')}
+                    className="text-cyan-600 dark:text-cyan-400 hover:underline font-medium cursor-pointer"
+                  >
+                    Terms of Service
+                  </button>
+                  <span className="text-slate-400">·</span>
+                  <button
+                    type="button"
+                    onClick={() => onNavigateLegal('privacy')}
+                    className="text-cyan-600 dark:text-cyan-400 hover:underline font-medium cursor-pointer"
+                  >
+                    Privacy Policy
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
               <button
+                type="button"
+                disabled={exportingData}
+                onClick={handleExportData}
+                className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5 text-cyan-500" />
+                <span>{exportingData ? 'Exporting...' : 'Download Account Archive (JSON)'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setPredictionHistory([]);
-                  showToast('Local forecast logs cleared.');
+                  showToast('Local forecast view cleared.');
                 }}
                 className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Clear Prediction Logs</span>
+                <span>Clear Local Table View</span>
               </button>
             </div>
+
+            <form onSubmit={handleDeleteAccount} className="pt-4 border-t border-rose-500/20 space-y-2.5">
+              <label className="block text-xs font-semibold text-rose-700 dark:text-rose-400">
+                Permanently Delete Account (irreversible)
+              </label>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                Type <span className="font-mono font-bold text-rose-600 dark:text-rose-400">DELETE MY ACCOUNT</span> below to erase your account, portfolios, watchlists, alerts, and forecast history from the database.
+              </p>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 text-xs">
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE MY ACCOUNT"
+                  className="flex-1 bg-white dark:bg-slate-950 border border-rose-300 dark:border-rose-900 rounded-xl px-3 py-2 font-mono text-slate-900 dark:text-white focus:outline-none focus:border-rose-500"
+                />
+                <button
+                  type="submit"
+                  disabled={deletingAccount || deleteConfirmText !== 'DELETE MY ACCOUNT'}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold transition-colors cursor-pointer disabled:opacity-40 flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{deletingAccount ? 'Deleting...' : 'Delete My Account'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* Mandatory Disclaimer Banner */}
-      <DisclaimerBanner />
+      <DisclaimerBanner context="general" />
 
       {/* Profile Photo & Avatar Customization Modal */}
       <AvatarModal

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { BrokerAccount, BrokerOrder, StockQuote } from '../types';
+import { DisclaimerBanner } from './DisclaimerBanner';
 
 interface Props {
   isOpen: boolean;
@@ -489,6 +490,8 @@ export const BrokerRouterModal: React.FC<Props> = ({
               </div>
             </div>
           </div>
+
+          <DisclaimerBanner compact context="recommendation" />
         </div>
       </div>
     </div>,

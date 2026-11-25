@@ -125,6 +125,40 @@ const defaultFeatures: ModelFeatureImportance[] = [
   }
 ];
 
+interface AccuracyProvenanceProps {
+  naiveBaselineLabel?: string;
+  gitCommit?: string | null;
+  evaluatedAt?: string | null;
+  tickerCount?: number | null;
+  className?: string;
+}
+
+const AccuracyProvenance: React.FC<AccuracyProvenanceProps> = ({
+  naiveBaselineLabel,
+  gitCommit,
+  evaluatedAt,
+  tickerCount,
+  className = ''
+}) => {
+  const shortCommit = gitCommit && gitCommit.trim() ? gitCommit.trim().slice(0, 7) : 'unavailable';
+  const evalDate = evaluatedAt ? evaluatedAt.slice(0, 10) : 'n/a';
+  const countLabel = tickerCount != null ? `${tickerCount} ${tickerCount === 1 ? 'ticker' : 'tickers'}` : 'n/a';
+  return (
+    <div className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] font-mono text-slate-500 dark:text-slate-400 ${className}`}>
+      {naiveBaselineLabel && (
+        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700/80">
+          Naive baseline: <strong>{naiveBaselineLabel}</strong>
+        </span>
+      )}
+      <span>Commit: <strong className="text-slate-700 dark:text-slate-200">{shortCommit}</strong></span>
+      <span>·</span>
+      <span>Date: <strong className="text-slate-700 dark:text-slate-200">{evalDate}</strong></span>
+      <span>·</span>
+      <span>Universe: <strong className="text-slate-700 dark:text-slate-200">{countLabel}</strong></span>
+    </div>
+  );
+};
+
 export const ModelPerformancePage: React.FC = () => {
   const { theme } = useTheme();
   const [activeTab, setActiveTab] = useState<'metrics' | 'strategy'>('metrics');
@@ -186,6 +220,11 @@ export const ModelPerformancePage: React.FC = () => {
   }, [ticker, strategyType, activeTab]);
 
   const isAll = ticker === 'ALL';
+  const evaluatedTickerCount =
+    metrics?.evaluatedAssetsCount ??
+    metrics?.totalAssetsCount ??
+    (isAll ? (metrics?.assetBreakdown?.length ?? 0) : 1);
+  const naivePriceAccLabel = metrics?.naivePriceAccuracy != null ? `${metrics.naivePriceAccuracy.toFixed(2)}%` : 'n/a';
   const currSym = isAll
     ? (metrics?.currency && metrics.currency !== 'MIXED' ? getCurrencySymbol(metrics.currency) : '')
     : getCurrencySymbol(metrics?.currency, ticker);
@@ -496,11 +535,11 @@ export const ModelPerformancePage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-mono">
+              <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
                 {isAll ? (
                   <span className="flex items-center gap-1.5 text-cyan-700 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/60 px-2.5 py-1 rounded-md border border-cyan-200 dark:border-cyan-800/60">
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                    Whole Catalog: {metrics.totalAssetsCount || metrics.assetBreakdown?.length || 0} live assets (n = {metrics.directionalStats?.totalTestPredictions ?? metrics.totalBacktestSamples} test predictions{metrics.testWindowStart && metrics.testWindowEnd ? ` · ${metrics.testWindowStart} to ${metrics.testWindowEnd}` : ''})
+                    Whole Catalog: {evaluatedTickerCount} live assets (n = {metrics.directionalStats?.totalTestPredictions ?? metrics.totalBacktestSamples} test predictions{metrics.testWindowStart && metrics.testWindowEnd ? ` · ${metrics.testWindowStart} to ${metrics.testWindowEnd}` : ''})
                   </span>
                 ) : (
                   <span className="text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-950 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800">
@@ -524,7 +563,10 @@ export const ModelPerformancePage: React.FC = () => {
                   {metrics.priceAccuracy != null ? `${metrics.priceAccuracy.toFixed(2)}%` : 'n/a'}
                 </span>
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block font-mono">
-                  Naive baseline: {metrics.naivePriceAccuracy != null ? `${metrics.naivePriceAccuracy.toFixed(2)}%` : 'n/a'} | Skill vs naive: {metrics.maeSkillVsNaive != null ? `${metrics.maeSkillVsNaive * 100 >= 0 ? '+' : ''}${(metrics.maeSkillVsNaive * 100).toFixed(1)}%` : 'n/a'}
+                  Naive baseline: {naivePriceAccLabel} | Skill vs naive: {metrics.maeSkillVsNaive != null ? `${metrics.maeSkillVsNaive * 100 >= 0 ? '+' : ''}${(metrics.maeSkillVsNaive * 100).toFixed(1)}%` : 'n/a'}
+                </span>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 block font-mono">
+                  Commit {metrics.gitCommit ? metrics.gitCommit.slice(0, 7) : 'unavailable'} · {metrics.evaluatedAt ? metrics.evaluatedAt.slice(0, 10) : 'n/a'} · {evaluatedTickerCount}t
                 </span>
               </div>
 
@@ -536,7 +578,10 @@ export const ModelPerformancePage: React.FC = () => {
                   {metrics.conformalCoverage != null ? `${metrics.conformalCoverage}%` : 'n/a'}
                 </span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block font-mono">
-                  {isAll ? 'Cross-asset coverage' : 'Empirical Coverage'}
+                  Target: 90% · Naive Acc: {naivePriceAccLabel}
+                </span>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 block font-mono">
+                  Commit {metrics.gitCommit ? metrics.gitCommit.slice(0, 7) : 'unavailable'} · {metrics.evaluatedAt ? metrics.evaluatedAt.slice(0, 10) : 'n/a'} · {evaluatedTickerCount}t
                 </span>
               </div>
 
@@ -549,6 +594,9 @@ export const ModelPerformancePage: React.FC = () => {
                 </span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block font-mono">
                   {isAll ? 'Mean variance explained' : 'Out-of-sample fit'}
+                </span>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 block font-mono">
+                  Commit {metrics.gitCommit ? metrics.gitCommit.slice(0, 7) : 'unavailable'} · {evaluatedTickerCount}t
                 </span>
               </div>
 
@@ -601,28 +649,44 @@ export const ModelPerformancePage: React.FC = () => {
               </div>
             </div>
 
+            <AccuracyProvenance
+              naiveBaselineLabel={`${naivePriceAccLabel} (last-price) / ${metrics.directionalStats?.pooledAlwaysUpAccuracyPct ?? 'n/a'}% (always-up)`}
+              gitCommit={metrics.gitCommit}
+              evaluatedAt={metrics.evaluatedAt}
+              tickerCount={evaluatedTickerCount}
+              className="px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800"
+            />
+
             {/* Model Accuracy & Uncertainty Audit Panel */}
             <div className="p-4 rounded-xl bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm text-xs space-y-2">
-              <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 font-semibold text-sm">
-                <ShieldCheck className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-                <span>
-                  {isAll
-                    ? 'Whole-Model Cross-Asset Generalization & Calibration Breakdown'
-                    : 'Model Accuracy & Statistical Calibration Breakdown'}
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 font-semibold text-sm">
+                  <ShieldCheck className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                  <span>
+                    {isAll
+                      ? 'Whole-Model Cross-Asset Generalization & Calibration Breakdown'
+                      : 'Model Accuracy & Statistical Calibration Breakdown'}
+                  </span>
+                </div>
+                <AccuracyProvenance
+                  naiveBaselineLabel={naivePriceAccLabel}
+                  gitCommit={metrics.gitCommit}
+                  evaluatedAt={metrics.evaluatedAt}
+                  tickerCount={evaluatedTickerCount}
+                />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-700 dark:text-slate-300 text-xs pt-1">
-                <div className="p-3.5 rounded-lg bg-emerald-50/60 dark:bg-slate-950/60 border border-emerald-200/80 dark:border-slate-800/80 space-y-1">
+                <div className="p-3.5 rounded-lg bg-emerald-50/60 dark:bg-slate-950/60 border border-emerald-200/80 dark:border-slate-800/80 space-y-1.5">
                   <span
                     className="font-semibold text-emerald-800 dark:text-emerald-400 block font-mono text-xs cursor-help"
                     title="Price accuracy = 100% - MAPE over out-of-sample one-day-ahead forecasts (walk-forward). It is not a hit rate."
                   >
-                    1. {isAll ? 'Whole-Model Price Accuracy' : 'Price Accuracy'}: {metrics.priceAccuracy != null ? `${metrics.priceAccuracy.toFixed(2)}%` : 'n/a'} (Naive: {metrics.naivePriceAccuracy != null ? `${metrics.naivePriceAccuracy.toFixed(2)}%` : 'n/a'})
+                    1. {isAll ? 'Whole-Model Price Accuracy' : 'Price Accuracy'}: {metrics.priceAccuracy != null ? `${metrics.priceAccuracy.toFixed(2)}%` : 'n/a'} (Naive: {naivePriceAccLabel})
                   </span>
                   <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
                     {isAll ? (
                       <>
-                        In out-of-sample walk-forward testing across {metrics.evaluatedAssetsCount || metrics.totalAssetsCount || metrics.assetBreakdown?.length || 0} catalog assets and {metrics.totalBacktestSamples} aggregate trading sessions, the prediction model achieves a mean unscaled MAPE of <strong>{metrics.mape != null ? `${metrics.mape.toFixed(2)}%` : 'n/a'}</strong> (Naive last-price MAPE: <strong>{metrics.naiveMape != null ? `${metrics.naiveMape.toFixed(2)}%` : 'n/a'}</strong>), beating naive MAE on <strong>{metrics.beatNaiveLabel || 'n/a'}</strong> assets.
+                        In out-of-sample walk-forward testing across {evaluatedTickerCount} catalog assets and {metrics.totalBacktestSamples} aggregate trading sessions, the prediction model achieves a mean unscaled MAPE of <strong>{metrics.mape != null ? `${metrics.mape.toFixed(2)}%` : 'n/a'}</strong> (Naive last-price MAPE: <strong>{metrics.naiveMape != null ? `${metrics.naiveMape.toFixed(2)}%` : 'n/a'}</strong>), beating naive MAE on <strong>{metrics.beatNaiveLabel || 'n/a'}</strong> assets.
                       </>
                     ) : (
                       <>
@@ -630,9 +694,15 @@ export const ModelPerformancePage: React.FC = () => {
                       </>
                     )}
                   </p>
+                  <AccuracyProvenance
+                    naiveBaselineLabel={naivePriceAccLabel}
+                    gitCommit={metrics.gitCommit}
+                    evaluatedAt={metrics.evaluatedAt}
+                    tickerCount={evaluatedTickerCount}
+                  />
                 </div>
 
-                <div className="p-3.5 rounded-lg bg-cyan-50/60 dark:bg-slate-950/60 border border-cyan-200/80 dark:border-slate-800/80 space-y-1">
+                <div className="p-3.5 rounded-lg bg-cyan-50/60 dark:bg-slate-950/60 border border-cyan-200/80 dark:border-slate-800/80 space-y-1.5">
                   <span className="font-semibold text-cyan-800 dark:text-cyan-400 block font-mono text-xs">
                     2. {isAll ? 'Whole-Model Conformal Interval Coverage' : 'Conformal Interval Coverage'}: {metrics.conformalCoverage != null ? `${metrics.conformalCoverage}%` : 'n/a'}
                   </span>
@@ -647,6 +717,12 @@ export const ModelPerformancePage: React.FC = () => {
                       </>
                     )}
                   </p>
+                  <AccuracyProvenance
+                    naiveBaselineLabel={naivePriceAccLabel}
+                    gitCommit={metrics.gitCommit}
+                    evaluatedAt={metrics.evaluatedAt}
+                    tickerCount={evaluatedTickerCount}
+                  />
                 </div>
               </div>
 
@@ -657,10 +733,18 @@ export const ModelPerformancePage: React.FC = () => {
                     <span className="font-mono font-semibold text-xs text-slate-800 dark:text-slate-200">
                       Statistical Power &amp; Directional Hypothesis Test vs. Always-Up
                     </span>
-                    <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                      Data source: <strong>{metrics.dataSource || 'live'}</strong>
-                      {metrics.testWindowStart && metrics.testWindowEnd ? ` · Window: ${metrics.testWindowStart} → ${metrics.testWindowEnd}` : ''}
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <AccuracyProvenance
+                        naiveBaselineLabel={`${metrics.directionalStats.pooledAlwaysUpAccuracyPct}% (always-up)`}
+                        gitCommit={metrics.gitCommit}
+                        evaluatedAt={metrics.evaluatedAt}
+                        tickerCount={evaluatedTickerCount}
+                      />
+                      <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                        · Source: <strong>{metrics.dataSource || 'live'}</strong>
+                        {metrics.testWindowStart && metrics.testWindowEnd ? ` · ${metrics.testWindowStart} → ${metrics.testWindowEnd}` : ''}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
@@ -1228,9 +1312,16 @@ export const ModelPerformancePage: React.FC = () => {
                       <Globe className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                       Individual Asset Accuracy & Calibration Breakdown
                     </h2>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono block">
                       Detailed metrics for the {metrics.assetBreakdown.length} universe assets comprising the whole prediction model average
                     </span>
+                    <AccuracyProvenance
+                      naiveBaselineLabel={naivePriceAccLabel}
+                      gitCommit={metrics.gitCommit}
+                      evaluatedAt={metrics.evaluatedAt}
+                      tickerCount={metrics.assetBreakdown.length}
+                      className="mt-1"
+                    />
                   </div>
                   <span className="text-[11px] px-2.5 py-1 rounded-md bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800 font-mono">
                     Click any asset to inspect single-asset view
@@ -1327,17 +1418,25 @@ export const ModelPerformancePage: React.FC = () => {
 
             {/* Model Benchmark Comparison Table */}
             <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {isAll
-                    ? 'Whole-Model Benchmark Comparison Matrix (All Assets Average)'
-                    : 'Benchmark Model Comparison Matrix'}
-                </h2>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                  {isAll
-                    ? 'Averaged cross-asset out-of-sample performance across all universe assets'
-                    : 'Evaluated on identical test partition using identical features'}
-                </span>
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {isAll
+                      ? 'Whole-Model Benchmark Comparison Matrix (All Assets Average)'
+                      : 'Benchmark Model Comparison Matrix'}
+                  </h2>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-mono block">
+                    {isAll
+                      ? 'Averaged cross-asset out-of-sample performance across all universe assets'
+                      : 'Evaluated on identical test partition using identical features'}
+                  </span>
+                </div>
+                <AccuracyProvenance
+                  naiveBaselineLabel={naivePriceAccLabel}
+                  gitCommit={metrics.gitCommit}
+                  evaluatedAt={metrics.evaluatedAt}
+                  tickerCount={evaluatedTickerCount}
+                />
               </div>
 
               <div className="overflow-x-auto">
@@ -1428,9 +1527,20 @@ export const ModelPerformancePage: React.FC = () => {
                       <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       Causal Sentiment Feature Ablation (Price-Only vs. Price + Sentiment)
                     </h2>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono block">
                       Paired walk-forward evaluation on identical out-of-sample dates using strictly causal daily sentiment (date &lt; predictionDate)
                     </span>
+                    <AccuracyProvenance
+                      naiveBaselineLabel={
+                        metrics.sentimentAblation.priceOnly?.naivePriceAccuracy != null
+                          ? `${metrics.sentimentAblation.priceOnly.naivePriceAccuracy.toFixed(2)}%`
+                          : naivePriceAccLabel
+                      }
+                      gitCommit={metrics.gitCommit}
+                      evaluatedAt={metrics.evaluatedAt}
+                      tickerCount={metrics.sentimentAblation.matchedAssetsCount}
+                      className="mt-1"
+                    />
                   </div>
                   {metrics.sentimentAblation.available && metrics.sentimentAblation.pairedDiff ? (
                     <span
@@ -1746,6 +1856,15 @@ export const ModelPerformancePage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Strategy Provenance Strip */}
+              <AccuracyProvenance
+                naiveBaselineLabel={`Buy & Hold (${strategyResult.benchmarkReturnPct >= 0 ? '+' : ''}${strategyResult.benchmarkReturnPct}%)`}
+                gitCommit={metrics?.gitCommit ?? null}
+                evaluatedAt={metrics?.evaluatedAt ?? new Date().toISOString()}
+                tickerCount={1}
+                className="px-3.5 py-2 rounded-lg bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800"
+              />
+
               {/* Equity Curve Chart */}
               <div className="p-5 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -1784,7 +1903,7 @@ export const ModelPerformancePage: React.FC = () => {
         </div>
       )}
 
-      <DisclaimerBanner />
+      <DisclaimerBanner context="forecast" />
     </div>
   );
 };

@@ -551,6 +551,8 @@ export interface SkippedTickerRecord {
   ticker: string;
   reason: 'synthetic_data' | 'insufficient_history' | 'fetch_error';
   barsCount?: number;
+  country?: string;
+  exchange?: string;
 }
 
 export interface AuditEvaluationParams {
@@ -568,6 +570,7 @@ export interface AuditEvaluationParams {
 export interface ModelEvaluation {
   available?: boolean;
   reason?: string;
+  gitCommit?: string | null;
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
   dataProvider?: string;
   dataProviderLicence?: string;
@@ -619,6 +622,9 @@ export interface ModelEvaluation {
   isAllAssets?: boolean;
   featureImportance?: ModelFeatureImportance[];
   sentimentAblation?: SentimentAblationResult;
+  universeMode?: 'catalog' | 'ticker_master';
+  countryBreakdowns?: Record<string, UniverseBreakdownMetrics>;
+  exchangeBreakdowns?: Record<string, UniverseBreakdownMetrics>;
 }
 
 export interface UnavailableEvaluation {
@@ -634,10 +640,36 @@ export interface UnavailableEvaluation {
   ticker?: string;
 }
 
+export interface UniverseBreakdownMetrics {
+  key: string;
+  label: string;
+  assetsCount: number;
+  tickers: string[];
+  currencies: string[];
+  currency: string;
+  mae: number | null;
+  naiveMae: number | null;
+  rmse: number | null;
+  naiveRmse: number | null;
+  mape: number;
+  naiveMape: number;
+  priceAccuracy: number;
+  naivePriceAccuracy: number;
+  maeSkillVsNaive: number | null;
+  rmseSkillVsNaive: number | null;
+  conformalCoverage: number;
+  directionalAccuracy: number;
+  alwaysUpAccuracy: number;
+  beatNaiveCount: number;
+  beatNaiveLabel: string;
+  directionalStats: PooledDirectionalStats;
+}
+
 export interface ModelAuditResponse {
   available: boolean;
   reason?: string;
   gitCommit?: string | null;
+  universeMode?: 'catalog' | 'ticker_master';
   evaluationParams?: AuditEvaluationParams;
   dataSource: 'live' | 'synthetic' | 'mixed' | 'none';
   dataProvider?: string;
@@ -663,6 +695,8 @@ export interface ModelAuditResponse {
   directionalStats?: PooledDirectionalStats;
   comparison?: ModelComparisonItem[];
   assets?: AssetBreakdownItem[];
+  countryBreakdowns?: Record<string, UniverseBreakdownMetrics>;
+  exchangeBreakdowns?: Record<string, UniverseBreakdownMetrics>;
   sentimentAblation?: SentimentAblationResult;
 }
 
@@ -685,6 +719,31 @@ export interface BackgroundJobRecord {
   finishedAt?: string;
   result?: unknown;
   error?: string;
+  attemptsMade?: number;
+  maxAttempts?: number;
+  failedReason?: string;
+  failedAt?: string;
+  backend?: 'bullmq' | 'in-memory';
+}
+
+export interface BackgroundJobQueueStats {
+  total: number;
+  queued: number;
+  running: number;
+  completed: number;
+  failed: number;
+  concurrency: number;
+  backend: 'bullmq' | 'in-memory';
+}
+
+export interface ComplianceConfig {
+  disclaimerText: string;
+  operatorLegalEntity: string;
+  operatorAddress: string;
+  operatorContactEmail: string;
+  dpoContact: string;
+  governingJurisdiction: string;
+  updatedAt: string;
 }
 
 export interface PortfolioHolding {
@@ -871,6 +930,7 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
+  emailVerified?: boolean;
   createdAt: string;
   isDemoUser?: boolean;
   avatarUrl?: string;

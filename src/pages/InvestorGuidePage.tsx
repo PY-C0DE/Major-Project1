@@ -17,6 +17,7 @@ import {
   INVESTOR_GOLDEN_RULES, 
   formatStockCurrency 
 } from '../data/investorGuideData';
+import { DisclaimerBanner } from '../components/DisclaimerBanner';
 
 interface Props {
   onSelectTicker: (ticker: string) => void;
@@ -494,6 +495,8 @@ export const InvestorGuidePage: React.FC<Props> = ({ onSelectTicker }) => {
           </div>
         </div>
       )}
+
+      <DisclaimerBanner context="recommendation" />
     </div>
   );
 };

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { SocialDiscussion, VerifiedTrader } from '../types';
+import { DisclaimerBanner } from './DisclaimerBanner';
 
 interface Props {
   isOpen: boolean;
@@ -43,6 +44,7 @@ export const SocialCopyTradeModal: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [copyingId, setCopyingId] = useState<string | null>(null);
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
   const filterTickers = ['ALL', 'NVDA', 'RELIANCE.NS', 'AAPL', 'TCS.NS', 'TSLA', 'GOOGL'];
 
@@ -71,12 +73,13 @@ export const SocialCopyTradeModal: React.FC<Props> = ({
   const handleCopyTrade = async (trader: VerifiedTrader) => {
     setCopyingId(trader.id);
     setSuccessBanner(null);
+    setErrorBanner(null);
     try {
       const res = await api.copyTraderPortfolio(trader.id);
       setSuccessBanner(res.message);
       onPortfolioSynced?.();
     } catch (err: any) {
-      alert(err?.message || 'Failed to copy portfolio.');
+      setErrorBanner(err?.message || 'Failed to copy portfolio.');
     } finally {
       setCopyingId(null);
     }
@@ -187,6 +190,13 @@ export const SocialCopyTradeModal: React.FC<Props> = ({
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 rounded-xl flex items-center gap-2 text-xs font-mono text-emerald-800 dark:text-emerald-300 animate-fadeIn">
               <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span>{successBanner}</span>
+            </div>
+          )}
+
+          {errorBanner && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 rounded-xl flex items-center gap-2 text-xs font-mono text-rose-800 dark:text-rose-300 animate-fadeIn">
+              <X className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+              <span>{errorBanner}</span>
             </div>
           )}
 
@@ -350,6 +360,8 @@ export const SocialCopyTradeModal: React.FC<Props> = ({
               </div>
             </div>
           )}
+
+          <DisclaimerBanner compact context="recommendation" />
         </div>
       </div>
     </div>,

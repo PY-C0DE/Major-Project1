@@ -39,10 +39,20 @@ import {
   createAlertSchema,
   toggleAlertSchema,
   brokerOrderSchema,
-  createBackgroundJobSchema
+  createBackgroundJobSchema,
+  verifyEmailRequestSchema,
+  verifyEmailConfirmSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  deleteAccountSchema
 } from './src/server/middleware/validation';
-import { getBackgroundJobQueue, BackgroundJobQueue } from './src/server/jobs/jobQueue';
+import { getBackgroundJobQueue, JobQueueDriver } from './src/server/jobs/jobQueue';
 import { getMarketDataProvider } from './src/server/providers/marketDataProvider';
+import {
+  getMailProvider,
+  buildAppBaseUrl,
+  escapeHtml
+} from './src/server/services/mailService';
 
 import {
   getStockQuote,
@@ -61,14 +71,15 @@ import { runConformalPrediction, MIN_CONFORMAL_BARS } from './src/server/math/co
 import { detectConceptDrift } from './src/server/math/driftDetector';
 import { getNewsForTicker, getHybridNewsForTicker, analyzeKeywordSentiment, getAllMarketHeadlines, getAllMarketHeadlinesAsync } from './src/server/math/nlpEngine';
 import { DEFAULT_CONFORMAL_CONFIDENCE, DEFAULT_BACKTEST_STRATEGY } from './src/shared/modelConfig';
-import { isConformalPredictionAvailable, DailySentimentRecord } from './src/types';
+import { isConformalPredictionAvailable, DailySentimentRecord, ComplianceConfig } from './src/types';
 import { computeTickerLagAnalysis, computePooledLagAnalysis } from './src/server/math/lagAnalysis';
 import {
   runModelEvaluation,
   computeProjectWideAccuracy,
   runAggregateModelEvaluation,
   isModelEvaluationAvailable,
-  buildModelAuditPayload
+  buildModelAuditPayload,
+  UniverseTickerMeta
 } from './src/server/math/evaluation';
 import { runStrategyBacktest } from './src/server/math/strategySimulator';
 import { runAutomatedBacktest } from './src/server/math/automatedBacktest';
@@ -155,8 +166,9 @@ export interface CreateAppOptions {
   fetchHistoryWithSource?: (ticker: string, days: number) => Promise<HistoricalDataResult>;
   allowedOrigins?: string[];
   apiRateLimitMax?: number;
+  authRateLimitMax?: number;
   heavyRateLimitMax?: number;
-  jobQueue?: BackgroundJobQueue;
+  jobQueue?: JobQueueDriver;
   readinessCheck?: () => Promise<boolean>;
 }
 
@@ -271,11 +283,17 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       const dbOk = options.readinessCheck
         ? await options.readinessCheck()
         : (await db.searchTickers({ limit: 1, page: 1 }), true);
+      const queuePing = await jobQueue.ping();
+      const queueStats = await jobQueue.getStatsAsync();
 
-      if (!dbOk) {
+      if (!dbOk || !queuePing.ok) {
         return res.status(503).json({
           status: 'not_ready',
-          checks: { database: 'unavailable' },
+          checks: {
+            database: dbOk ? 'ok' : 'unavailable',
+            queue: queuePing.ok ? 'ok' : 'unavailable',
+            queueBackend: queuePing.backend
+          },
           timestamp: new Date().toISOString()
         });
       }
@@ -285,7 +303,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
         checks: {
           database: 'ok',
           provider: getMarketDataProvider().name,
-          queue: jobQueue.getStats()
+          queue: queueStats
         },
         timestamp: new Date().toISOString()
       });
@@ -318,7 +336,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   // Stricter rate limiters for authentication endpoints & heavy compute jobs
   const authCredentialLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: 5,
+    max: options.authRateLimitMax ?? 5,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     validate: false,
@@ -347,7 +365,14 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   });
 
   app.use('/api/auth', (req: Request, res: Response, next: NextFunction) => {
-    if (req.path === '/login' || req.path === '/register') {
+    if (
+      req.path === '/login' ||
+      req.path === '/register' ||
+      req.path === '/forgot-password' ||
+      req.path === '/reset-password' ||
+      req.path === '/verify-email/request' ||
+      req.path === '/verify-email/confirm'
+    ) {
       return authCredentialLimiter(req, res, next);
     }
     return authReadLimiter(req, res, next);
@@ -444,6 +469,7 @@ app.post('/api/auth/register', validateBody(registerSchema), async (req: Request
       createdAt: new Date().toISOString(),
       passwordHash,
       isDemoUser: false,
+      emailVerified: false,
       title: 'Quantitative Strategist',
       organization: 'Alpha Desk',
       currencyPreference: 'INR' as const,
@@ -610,6 +636,253 @@ app.put('/api/auth/change-password', authenticateToken, validateBody(changePassw
   } catch (err: any) {
     console.error('Error changing password:', err);
     return res.status(500).json({ error: 'Failed to update password.' });
+  }
+});
+
+// Email Verification & Password Reset Flows
+app.post('/api/auth/verify-email/request', validateBody(verifyEmailRequestSchema), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const mailProvider = getMailProvider();
+    if (!mailProvider.isConfigured()) {
+      return res.status(503).json({
+        error: 'Email delivery provider is not configured on this server. Configure SMTP_* or RESEND_API_KEY and MAIL_FROM.'
+      });
+    }
+
+    const authHeader = req.headers['authorization'];
+    const bearer = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+    const tokenUser = bearer ? await resolveTokenUser(bearer) : null;
+    const bodyEmail = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+
+    if (!tokenUser && !bodyEmail) {
+      return res.status(401).json({ error: 'Authentication or email address is required to request verification.' });
+    }
+
+    const user = tokenUser
+      ? await db.getUserById(tokenUser.id)
+      : await db.getUserByEmail(bodyEmail);
+
+    if (!user) {
+      if (tokenUser) {
+        return res.status(404).json({ error: 'User not found.' });
+      }
+      return res.status(200).json({
+        sent: true,
+        message: 'If an account matches that email address, a verification email has been dispatched.'
+      });
+    }
+
+    if (user.emailVerified) {
+      return res.status(200).json({
+        sent: false,
+        alreadyVerified: true,
+        message: 'Email address is already verified.'
+      });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    await db.createAuthToken({
+      id: `tok-${crypto.randomUUID()}`,
+      userId: user.id,
+      purpose: 'email_verification',
+      tokenHash,
+      expiresAt
+    });
+
+    const verifyUrl = `${buildAppBaseUrl()}/?verifyToken=${encodeURIComponent(rawToken)}`;
+    const sent = await mailProvider.sendMail({
+      to: user.email,
+      subject: 'Verify your AlphaQuant AI email address',
+      text: `Hello ${user.name},\n\nConfirm your email address by visiting:\n${verifyUrl}\n\nOr paste this verification token in your Account Settings: ${rawToken}\n\nThis link expires in 24 hours.`,
+      html: `<p>Hello ${escapeHtml(user.name)},</p><p>Confirm your email address by clicking below:</p><p><a href="${escapeHtml(verifyUrl)}">Verify Email Address</a></p><p>Or paste this verification token in Account Settings: <code>${escapeHtml(rawToken)}</code></p><p>This link expires in 24 hours.</p>`
+    });
+
+    return res.status(200).json({
+      sent: true,
+      provider: sent.provider,
+      message: 'Verification email dispatched.'
+    });
+  } catch (err: any) {
+    console.error('Error requesting email verification:', err);
+    return res.status(500).json({ error: 'Failed to send verification email.' });
+  }
+});
+
+async function handleVerifyEmailConfirm(rawToken: string, res: Response) {
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const consumed = await db.consumeAuthToken('email_verification', tokenHash);
+  if (!consumed) {
+    return res.status(400).json({ error: 'Invalid, expired, or already used verification token.' });
+  }
+  const updated = await db.markEmailVerified(consumed.userId);
+  if (!updated) {
+    return res.status(404).json({ error: 'User account not found.' });
+  }
+  return res.status(200).json({
+    verified: true,
+    user: sanitizeUser(updated),
+    message: 'Email address verified successfully.'
+  });
+}
+
+app.post('/api/auth/verify-email/confirm', validateBody(verifyEmailConfirmSchema), async (req: Request, res: Response) => {
+  try {
+    return await handleVerifyEmailConfirm(req.body.token, res);
+  } catch (err: any) {
+    console.error('Error confirming email verification:', err);
+    return res.status(500).json({ error: 'Failed to verify email address.' });
+  }
+});
+
+app.get('/api/auth/verify-email', async (req: Request, res: Response) => {
+  try {
+    const rawToken = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+    if (rawToken.length < 16) {
+      return res.status(400).json({ error: 'Valid verification token query parameter is required.' });
+    }
+    return await handleVerifyEmailConfirm(rawToken, res);
+  } catch (err: any) {
+    console.error('Error verifying email via GET:', err);
+    return res.status(500).json({ error: 'Failed to verify email address.' });
+  }
+});
+
+app.post('/api/auth/forgot-password', validateBody(forgotPasswordSchema), async (req: Request, res: Response) => {
+  try {
+    const mailProvider = getMailProvider();
+    if (!mailProvider.isConfigured()) {
+      return res.status(503).json({
+        error: 'Email delivery provider is not configured on this server. Configure SMTP_* or RESEND_API_KEY and MAIL_FROM.'
+      });
+    }
+
+    const cleanEmail = req.body.email.trim().toLowerCase();
+    const user = await db.getUserByEmail(cleanEmail);
+    if (!user) {
+      return res.status(200).json({
+        sent: true,
+        message: 'If an account exists for that email address, password reset instructions have been sent.'
+      });
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+    await db.createAuthToken({
+      id: `tok-${crypto.randomUUID()}`,
+      userId: user.id,
+      purpose: 'password_reset',
+      tokenHash,
+      expiresAt
+    });
+
+    const resetUrl = `${buildAppBaseUrl()}/?resetToken=${encodeURIComponent(rawToken)}`;
+    const sent = await mailProvider.sendMail({
+      to: user.email,
+      subject: 'Reset your AlphaQuant AI password',
+      text: `Hello ${user.name},\n\nReset your password by visiting:\n${resetUrl}\n\nOr enter this single-use reset token in the reset password form: ${rawToken}\n\nThis token expires in 30 minutes.`,
+      html: `<p>Hello ${escapeHtml(user.name)},</p><p>Reset your password using the link below:</p><p><a href="${escapeHtml(resetUrl)}">Reset Password</a></p><p>Or enter this single-use token: <code>${escapeHtml(rawToken)}</code></p><p>This token expires in 30 minutes.</p>`
+    });
+
+    return res.status(200).json({
+      sent: true,
+      provider: sent.provider,
+      message: 'If an account exists for that email address, password reset instructions have been sent.'
+    });
+  } catch (err: any) {
+    console.error('Error requesting password reset:', err);
+    return res.status(500).json({ error: 'Failed to send password reset email.' });
+  }
+});
+
+app.post('/api/auth/reset-password', validateBody(resetPasswordSchema), async (req: Request, res: Response) => {
+  try {
+    const { token, newPassword } = req.body;
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const consumed = await db.consumeAuthToken('password_reset', tokenHash);
+    if (!consumed) {
+      return res.status(400).json({ error: 'Invalid, expired, or already used password reset token.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+    const updated = await db.updateUserPassword(consumed.userId, passwordHash);
+    if (!updated) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password has been reset successfully. You can now sign in with your new password.'
+    });
+  } catch (err: any) {
+    console.error('Error resetting password:', err);
+    return res.status(500).json({ error: 'Failed to reset password.' });
+  }
+});
+
+// Compliance Config & Account GDPR Data Export / Deletion Endpoints
+function getComplianceConfig(): ComplianceConfig {
+  return {
+    disclaimerText:
+      process.env.COMPLIANCE_DISCLAIMER_TEXT?.trim() ||
+      process.env.VITE_DISCLAIMER_TEXT?.trim() ||
+      'Quantitative Analytics & Conformal Prediction Simulation — Not Financial Advice. Historical walk-forward accuracy and split-conformal coverage bounds do not guarantee future performance. Consult a licensed financial advisor before executing trades.',
+    operatorLegalEntity:
+      process.env.COMPLIANCE_OPERATOR_LEGAL_ENTITY?.trim() ||
+      process.env.COMPLIANCE_OPERATOR_NAME?.trim() ||
+      '[OPERATOR_LEGAL_ENTITY]',
+    operatorAddress:
+      process.env.COMPLIANCE_OPERATOR_ADDRESS?.trim() || '[OPERATOR_ADDRESS]',
+    operatorContactEmail:
+      process.env.COMPLIANCE_OPERATOR_CONTACT_EMAIL?.trim() ||
+      process.env.COMPLIANCE_CONTACT_EMAIL?.trim() ||
+      '[OPERATOR_CONTACT_EMAIL]',
+    dpoContact:
+      process.env.COMPLIANCE_DPO_EMAIL?.trim() || '[DPO_CONTACT]',
+    governingJurisdiction:
+      process.env.COMPLIANCE_JURISDICTION?.trim() || '[GOVERNING_JURISDICTION]',
+    updatedAt: new Date().toISOString().split('T')[0]
+  };
+}
+
+app.get('/api/compliance/config', (_req: Request, res: Response) => {
+  return res.json(getComplianceConfig());
+});
+
+app.get('/api/account/export', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || 'user-alphaquant-demo-1';
+    const exported = await db.exportUserData(userId);
+    if (!exported) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+    res.setHeader('Content-Disposition', 'attachment; filename="alphaquant-account-export.json"');
+    return res.status(200).json(exported);
+  } catch (err: any) {
+    console.error('Error exporting user account data:', err);
+    return res.status(500).json({ error: 'Failed to export user data.' });
+  }
+});
+
+app.delete('/api/account', authenticateToken, validateBody(deleteAccountSchema), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id || 'user-alphaquant-demo-1';
+    const deleted = await db.deleteUser(userId);
+    if (!deleted) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Account and associated personal data permanently deleted.'
+    });
+  } catch (err: any) {
+    console.error('Error deleting user account:', err);
+    return res.status(500).json({ error: 'Failed to delete user account.' });
   }
 });
 
@@ -1178,8 +1451,35 @@ app.get('/api/model/audit', heavyJobRateLimiter, async (req: Request, res: Respo
       return res.json(buildModelAuditPayload(evaluation, meta?.name || ticker));
     }
 
-    const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, TICKER_CATALOG, {
-      sentimentByTicker: await buildSentimentMapFromDb()
+    const universeParam = typeof req.query.universe === 'string' ? req.query.universe.trim().toLowerCase() : '';
+    const useUniverse = universeParam === 'ticker_master';
+
+    let targetCatalog: Array<{ ticker: string; name: string }> = TICKER_CATALOG;
+    let tickerMetaLookup: Map<string, UniverseTickerMeta> | undefined;
+    if (useUniverse) {
+      const masterTickers = await db.getAllTickers(true);
+      const equities = masterTickers.filter((t) => !t.assetType || t.assetType.toUpperCase() === 'EQUITY');
+      targetCatalog = equities.map((t) => ({ ticker: t.symbol, name: t.name }));
+      tickerMetaLookup = new Map<string, UniverseTickerMeta>();
+      for (const t of equities) {
+        tickerMetaLookup.set(t.symbol.toUpperCase(), {
+          name: t.name,
+          country: t.country,
+          exchange: t.exchange,
+          exchangeCode: t.exchangeCode || t.exchange
+        });
+      }
+    }
+
+    const evaluation = await runAggregateModelEvaluation(fetchHistoryWithSource, targetCatalog, {
+      sentimentByTicker: await buildSentimentMapFromDb(),
+      ...(useUniverse
+        ? {
+            tickerMetaLookup,
+            universeMode: 'ticker_master' as const,
+            includeBreakdowns: true
+          }
+        : {})
     });
     const payload = buildModelAuditPayload(evaluation);
     if (!payload.available) {
@@ -1193,47 +1493,86 @@ app.get('/api/model/audit', heavyJobRateLimiter, async (req: Request, res: Respo
   }
 });
 
-// Background Job Queue Endpoints (audit, sentiment backfill, model refits)
+// Background Job Queue Endpoints (audit, sentiment backfill, model refits, failed-job inspection & retry)
 app.post(
   '/api/jobs',
   authenticateToken,
   heavyJobRateLimiter,
   validateBody(createBackgroundJobSchema),
-  (req: AuthenticatedRequest, res: Response) => {
-    const { type, ticker, tickers, maxArticles } = req.body as {
-      type: 'audit' | 'backfill' | 'refit';
-      ticker?: string;
-      tickers?: string[];
-      maxArticles?: number;
-    };
-    const job = jobQueue.enqueue(
-      type,
-      {
-        ...(ticker ? { ticker } : {}),
-        ...(tickers ? { tickers } : {}),
-        ...(maxArticles ? { maxArticles } : {})
-      },
-      req.user?.id
-    );
-    return res.status(202).json({ job });
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { type, ticker, tickers, maxArticles } = req.body as {
+        type: 'audit' | 'backfill' | 'refit';
+        ticker?: string;
+        tickers?: string[];
+        maxArticles?: number;
+      };
+      const job = await jobQueue.enqueueAsync(
+        type,
+        {
+          ...(ticker ? { ticker } : {}),
+          ...(tickers ? { tickers } : {}),
+          ...(maxArticles ? { maxArticles } : {})
+        },
+        req.user?.id
+      );
+      return res.status(202).json({ job });
+    } catch (err: any) {
+      console.error('Error enqueuing background job:', err);
+      return res.status(500).json({ error: 'Failed to enqueue background job.' });
+    }
   }
 );
 
-app.get('/api/jobs', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const status = typeof req.query.status === 'string' ? (req.query.status as any) : undefined;
-  const type = typeof req.query.type === 'string' ? (req.query.type as any) : undefined;
-  return res.json({
-    stats: jobQueue.getStats(),
-    jobs: jobQueue.listJobs({ status, type })
-  });
+app.get('/api/jobs', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const status = typeof req.query.status === 'string' ? (req.query.status as any) : undefined;
+    const type = typeof req.query.type === 'string' ? (req.query.type as any) : undefined;
+    const [stats, jobs] = await Promise.all([
+      jobQueue.getStatsAsync(),
+      jobQueue.listJobsAsync({ status, type })
+    ]);
+    return res.json({ stats, jobs });
+  } catch (err: any) {
+    console.error('Error listing background jobs:', err);
+    return res.status(500).json({ error: 'Failed to list background jobs.' });
+  }
 });
 
-app.get('/api/jobs/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const job = jobQueue.getJob(req.params.id);
-  if (!job) {
-    return res.status(404).json({ error: 'Background job not found.' });
+app.get('/api/jobs/failed', authenticateToken, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const failedJobs = await jobQueue.getFailedJobsAsync();
+    return res.json({ count: failedJobs.length, jobs: failedJobs });
+  } catch (err: any) {
+    console.error('Error listing failed background jobs:', err);
+    return res.status(500).json({ error: 'Failed to retrieve failed jobs.' });
   }
-  return res.json({ job });
+});
+
+app.post('/api/jobs/:id/retry', authenticateToken, heavyJobRateLimiter, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const retried = await jobQueue.retryJobAsync(req.params.id);
+    if (!retried) {
+      return res.status(404).json({ error: 'Failed job not found or cannot be retried.' });
+    }
+    return res.status(202).json({ job: retried });
+  } catch (err: any) {
+    console.error('Error retrying background job:', err);
+    return res.status(500).json({ error: 'Failed to retry background job.' });
+  }
+});
+
+app.get('/api/jobs/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const job = await jobQueue.getJobAsync(req.params.id);
+    if (!job) {
+      return res.status(404).json({ error: 'Background job not found.' });
+    }
+    return res.json({ job });
+  } catch (err: any) {
+    console.error('Error retrieving background job:', err);
+    return res.status(500).json({ error: 'Failed to retrieve background job.' });
+  }
 });
 
 // Dynamic Project-Wide Price Accuracy Metric (100% - MAPE across catalog assets)

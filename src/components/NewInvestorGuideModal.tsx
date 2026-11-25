@@ -25,6 +25,7 @@ import {
   INVESTOR_GOLDEN_RULES, 
   formatStockCurrency 
 } from '../data/investorGuideData';
+import { DisclaimerBanner } from './DisclaimerBanner';
 
 interface NewInvestorGuideModalProps {
   isOpen: boolean;
@@ -573,6 +574,10 @@ export const NewInvestorGuideModal: React.FC<NewInvestorGuideModalProps> = ({
               </div>
             </div>
           )}
+
+          <div className="pt-4">
+            <DisclaimerBanner compact context="recommendation" />
+          </div>
         </div>
 
         {/* Footer */}
