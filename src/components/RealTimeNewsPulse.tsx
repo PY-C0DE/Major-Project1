@@ -549,10 +549,16 @@ export const RealTimeNewsPulse: React.FC<Props> = ({
                         className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
                           item.sentimentSource === 'finbert'
                             ? 'bg-cyan-50 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800'
+                            : item.sentimentSource === 'multilingual-lexicon'
+                            ? 'bg-violet-50 dark:bg-violet-950/80 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-800'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'
                         }`}
                       >
-                        {item.sentimentSource === 'finbert' ? 'FINBERT' : 'LEXICON'}
+                        {item.sentimentSource === 'finbert'
+                          ? 'FINBERT'
+                          : item.sentimentSource === 'multilingual-lexicon'
+                          ? `MULTILINGUAL${item.language ? ` (${item.language.toUpperCase()})` : ''}`
+                          : 'LEXICON'}
                       </span>
                     </div>
 

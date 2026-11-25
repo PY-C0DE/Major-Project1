@@ -65,7 +65,8 @@ export function buildAuditCsv(audit: ModelAuditResponse, scopeLabel = 'ALL'): st
 
   const metadataLines = [
     `# Reproducible Audit Metadata (${scopeLabel})`,
-    `# evaluatedAt=${audit.evaluatedAt ?? 'n/a'}, gitCommit=${audit.gitCommit ?? 'null'}, dataSource=${audit.dataSource}, dataProvider=${audit.dataProvider ?? 'n/a'}, currency=${audit.currency ?? 'n/a'}, evaluatedAssetsCount=${audit.evaluatedAssetsCount}, skippedCount=${skipped.length}`,
+    `# evaluatedAt=${audit.evaluatedAt ?? 'n/a'}, gitCommit=${audit.gitCommit ?? 'null'}, dataSource=${audit.dataSource}, dataProvider=${audit.dataProvider ?? 'n/a'}, fallbackFrom=${audit.fallbackFrom ?? 'none'}, currency=${audit.currency ?? 'n/a'}, evaluatedAssetsCount=${audit.evaluatedAssetsCount}, skippedCount=${skipped.length}`,
+    ...(audit.providerWarning ? [`# providerWarning: ${audit.providerWarning}`] : []),
     ...(ep
       ? [
           `# evaluationParams: historyDays=${ep.historyDays}, minBarsRequired=${ep.minBarsRequired}, testWindowRule="${ep.testWindowRule}", retrainIntervalRule="${ep.retrainIntervalRule}", calibrationWindowMax=${ep.calibrationWindowMax}, conformalCoverageTarget=${ep.conformalCoverageTarget}, bootstrapResamples=${ep.bootstrapResamples}, bootstrapSeed=${ep.bootstrapSeed}, signTestNullP=${ep.signTestNullP}`

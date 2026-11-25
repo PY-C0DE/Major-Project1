@@ -15,6 +15,7 @@ import { TickerMeta } from '../../shared/tickerCatalog';
 import { MacroIndexConfig } from '../../shared/macroMarkets';
 import { inferCurrencyFromTicker, inferExchangeFromTicker } from '../../utils/currency';
 import { getExchangeMarketStatus } from '../../utils/marketStatus';
+import { resolveExchangeMicInfo } from '../../shared/tickerMetadata';
 import { ComputedBar, PriceBar, computeAllIndicators } from '../math/indicators';
 import { formatTimestampInExchangeTimezone } from '../math/exchangeCalendar';
 import { RawLiveArticle } from '../services/liveNewsService';
@@ -65,6 +66,8 @@ export interface MarketHistoryFetchResult {
   provider?: string;
   providerLicence?: string;
   fetchedAt?: string;
+  fallbackFrom?: string;
+  warning?: string;
 }
 
 export interface MarketQuoteFetchResult {
@@ -72,6 +75,8 @@ export interface MarketQuoteFetchResult {
   dataSource: DataSourceKind;
   provider: string;
   fetchedAt: string;
+  fallbackFrom?: string;
+  warning?: string;
 }
 
 export interface MarketSearchResultItem {
@@ -88,6 +93,8 @@ export interface MarketSearchFetchResult {
   dataSource: 'live' | 'unavailable';
   provider: string;
   fetchedAt: string;
+  fallbackFrom?: string;
+  warning?: string;
   error?: string;
 }
 
@@ -96,6 +103,8 @@ export interface MarketNewsFetchResult {
   dataSource: 'live' | 'unavailable';
   provider: string;
   fetchedAt: string;
+  fallbackFrom?: string;
+  warning?: string;
   error?: string;
 }
 
@@ -919,76 +928,282 @@ export interface TwelveDataProviderOptions extends YahooProviderOptions {
 }
 
 /**
+ * ISO 10383 Exchange MIC -> Twelve Data exchange code mapping table
+ * covering every exchange MIC present in ticker_master and global_tickers.csv.
+ */
+export const TWELVE_DATA_EXCHANGE_BY_MIC: Record<string, string> = {
+  XNAS: '',
+  XNYS: '',
+  XNSE: 'NSE',
+  XBOM: 'BSE',
+  XLON: 'LSE',
+  XETR: 'XETR',
+  XPAR: 'EPA',
+  XAMS: 'AMS',
+  XBRU: 'EBR',
+  XSWX: 'SIX',
+  XTKS: 'TSE',
+  XHKG: 'HKEX',
+  XKRX: 'KRX',
+  XKOS: 'KOSDAQ',
+  XTAI: 'TWSE',
+  XTSE: 'TSX',
+  XASX: 'ASX',
+  XSES: 'SGX',
+  BVMF: 'BVMF',
+  XMAD: 'BME',
+  XMIL: 'MIL',
+  XSHG: 'SSE',
+  XSHE: 'SZSE',
+  XCSE: 'OMXC',
+  XSTO: 'OMX',
+  XHEL: 'OMXH',
+  XOSL: 'OSL',
+  XJSE: 'JSE',
+  XMEX: 'BMV',
+  XIDX: 'IDX'
+};
+
+const YAHOO_EXCHANGE_SUFFIX_RE =
+  /\.(NS|BO|L|DE|PA|AS|BR|SW|CO|ST|OL|HE|MC|MI|T|HK|KS|KQ|TW|TO|AX|SI|SA|SS|SZ|JO|MX|JK)$/i;
+
+export function mapTickerToTwelveDataSymbol(ticker: string, exchangeHint?: string): string {
+  const upper = ticker.trim().toUpperCase();
+  const micInfo = resolveExchangeMicInfo(upper, exchangeHint);
+  const mic = micInfo.mic;
+  const tdExchange = TWELVE_DATA_EXCHANGE_BY_MIC[mic];
+  const baseSymbol = upper.replace(YAHOO_EXCHANGE_SUFFIX_RE, '');
+
+  if (tdExchange === undefined) {
+    return upper;
+  }
+  if (!tdExchange) {
+    return baseSymbol;
+  }
+  return `${baseSymbol}:${tdExchange}`;
+}
+
+/**
  * Optional licensed commercial MarketDataProvider backed by Twelve Data API
  * (`MARKET_DATA_PROVIDER=twelvedata` + `TWELVE_DATA_API_KEY`).
- * Inherits Yahoo search/news fallback for RSS/search endpoints where Twelve Data lacks news feeds,
- * while routing quote & OHLCV time_series requests through api.twelvedata.com.
+ * Composes YahooFinanceMarketDataProvider as an explicit fallback — whenever Twelve Data
+ * cannot fulfill a request, it visibly sets `provider` to the actual Yahoo/fallback
+ * source, sets `fallbackFrom: 'twelvedata'`, attaches `warning`, and logs a warning.
  */
-export class TwelveDataMarketDataProvider extends YahooFinanceMarketDataProvider {
-  override readonly name: string = 'twelvedata';
-  override readonly licenceNote: string =
+export class TwelveDataMarketDataProvider implements MarketDataProvider {
+  readonly name: string = 'twelvedata';
+  readonly licenceNote: string =
     'Twelve Data Commercial Market Data API (authenticated via TWELVE_DATA_API_KEY).';
 
   private readonly apiKey: string;
+  private readonly http: RateLimitedHttpRunner;
+  private readonly yahooFallback: YahooFinanceMarketDataProvider;
 
   constructor(options: TwelveDataProviderOptions) {
-    super(options);
-    this.apiKey = options.apiKey;
+    this.apiKey = (options.apiKey || '').trim();
+    this.http = new RateLimitedHttpRunner({
+      providerName: this.name,
+      fetchFn: options.fetchFn,
+      maxRetries: options.maxRetries ?? 2,
+      baseDelayMs: options.baseDelayMs ?? 150,
+      maxDelayMs: options.maxDelayMs ?? 2500,
+      timeoutMs: options.timeoutMs ?? 5000,
+      maxConcurrent: options.maxConcurrent ?? 6,
+      minIntervalMs: options.minIntervalMs ?? 20,
+      sleepFn: options.sleepFn
+    });
+    this.yahooFallback = new YahooFinanceMarketDataProvider(options);
   }
 
-  private toTwelveDataSymbol(ticker: string): string {
+  clearCache(): void {
+    this.yahooFallback.clearCache();
+  }
+
+  toTwelveDataSymbol(ticker: string, exchangeHint?: string): string {
+    return mapTickerToTwelveDataSymbol(ticker, exchangeHint);
+  }
+
+  async getHistory(ticker: string, days = 250, metaOverride?: TickerMeta): Promise<MarketHistoryFetchResult> {
     const upper = ticker.trim().toUpperCase();
-    if (upper.endsWith('.NS')) return `${upper.slice(0, -3)}:NSE`;
-    if (upper.endsWith('.BO')) return `${upper.slice(0, -3)}:BSE`;
-    if (upper.endsWith('.L')) return `${upper.slice(0, -2)}:LSE`;
-    if (upper.endsWith('.DE')) return `${upper.slice(0, -3)}:XETR`;
-    if (upper.endsWith('.PA')) return `${upper.slice(0, -3)}:EURONEXT`;
-    return upper;
-  }
+    let fallbackReason = 'TWELVE_DATA_API_KEY not configured';
 
-  override async getHistory(ticker: string, days = 250, metaOverride?: TickerMeta): Promise<MarketHistoryFetchResult> {
-    if (!this.apiKey) {
-      return super.getHistory(ticker, days, metaOverride);
+    if (this.apiKey) {
+      const sym = this.toTwelveDataSymbol(upper, metaOverride?.exchange);
+      const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(sym)}&interval=1day&outputsize=${Math.min(5000, Math.max(30, days))}&apikey=${encodeURIComponent(this.apiKey)}`;
+      const fetchedAt = new Date().toISOString();
+
+      try {
+        const json = await this.http.fetchJson<any>(url, { timeoutMs: 6000 });
+        if (json?.status === 'ok' && Array.isArray(json.values) && json.values.length >= 30) {
+          const bars: PriceBar[] = json.values
+            .map((row: any) => ({
+              date: String(row.datetime || '').slice(0, 10),
+              open: Number(row.open),
+              high: Number(row.high),
+              low: Number(row.low),
+              close: Number(row.close),
+              volume: Math.floor(Number(row.volume) || 0),
+              source: 'live' as const
+            }))
+            .filter((b: PriceBar) => b.date && Number.isFinite(b.close))
+            .sort((a: PriceBar, b: PriceBar) => a.date.localeCompare(b.date));
+
+          if (bars.length >= 30) {
+            return {
+              ticker: upper,
+              bars: computeAllIndicators(bars).map((b) => ({ ...b, source: 'live' as const })),
+              source: 'live',
+              dataSource: 'live',
+              provider: this.name,
+              providerLicence: this.licenceNote,
+              fetchedAt
+            };
+          }
+          fallbackReason = `Twelve Data returned insufficient bars (${bars.length}) for ${sym}`;
+        } else {
+          fallbackReason = json?.message ? `Twelve Data error: ${String(json.message)}` : `Twelve Data returned non-ok status for ${sym}`;
+        }
+      } catch (err: any) {
+        fallbackReason = err?.message || `Twelve Data request failed for ${sym}`;
+      }
     }
 
+    const yahooRes = await this.yahooFallback.getHistory(ticker, days, metaOverride);
+    const actualProvider = yahooRes.provider || this.yahooFallback.name;
+    const warning = `Twelve Data history unavailable for ${upper} (${fallbackReason}); fell back to ${actualProvider}.`;
+    console.warn(`[MarketDataProvider] ${warning}`);
+
+    return {
+      ...yahooRes,
+      dataSource: yahooRes.dataSource || yahooRes.source,
+      provider: actualProvider,
+      providerLicence: yahooRes.providerLicence || this.yahooFallback.licenceNote,
+      fallbackFrom: 'twelvedata',
+      warning
+    };
+  }
+
+  async getQuote(ticker: string, metaOverride?: TickerMeta): Promise<MarketQuoteFetchResult> {
     const upper = ticker.trim().toUpperCase();
-    const sym = this.toTwelveDataSymbol(upper);
-    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(sym)}&interval=1day&outputsize=${Math.min(5000, Math.max(30, days))}&apikey=${encodeURIComponent(this.apiKey)}`;
-    const fetchedAt = new Date().toISOString();
+    let fallbackReason = 'TWELVE_DATA_API_KEY not configured';
 
-    try {
-      const json = await this.http.fetchJson<any>(url, { timeoutMs: 6000 });
-      if (json?.status === 'ok' && Array.isArray(json.values) && json.values.length >= 30) {
-        const bars: PriceBar[] = json.values
-          .map((row: any) => ({
-            date: String(row.datetime || '').slice(0, 10),
-            open: Number(row.open),
-            high: Number(row.high),
-            low: Number(row.low),
-            close: Number(row.close),
-            volume: Math.floor(Number(row.volume) || 0),
-            source: 'live' as const
-          }))
-          .filter((b: PriceBar) => b.date && Number.isFinite(b.close))
-          .sort((a: PriceBar, b: PriceBar) => a.date.localeCompare(b.date));
+    if (this.apiKey) {
+      const sym = this.toTwelveDataSymbol(upper, metaOverride?.exchange);
+      const url = `https://api.twelvedata.com/quote?symbol=${encodeURIComponent(sym)}&apikey=${encodeURIComponent(this.apiKey)}`;
+      const fetchedAt = new Date().toISOString();
 
-        if (bars.length >= 30) {
-          return {
+      try {
+        const json = await this.http.fetchJson<any>(url, { timeoutMs: 4500 });
+        const closePrice = Number(json?.close ?? json?.price);
+        if (json && json.status !== 'error' && Number.isFinite(closePrice) && closePrice > 0) {
+          const prevClose = Number.isFinite(Number(json.previous_close))
+            ? Number(json.previous_close)
+            : closePrice;
+          const change = Number.isFinite(Number(json.change)) ? Number(json.change) : closePrice - prevClose;
+          const changePercent = Number.isFinite(Number(json.percent_change))
+            ? Number(json.percent_change)
+            : (change / (prevClose || 1)) * 100;
+          const micInfo = resolveExchangeMicInfo(upper, metaOverride?.exchange, json.currency);
+          const statusMeta = getExchangeMarketStatus({
             ticker: upper,
-            bars: computeAllIndicators(bars).map((b) => ({ ...b, source: 'live' as const })),
-            source: 'live',
+            exchange: micInfo.mic,
+            exchangeTimezoneName: micInfo.timezone
+          });
+
+          const quote: StockQuote = {
+            ticker: upper,
+            name: String(json.name || metaOverride?.name || upper),
+            price: Number(closePrice.toFixed(2)),
+            change: Number(change.toFixed(2)),
+            changePercent: Number(changePercent.toFixed(2)),
+            open: Number((Number(json.open) || closePrice).toFixed(2)),
+            high: Number((Number(json.high) || closePrice).toFixed(2)),
+            low: Number((Number(json.low) || closePrice).toFixed(2)),
+            previousClose: Number(prevClose.toFixed(2)),
+            high52: Number((Number(json?.fifty_two_week?.high) || closePrice * 1.25).toFixed(2)),
+            low52: Number((Number(json?.fifty_two_week?.low) || closePrice * 0.8).toFixed(2)),
+            volume: Math.floor(Number(json.volume) || 0),
+            pe: metaOverride?.pe,
+            marketCap: metaOverride?.marketCap,
+            currency: String(json.currency || metaOverride?.currency || micInfo.currency),
+            exchange: statusMeta.exchangeLabel,
+            lastUpdated: fetchedAt,
+            fetchedAt,
+            isLive: true,
             dataSource: 'live',
             provider: this.name,
-            providerLicence: this.licenceNote,
+            exchangeTimezoneName: micInfo.timezone
+          };
+
+          return {
+            quote,
+            dataSource: 'live',
+            provider: this.name,
             fetchedAt
           };
         }
+        fallbackReason = json?.message ? `Twelve Data error: ${String(json.message)}` : `Invalid Twelve Data quote payload for ${sym}`;
+      } catch (err: any) {
+        fallbackReason = err?.message || `Twelve Data quote request failed for ${sym}`;
       }
-    } catch {
-      // Fall back safely to Yahoo provider only if Twelve Data fails
     }
 
-    return super.getHistory(ticker, days, metaOverride);
+    const yahooRes = await this.yahooFallback.getQuote(ticker, metaOverride);
+    const actualProvider = yahooRes.provider;
+    const warning = `Twelve Data quote unavailable for ${upper} (${fallbackReason}); fell back to ${actualProvider}.`;
+    console.warn(`[MarketDataProvider] ${warning}`);
+
+    return {
+      ...yahooRes,
+      provider: actualProvider,
+      fallbackFrom: 'twelvedata',
+      warning,
+      quote: {
+        ...yahooRes.quote,
+        provider: actualProvider,
+        fallbackFrom: 'twelvedata',
+        warning
+      }
+    };
+  }
+
+  async getIndexQuote(symbol: string, cfg: MacroIndexConfig): Promise<MarketIndexItem> {
+    const res = await this.yahooFallback.getIndexQuote(symbol, cfg);
+    const warning = `Twelve Data index telemetry not enabled for ${symbol}; served by ${res.provider || this.yahooFallback.name}.`;
+    return {
+      ...res,
+      provider: res.provider || this.yahooFallback.name,
+      fallbackFrom: 'twelvedata',
+      warning
+    };
+  }
+
+  async getFxRate(symbol: string): Promise<number | null> {
+    return this.yahooFallback.getFxRate(symbol);
+  }
+
+  async search(query: string, limit = 10): Promise<MarketSearchFetchResult> {
+    const res = await this.yahooFallback.search(query, limit);
+    return {
+      ...res,
+      provider: res.provider || this.yahooFallback.name,
+      fallbackFrom: 'twelvedata',
+      warning: `Symbol discovery routed through ${res.provider || this.yahooFallback.name}.`
+    };
+  }
+
+  async getNews(
+    ticker: string,
+    companyName: string,
+    options?: { bypassCache?: boolean; maxArticles?: number }
+  ): Promise<MarketNewsFetchResult> {
+    const res = await this.yahooFallback.getNews(ticker, companyName, options);
+    return {
+      ...res,
+      provider: res.provider || this.yahooFallback.name,
+      fallbackFrom: 'twelvedata',
+      warning: `News feed routed through ${res.provider || this.yahooFallback.name}.`
+    };
   }
 }
 

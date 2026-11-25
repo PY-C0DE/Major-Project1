@@ -88,11 +88,34 @@ export function computeCredibilityWeightedMeanScore(
 }
 
 function summarizeSourceKind(items: Array<{ sentimentSource?: SentimentSource }>): SentimentSource | 'mixed' {
-  const hasFinbert = items.some(i => i.sentimentSource === 'finbert');
-  const hasLexicon = items.some(i => i.sentimentSource !== 'finbert');
-  if (hasFinbert && !hasLexicon) return 'finbert';
-  if (hasFinbert && hasLexicon) return 'mixed';
-  return 'lexicon';
+  const unique = new Set(items.map((i) => i.sentimentSource || 'lexicon'));
+  if (unique.size === 1) {
+    return Array.from(unique)[0];
+  }
+  return 'mixed';
+}
+
+function summarizeLanguage(items: Array<{ language?: string }>): string {
+  const langs = new Set(
+    items.map((i) => (i.language || 'en').trim().toLowerCase()).filter(Boolean)
+  );
+  if (langs.size === 0) return 'en';
+  if (langs.size === 1) return Array.from(langs)[0];
+  return 'mixed';
+}
+
+function summarizeModelId(items: Array<{ modelId?: string; sentimentSource?: SentimentSource }>): string {
+  const models = new Set(
+    items.map((i) => {
+      if (i.modelId) return i.modelId;
+      if (i.sentimentSource === 'finbert') return 'Xenova/finbert';
+      if (i.sentimentSource === 'multilingual-lexicon') return 'multilingual-lexicon-v1';
+      return 'keyword-lexicon-fallback';
+    })
+  );
+  if (models.size === 0) return 'keyword-lexicon-fallback';
+  if (models.size === 1) return Array.from(models)[0];
+  return Array.from(models).sort().join('+');
 }
 
 /**
@@ -136,6 +159,8 @@ export function buildDailySentimentRecordsFromLiveArticles(
       credibilityWeightedNetScore: computeCredibilityWeightedMeanScore(articles),
       articleCount: articles.length,
       sentimentSource: summarizeSourceKind(articles),
+      language: summarizeLanguage(articles),
+      modelId: summarizeModelId(articles),
       updatedAt: nowIso
     });
   }
@@ -206,7 +231,9 @@ export function getNewsForTicker(ticker: string, companyName: string): NewsItem[
       isLive: false,
       dataSource: 'synthetic',
       fetchedAt: new Date(now).toISOString(),
-      sentimentSource: 'lexicon'
+      sentimentSource: 'lexicon',
+      language: 'en',
+      modelId: 'keyword-lexicon-fallback'
     };
   });
 }
@@ -219,6 +246,8 @@ export interface HybridNewsResult {
   baselineSentimentScore: number;
   blendedSentimentScore: number;
   sentimentSource: SentimentSource | 'mixed';
+  language?: string;
+  modelId?: string;
   topLiveHeadline?: string;
   topLiveSource?: string;
 }
@@ -260,7 +289,9 @@ export async function scoreRawLiveArticles(
       isLive: true,
       dataSource: 'live',
       fetchedAt,
-      sentimentSource: tone.sentimentSource
+      sentimentSource: tone.sentimentSource,
+      language: tone.language,
+      modelId: tone.modelId
     };
   });
 }
@@ -307,7 +338,7 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
     console.error(`Live news fetch failed for ${ticker}, using baseline mechanism:`, err);
   }
 
-  if (!rawLive || rawLive.length === 0) {
+    if (!rawLive || rawLive.length === 0) {
     return {
       news: baselineNews,
       liveCount: 0,
@@ -316,6 +347,8 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
       baselineSentimentScore: Number(baselineScore.toFixed(3)),
       blendedSentimentScore: Number(baselineScore.toFixed(3)),
       sentimentSource: 'lexicon',
+      language: 'en',
+      modelId: 'keyword-lexicon-fallback',
       topLiveHeadline: undefined,
       topLiveSource: undefined
     };
@@ -346,6 +379,8 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
     baselineSentimentScore: Number(baselineScore.toFixed(3)),
     blendedSentimentScore: blendedScore,
     sentimentSource: summarizeSourceKind(liveNewsItems),
+    language: summarizeLanguage(liveNewsItems),
+    modelId: summarizeModelId(liveNewsItems),
     topLiveHeadline: liveNewsItems[0]?.headline,
     topLiveSource: liveNewsItems[0]?.source
   };

@@ -36,9 +36,8 @@ $$\hat{C}(X_{n+1}) = [\hat{y}_{n+1} - \hat{q}_{1-\alpha}, \; \hat{y}_{n+1} + \ha
 - **Empirical Transition Matrix & Persistence**: Tracks observed historical state transitions $P(S_t = j \mid S_{t-1} = i)$ and persistence durations, surfaced via header `RegimeIndicator` badges and regime visualizers.
 
 ### USP 3 — FinBERT Transformer Sentiment, Lexicon Fallback & Daily Lag/Ablation (`finbertSentiment.ts`, `nlpEngine.ts`, `lagAnalysis.ts`)
-- **FinBERT Transformer (`Xenova/finbert` via `@xenova/transformers`)**: Lazily loads ONNX FinBERT in the Node runtime, hashes `(headline, publisher)` with SHA-256 for inference caching, batches headlines asynchronously, and outputs normalized `{positive, neutral, negative}` probabilities and `netScore = p_pos - p_neg` in `[-1, 1]`.
-- **Automatic Lexicon Fallback & Transparency**: Falls back transparently to the deterministic keyword financial-sentiment lexicon (`analyzeKeywordSentiment`) on timeout or load failure and tags every response with `sentimentSource` (`finbert` | `lexicon` | `mixed`).
-- **Publisher-Credibility Weighting & Daily Store (`db.ts`)**: Weights articles by publisher credibility and persists daily non-zero per-ticker aggregates (`date`, `credibilityWeightedNetScore`, `articleCount`, `sentimentSource`) without overwriting past dates or zero-filling missing days.
+- **Language Detection & English-Only FinBERT Guard (`languageDetection.ts`, `finbertSentiment.ts`)**: Classifies headline/summary language before inference (`en`, `ko`, `ja`, `zh`, `hi`, `de`, `fr`, `es`, `pt`, `it`, `nl`, `sv`, `no`, `da`, `fi`, `id`, `ru`, `ar`). Non-English text NEVER enters English FinBERT (`Xenova/finbert`); instead it routes through `analyzeMultilingualLexiconSentiment` (`sentimentSource: "multilingual-lexicon"`, `modelId: "multilingual-lexicon-v1"`), while English text runs `Xenova/finbert` lazily with SHA-256 `(title, publisher, lang)` caching and automatic keyword lexicon fallback (`sentimentSource: "lexicon"`).
+- **Publisher-Credibility Weighting & Daily Store (`db.ts`)**: Weights articles by publisher credibility and persists daily non-zero per-ticker aggregates (`date`, `credibilityWeightedNetScore`, `articleCount`, `sentimentSource`, `language`, `modelId`) without overwriting past dates or zero-filling missing days.
 - **Sentiment-Price Lag Analysis & Causal Ablation**: Evaluates Pearson & Spearman cross-correlations across `k = -5..+5` with seeded date-block/date-clustered bootstrap 95% CIs and Benjamini-Hochberg / Bonferroni corrections (`lagAnalysis.ts`), alongside a paired walk-forward ablation comparing the 24-factor price-only ensemble against a strictly causal (`date < predictionDate`) 28-factor price + sentiment variant (`evaluation.ts`).
 
 ### USP 4 — Two-Sample KS Drift Test (`driftDetector.ts`)
@@ -180,6 +179,13 @@ GET    /api/social/traders                # Featured quantitative strategies/tra
 POST   /api/social/copy-trade             # Execute simulated copy-trade allocation
 POST   /api/copilot/chat                  # Quantitative research copilot endpoint
 POST   /api/support/chat                  # Platform support assistant endpoint
+
+# Operational Probes & Background Job Queue
+GET    /healthz                           # Liveness probe (service uptime JSON)
+GET    /readyz                            # Readiness probe (PostgreSQL connectivity + provider + queue stats)
+POST   /api/jobs                          # Enqueue async background job (type: audit | backfill | refit)
+GET    /api/jobs                          # List background jobs & queue statistics (JWT protected)
+GET    /api/jobs/:id                      # Retrieve job status, progress & result (JWT protected)
 ```
 
 ---
@@ -190,7 +196,7 @@ POST   /api/support/chat                  # Platform support assistant endpoint
 - **Backend & Persistence**: Node.js + Express (`server.ts`), **PostgreSQL + Drizzle ORM** (`src/db/schema.ts`, migrations in `drizzle/`), `pg`, `tsx`, and `yahoo-finance2`. Uses a pluggable `DatabaseRepository` interface (`PostgresRepository` in production/Postgres-configured environments; `InMemoryRepository` for isolated unit/HTTP tests).
 - **Quantitative & NLP Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Regime Filtering, Cosine KNN Analogs, Split-Conformal Prediction Intervals (90% default coverage), Two-Sample KS Drift Test, Rule-Based Trend/Volatility Regime Classifier, `@xenova/transformers` FinBERT sentiment (`Xenova/finbert`) with keyword lexicon fallback, Sentiment-Price Lag Analysis (`lagAnalysis.ts`), Black-Scholes Greeks, and Markowitz MVO.
 - **Multi-Currency Safety**: Every price, conformal bound, portfolio holding, prediction history record, and evaluation carries its ISO 4217 currency code. Cross-currency aggregates set `currency = 'MIXED'` and omit unit-incompatible raw `MAE`/`RMSE`/`ΔMAE` averages (`null`) while keeping scale-free metrics (`Price Accuracy`, `MAPE`, `MAE/RMSE Skill`, `Directional Accuracy`).
-- **Security & Session**: `bcryptjs` password hashing, `jsonwebtoken` stateless JWT authentication, Firebase Admin token verification (`POST /api/auth/firebase`), and API rate limiting.
+- **Security, Hardening & Session**: `helmet` security headers, explicit CORS origin allowlist (`CORS_ALLOWED_ORIGINS`), `express-rate-limit` tiered throttling, `zod` schema validation (`src/server/middleware/validation.ts`), structured JSON logging with `X-Request-Id` (`src/server/middleware/logger.ts`), async `BackgroundJobQueue` (`src/server/jobs/jobQueue.ts`), `bcryptjs` password hashing, stateless JWT auth, and Firebase Admin verification. Exchange holiday calendars use `date-holidays` paired with official exchange closure rules (`exchangeCalendar.ts`, failing loudly via `MissingExchangeHolidayDataError` outside verified years; retrieved `2026-11-24`, documented in `CHANGELOG.md`).
 
 ---
 
@@ -220,6 +226,7 @@ openssl rand -hex 32
 | `SQL_SSL_REJECT_UNAUTHORIZED` | Set to `false` ONLY to disable Postgres TLS certificate verification (emits a runtime security warning). | `true` (verified) |
 | `MARKET_DATA_PROVIDER` | Active `MarketDataProvider`: `yahoo` (public Yahoo Finance v8/v1) or `twelvedata` (commercial API). Recorded in `audit.json`. | `yahoo` |
 | `TWELVE_DATA_API_KEY` | Commercial API key used when `MARKET_DATA_PROVIDER=twelvedata`. | Unset |
+| `CORS_ALLOWED_ORIGINS` | Comma-separated explicit CORS origin allowlist (disallowed origins receive HTTP `403` JSON). | Localhost + AI Studio / Run domains |
 | `JWT_SECRET` | **Required in production** (`NODE_ENV=production`). Must be at least 32 characters and not a public placeholder. | Ephemeral (dev) / Required (prod) |
 | `ALLOW_DEMO_MODE` | Server-side flag (`true` / `false`). When `true`, requests without a valid JWT fall back to the demo user account. | `false` |
 | `VITE_DEMO_MODE` | Client-side flag (`true` / `false`). Enables automatic demo-session fallback in the frontend when unauthenticated. | `false` |

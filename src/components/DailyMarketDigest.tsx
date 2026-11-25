@@ -588,7 +588,12 @@ export const DailyMarketDigest: React.FC<Props> = ({ onSelectTicker, onNavigate 
 
                       <div className="mt-2 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/60 flex items-center justify-between text-[10px] font-mono text-slate-400">
                         <span>
-                          {item.sentimentSource === 'finbert' ? 'FinBERT' : 'Lexicon'} · Conf: {Math.round((item.confidence || 0.9) * 100)}%
+                          {item.sentimentSource === 'finbert'
+                            ? 'FinBERT'
+                            : item.sentimentSource === 'multilingual-lexicon'
+                              ? `Multilingual${item.language ? ` (${item.language.toUpperCase()})` : ''}`
+                              : 'Lexicon'}{' '}
+                          · Conf: {Math.round((item.confidence || 0.9) * 100)}%
                         </span>
                         <span className="text-cyan-600 dark:text-cyan-400 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform font-bold">
                           <span>Model Forecast</span>

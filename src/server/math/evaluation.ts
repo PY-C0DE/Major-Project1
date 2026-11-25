@@ -1657,6 +1657,8 @@ export async function runAggregateModelEvaluation(
 
     const providerSet = new Set<string>();
     const licenceSet = new Set<string>();
+    const fallbackFromSet = new Set<string>();
+    const providerWarningSet = new Set<string>();
 
     for (let i = 0; i < universe.length; i += batchSize) {
       const batch = universe.slice(i, i + batchSize);
@@ -1673,17 +1675,29 @@ export async function runAggregateModelEvaluation(
             const normalized = normalizeFetchedHistory(await fetchHistory(t, EVALUATION_HISTORY_DAYS));
             const { bars, source } = normalized;
             if (source === 'synthetic') {
-              return { ticker: t, skipped: { ticker: t, reason: 'synthetic_data' as const, barsCount: bars?.length ?? 0 } };
+              return {
+                ticker: t,
+                skipped: { ticker: t, reason: 'synthetic_data' as const, barsCount: bars?.length ?? 0 },
+                fallbackFrom: normalized.fallbackFrom,
+                warning: normalized.warning
+              };
             }
             if (!bars || bars.length < MIN_CONFORMAL_BARS) {
-              return { ticker: t, skipped: { ticker: t, reason: 'insufficient_history' as const, barsCount: bars?.length ?? 0 } };
+              return {
+                ticker: t,
+                skipped: { ticker: t, reason: 'insufficient_history' as const, barsCount: bars?.length ?? 0 },
+                fallbackFrom: normalized.fallbackFrom,
+                warning: normalized.warning
+              };
             }
             return {
               ticker: t,
               bars,
               source,
               provider: normalized.provider,
-              providerLicence: normalized.providerLicence
+              providerLicence: normalized.providerLicence,
+              fallbackFrom: normalized.fallbackFrom,
+              warning: normalized.warning
             };
           } catch {
             return { ticker: t, skipped: { ticker: t, reason: 'fetch_error' as const } };
@@ -1692,9 +1706,13 @@ export async function runAggregateModelEvaluation(
       );
 
       for (const item of batchFetched) {
+        if ('fallbackFrom' in item && item.fallbackFrom) fallbackFromSet.add(item.fallbackFrom);
+        if ('warning' in item && item.warning) providerWarningSet.add(item.warning);
         if ('evaluation' in item && item.evaluation) {
           if (item.evaluation.dataProvider) providerSet.add(item.evaluation.dataProvider);
           if (item.evaluation.dataProviderLicence) licenceSet.add(item.evaluation.dataProviderLicence);
+          if (item.evaluation.fallbackFrom) fallbackFromSet.add(item.evaluation.fallbackFrom);
+          if (item.evaluation.providerWarning) providerWarningSet.add(item.evaluation.providerWarning);
           evaluations.push(item.evaluation);
         } else if ('skipped' in item && item.skipped) {
           skippedTickers.push(item.skipped);
@@ -1709,6 +1727,12 @@ export async function runAggregateModelEvaluation(
           if (item.providerLicence) {
             evaluation.dataProviderLicence = item.providerLicence;
             licenceSet.add(item.providerLicence);
+          }
+          if (item.fallbackFrom) {
+            evaluation.fallbackFrom = item.fallbackFrom;
+          }
+          if (item.warning) {
+            evaluation.providerWarning = item.warning;
           }
           evaluations.push(evaluation);
           if (cacheEpoch === epochAtStart) {
@@ -1732,6 +1756,14 @@ export async function runAggregateModelEvaluation(
     providerSet.size > 0 ? Array.from(providerSet).join(', ') : activeProvider.name;
   const resolvedLicenceNote =
     licenceSet.size > 0 ? Array.from(licenceSet).join(' | ') : activeProvider.licenceNote;
+  const resolvedFallbackFrom =
+    fallbackFromSet.size > 0 ? Array.from(fallbackFromSet).join(', ') : undefined;
+  const resolvedProviderWarning =
+    providerWarningSet.size === 1
+      ? Array.from(providerWarningSet)[0]
+      : providerWarningSet.size > 1
+        ? `${providerWarningSet.size} assets fell back from ${resolvedFallbackFrom || 'primary provider'} (e.g. ${Array.from(providerWarningSet)[0]})`
+        : undefined;
 
   if (evaluations.length === 0) {
     return {
@@ -1740,6 +1772,8 @@ export async function runAggregateModelEvaluation(
       dataSource: 'none',
       dataProvider: resolvedProviderName,
       dataProviderLicence: resolvedLicenceNote,
+      ...(resolvedFallbackFrom ? { fallbackFrom: resolvedFallbackFrom } : {}),
+      ...(resolvedProviderWarning ? { providerWarning: resolvedProviderWarning } : {}),
       evaluatedAssetsCount: 0,
       skippedTickers,
       ticker: 'ALL'
@@ -2037,6 +2071,8 @@ export async function runAggregateModelEvaluation(
     dataSource: 'live',
     dataProvider: resolvedProviderName,
     dataProviderLicence: resolvedLicenceNote,
+    ...(resolvedFallbackFrom ? { fallbackFrom: resolvedFallbackFrom } : {}),
+    ...(resolvedProviderWarning ? { providerWarning: resolvedProviderWarning } : {}),
     evaluatedAssetsCount: evaluations.length,
     skippedTickers,
     ticker: 'ALL',
@@ -2111,6 +2147,8 @@ export function buildModelAuditPayload(
       dataSource: evaluation.dataSource || 'none',
       dataProvider,
       dataProviderLicence,
+      ...(evaluation.fallbackFrom ? { fallbackFrom: evaluation.fallbackFrom } : {}),
+      ...(evaluation.providerWarning ? { providerWarning: evaluation.providerWarning } : {}),
       evaluatedAssetsCount: 0,
       skippedTickers: evaluation.skippedTickers || [],
       evaluatedAt: new Date().toISOString()
@@ -2125,6 +2163,8 @@ export function buildModelAuditPayload(
       dataSource: evaluation.dataSource || 'live',
       dataProvider,
       dataProviderLicence,
+      ...(evaluation.fallbackFrom ? { fallbackFrom: evaluation.fallbackFrom } : {}),
+      ...(evaluation.providerWarning ? { providerWarning: evaluation.providerWarning } : {}),
       currency: evaluation.currency,
       evaluatedAssetsCount: evaluation.evaluatedAssetsCount || evaluation.assetBreakdown?.length || 0,
       skippedTickers: evaluation.skippedTickers || [],
@@ -2159,6 +2199,8 @@ export function buildModelAuditPayload(
     dataSource: evaluation.dataSource || 'live',
     dataProvider,
     dataProviderLicence,
+    ...(evaluation.fallbackFrom ? { fallbackFrom: evaluation.fallbackFrom } : {}),
+    ...(evaluation.providerWarning ? { providerWarning: evaluation.providerWarning } : {}),
     currency: evalCurrency,
     evaluatedAssetsCount: 1,
     skippedTickers: evaluation.skippedTickers || [],

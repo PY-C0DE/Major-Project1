@@ -294,7 +294,9 @@ export async function getStockQuote(tickerOrName: string): Promise<StockQuote> {
     ...res.quote,
     dataSource: res.dataSource,
     fetchedAt: res.fetchedAt,
-    provider: res.provider
+    provider: res.provider,
+    ...(res.fallbackFrom ? { fallbackFrom: res.fallbackFrom } : {}),
+    ...(res.warning ? { warning: res.warning } : {})
   };
 }
 

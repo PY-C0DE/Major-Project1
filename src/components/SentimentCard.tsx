@@ -46,13 +46,16 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
   const baselineArticles = news.filter(item => !item.isLive);
   const hasLive = liveArticles.length > 0;
   const hasFinbert = news.some(item => item.sentimentSource === 'finbert');
+  const hasMultilingual = news.some(item => item.sentimentSource === 'multilingual-lexicon');
   const hasLexicon = news.some(item => item.sentimentSource !== 'finbert');
   const aggregateSourceLabel =
     hasFinbert && !hasLexicon
       ? 'FinBERT Transformer'
       : hasFinbert && hasLexicon
         ? 'FinBERT + Lexicon Hybrid'
-        : 'Lexicon Fallback';
+        : hasMultilingual && !news.some(item => !item.sentimentSource || item.sentimentSource === 'lexicon')
+          ? 'Multilingual Lexicon'
+          : 'Lexicon Fallback';
 
   const [showAll, setShowAll] = React.useState(false);
   const displayedNews = showAll ? news.slice(0, 8) : news.slice(0, 4);
@@ -137,6 +140,7 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
 
         {displayedNews.map(item => {
           const isFinbert = item.sentimentSource === 'finbert';
+          const isMultilingual = item.sentimentSource === 'multilingual-lexicon';
           return (
             <div
               key={item.id}
@@ -169,10 +173,13 @@ export const SentimentCard: React.FC<Props> = ({ news, ticker }) => {
                   className={`px-1 py-0.2 rounded text-[9px] font-bold border ${
                     isFinbert
                       ? 'bg-cyan-50 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800'
+                      : isMultilingual
+                      ? 'bg-violet-50 dark:bg-violet-950/80 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-800'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
                   }`}
+                  title={item.modelId ? `Model: ${item.modelId}` : undefined}
                 >
-                  {isFinbert ? 'FINBERT' : 'LEXICON'}
+                  {isFinbert ? 'FINBERT' : isMultilingual ? `MULTILINGUAL${item.language ? ` · ${item.language.toUpperCase()}` : ''}` : 'LEXICON'}
                 </span>
                 <span className="text-slate-600 dark:text-slate-400 font-medium">{item.source}</span>
                 <span aria-hidden="true">·</span>

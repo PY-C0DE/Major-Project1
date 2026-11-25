@@ -12,8 +12,37 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import helmet from 'helmet';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import {
+  requestLoggerMiddleware,
+  emitStructuredLog
+} from './src/server/middleware/logger';
+import {
+  validateBody,
+  validateQuery,
+  registerSchema,
+  loginSchema,
+  firebaseAuthSchema,
+  profileUpdateSchema,
+  changePasswordSchema,
+  tickerSearchQuerySchema,
+  createPredictionSchema,
+  addPortfolioHoldingSchema,
+  batchPortfolioSchema,
+  optimizePortfolioSchema,
+  correlationPortfolioSchema,
+  watchlistAddSchema,
+  createAlertSchema,
+  toggleAlertSchema,
+  brokerOrderSchema,
+  createBackgroundJobSchema
+} from './src/server/middleware/validation';
+import { getBackgroundJobQueue, BackgroundJobQueue } from './src/server/jobs/jobQueue';
+import { getMarketDataProvider } from './src/server/providers/marketDataProvider';
 
 import {
   getStockQuote,
@@ -124,6 +153,72 @@ export interface CreateAppOptions {
   allowDemoMode?: boolean;
   jwtSecret?: string;
   fetchHistoryWithSource?: (ticker: string, days: number) => Promise<HistoricalDataResult>;
+  allowedOrigins?: string[];
+  apiRateLimitMax?: number;
+  heavyRateLimitMax?: number;
+  jobQueue?: BackgroundJobQueue;
+  readinessCheck?: () => Promise<boolean>;
+}
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://aistudio.google.com'
+];
+
+export function resolveCorsOriginAllowed(
+  origin: string | undefined,
+  explicitAllowlist?: string[]
+): boolean {
+  // Same-origin / server-to-server / curl without Origin header
+  if (!origin) return true;
+
+  if (explicitAllowlist && explicitAllowlist.length > 0) {
+    return explicitAllowlist.includes(origin);
+  }
+
+  const envOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const configured = new Set<string>([
+    ...DEFAULT_ALLOWED_ORIGINS,
+    ...envOrigins,
+    ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL.trim()] : []),
+    ...(process.env.BACKEND_URL ? [process.env.BACKEND_URL.trim()] : [])
+  ]);
+
+  if (configured.has(origin)) return true;
+
+  try {
+    const parsed = new URL(origin);
+    if (
+      parsed.protocol === 'https:' &&
+      (parsed.hostname.endsWith('.run.app') ||
+        parsed.hostname.endsWith('.googleusercontent.com') ||
+        parsed.hostname.endsWith('.web.app'))
+    ) {
+      return true;
+    }
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1')
+    ) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
+class CorsOriginError extends Error {
+  status = 403;
+  constructor(origin: string) {
+    super(`Origin not allowed by CORS policy: ${origin}`);
+    this.name = 'CorsOriginError';
+  }
 }
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -131,40 +226,131 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const JWT_SECRET = options.jwtSecret ?? getJwtSecret();
   const fetchHistoryWithSource = options.fetchHistoryWithSource ?? getHistoricalDataWithSource;
   const ALLOW_DEMO_MODE = options.allowDemoMode ?? (process.env.ALLOW_DEMO_MODE === 'true');
+  const jobQueue = options.jobQueue ?? getBackgroundJobQueue();
+
+  app.disable('x-powered-by');
+  app.use(
+    helmet({
+      // Preview renders in AI Studio iframe and bundles scripts via Vite
+      frameguard: false,
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false
+    })
+  );
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (resolveCorsOriginAllowed(origin, options.allowedOrigins)) {
+          callback(null, true);
+        } else {
+          callback(new CorsOriginError(origin || 'unknown'));
+        }
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id']
+    })
+  );
 
   app.use(express.json({ limit: '100kb' }));
+  app.use(requestLoggerMiddleware);
 
-  // Basic in-memory rate limiting for authentication endpoints (per app instance)
-  const authRateLimitMap = new Map<string, { count: number; resetTime: number }>();
-  function authRateLimiter(req: Request, res: Response, next: NextFunction) {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
-    const now = Date.now();
-    const windowMs = 60 * 1000; // 1 minute
-    const maxAttempts = (req.path === '/login' || req.path === '/register') ? 5 : 30;
-    const key = `${ip}:${req.path === '/login' || req.path === '/register' ? 'auth_cred' : 'auth_read'}`;
+  // Operational health & readiness probes (registered outside rate limiters)
+  app.get('/healthz', (_req: Request, res: Response) => {
+    return res.status(200).json({
+      status: 'ok',
+      service: 'alphaquant-api',
+      uptimeSec: Number(process.uptime().toFixed(2)),
+      timestamp: new Date().toISOString()
+    });
+  });
 
-    const record = authRateLimitMap.get(key);
-    if (!record || now > record.resetTime) {
-      authRateLimitMap.set(key, { count: 1, resetTime: now + windowMs });
-      return next();
+  app.get('/readyz', async (_req: Request, res: Response) => {
+    try {
+      const dbOk = options.readinessCheck
+        ? await options.readinessCheck()
+        : (await db.searchTickers({ limit: 1, page: 1 }), true);
+
+      if (!dbOk) {
+        return res.status(503).json({
+          status: 'not_ready',
+          checks: { database: 'unavailable' },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return res.status(200).json({
+        status: 'ready',
+        checks: {
+          database: 'ok',
+          provider: getMarketDataProvider().name,
+          queue: jobQueue.getStats()
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (err: any) {
+      emitStructuredLog('error', 'readiness_probe_failed', {
+        meta: { error: err?.message || 'database check failed' }
+      });
+      return res.status(503).json({
+        status: 'not_ready',
+        checks: { database: 'error' },
+        error: 'Database readiness check failed.',
+        timestamp: new Date().toISOString()
+      });
     }
+  });
 
-    if (record.count >= maxAttempts) {
-      return res.status(429).json({ error: 'Too many authentication attempts. Please try again after 1 minute.' });
+  // General API rate limiter (protects all /api/* endpoints)
+  const apiRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: options.apiRateLimitMax ?? 300,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    validate: false,
+    skip: (req) => req.path.startsWith('/auth/'),
+    handler: (_req, res) =>
+      res.status(429).json({ error: 'API rate limit exceeded. Please try again after 1 minute.' })
+  });
+  app.use('/api', apiRateLimiter);
+
+  // Stricter rate limiters for authentication endpoints & heavy compute jobs
+  const authCredentialLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 5,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    validate: false,
+    handler: (_req, res) =>
+      res.status(429).json({ error: 'Too many authentication attempts. Please try again after 1 minute.' })
+  });
+
+  const authReadLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 30,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    validate: false,
+    handler: (_req, res) =>
+      res.status(429).json({ error: 'Too many authentication attempts. Please try again after 1 minute.' })
+  });
+
+  const heavyJobRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: options.heavyRateLimitMax ?? 20,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    validate: false,
+    handler: (_req, res) =>
+      res.status(429).json({ error: 'Rate limit exceeded for heavy audit/backfill operations.' })
+  });
+
+  app.use('/api/auth', (req: Request, res: Response, next: NextFunction) => {
+    if (req.path === '/login' || req.path === '/register') {
+      return authCredentialLimiter(req, res, next);
     }
-
-    record.count++;
-    next();
-  }
-
-  app.use('/api/auth', authRateLimiter);
-
-  // Request logger for API calls
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api') && process.env.NODE_ENV !== 'test') {
-      console.log(`[API] ${req.method} ${req.path}`);
-    }
-    next();
+    return authReadLimiter(req, res, next);
   });
 
   async function resolveTokenUser(token: string): Promise<{ id: string; email: string; name: string } | null> {
@@ -239,24 +425,9 @@ function sanitizeUser(user: any) {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-app.post('/api/auth/register', async (req: Request, res: Response) => {
+app.post('/api/auth/register', validateBody(registerSchema), async (req: Request, res: Response) => {
   try {
     const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Name, email, and password are required.' });
-    }
-
-    if (typeof name !== 'string' || name.trim().length === 0) {
-      return res.status(400).json({ error: 'A valid name is required.' });
-    }
-
-    if (typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
-      return res.status(400).json({ error: 'A valid email address format is required.' });
-    }
-
-    if (typeof password !== 'string' || password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
-    }
 
     const cleanEmail = email.trim().toLowerCase();
     const existing = await db.getUserByEmail(cleanEmail);
@@ -307,16 +478,9 @@ app.post('/api/auth/register', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/auth/login', async (req: Request, res: Response) => {
+app.post('/api/auth/login', validateBody(loginSchema), async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required.' });
-    }
-
-    if (typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
-      return res.status(400).json({ error: 'A valid email address format is required.' });
-    }
 
     const user = await db.getUserByEmail(email.trim().toLowerCase());
     if (!user) {
@@ -344,7 +508,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/auth/firebase', async (req: Request, res: Response) => {
+app.post('/api/auth/firebase', validateBody(firebaseAuthSchema), async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers['authorization'];
     const headerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
@@ -380,7 +544,7 @@ app.get('/api/auth/me', authenticateToken, async (req: AuthenticatedRequest, res
   return res.json(sanitizeUser(user));
 });
 
-app.put('/api/auth/profile', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.put('/api/auth/profile', authenticateToken, validateBody(profileUpdateSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
     const {
@@ -423,18 +587,10 @@ app.put('/api/auth/profile', authenticateToken, async (req: AuthenticatedRequest
   }
 });
 
-app.put('/api/auth/change-password', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.put('/api/auth/change-password', authenticateToken, validateBody(changePasswordSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current password and new password are required.' });
-    }
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'New password must be at least 8 characters long.' });
-    }
 
     const user = await db.getUserById(userId);
     if (!user) {
@@ -461,15 +617,14 @@ app.put('/api/auth/change-password', authenticateToken, async (req: Authenticate
 // 2. STOCK MARKET & HISTORICAL DATA ENDPOINTS
 // -------------------------------------------------------------
 
-app.get('/api/tickers/search', async (req: Request, res: Response) => {
+app.get('/api/tickers/search', validateQuery(tickerSearchQuerySchema), async (req: Request, res: Response) => {
   try {
-    const q = typeof req.query.q === 'string' ? req.query.q : '';
-    const country = typeof req.query.country === 'string' ? req.query.country : undefined;
-    const exchange = typeof req.query.exchange === 'string' ? req.query.exchange : undefined;
-    const pageRaw = parseInt((req.query.page as string) || '1', 10);
-    const limitRaw = parseInt((req.query.limit as string) || '24', 10);
-    const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(100, limitRaw) : 24;
+    const vq = (req as Request & { validatedQuery?: { q: string; country?: string; exchange?: string; page: number; limit: number } }).validatedQuery;
+    const q = vq?.q ?? '';
+    const country = vq?.country;
+    const exchange = vq?.exchange;
+    const page = vq?.page ?? 1;
+    const limit = vq?.limit ?? 24;
 
     const payload = await searchTickersMaster({ q, country, exchange, page, limit });
     return res.json(payload);
@@ -541,10 +696,12 @@ app.get('/api/stocks/:ticker/history', async (req: Request, res: Response) => {
   try {
     const ticker = await resolveTickerOrName(req.params.ticker);
     const days = parseInt((req.query.days as string) || '250', 10);
-    const { bars, source, provider, fetchedAt } = await fetchHistoryWithSource(ticker, days);
+    const { bars, source, provider, fetchedAt, fallbackFrom, warning } = await fetchHistoryWithSource(ticker, days);
     res.setHeader('X-Data-Source', source);
     if (provider) res.setHeader('X-Data-Provider', provider);
     if (fetchedAt) res.setHeader('X-Fetched-At', fetchedAt);
+    if (fallbackFrom) res.setHeader('X-Data-Fallback-From', fallbackFrom);
+    if (warning) res.setHeader('X-Provider-Warning', warning);
     return res.json(bars.map(b => ({ ...b, source })));
   } catch (error: any) {
     console.error(`Error fetching history for ${req.params.ticker}:`, error);
@@ -705,10 +862,12 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
     const negPct = Number(((negSum / count) * 100).toFixed(1));
     const modelUsed =
       hybrid.sentimentSource === 'finbert'
-        ? 'FinBERT Transformer (Xenova/finbert, Publisher-Credibility Weighted)'
-        : hybrid.sentimentSource === 'mixed'
-          ? 'FinBERT Transformer + Keyword Lexicon Fallback Hybrid (Publisher-Credibility Weighted)'
-          : 'Keyword Financial-Sentiment Lexicon Fallback (Publisher-Credibility Weighted)';
+        ? 'FinBERT Transformer (Xenova/finbert, English, Publisher-Credibility Weighted)'
+        : hybrid.sentimentSource === 'multilingual-lexicon'
+          ? `Multilingual Financial Lexicon (${hybrid.language || 'multi'}, Non-English FinBERT Guard)`
+          : hybrid.sentimentSource === 'mixed'
+            ? 'FinBERT Transformer + Multilingual/Keyword Lexicon Hybrid (Publisher-Credibility Weighted)'
+            : 'Keyword Financial-Sentiment Lexicon Fallback (Publisher-Credibility Weighted)';
 
     return res.json({
       ticker,
@@ -726,6 +885,8 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
       topLiveHeadline: hybrid.topLiveHeadline,
       topLiveSource: hybrid.topLiveSource,
       sentimentSource: hybrid.sentimentSource,
+      language: hybrid.language,
+      modelId: hybrid.modelId,
       modelUsed,
       lastUpdated: new Date().toISOString()
     });
@@ -780,6 +941,8 @@ app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
       baselineSentimentScore: hybrid.baselineSentimentScore,
       blendedSentimentScore: hybrid.blendedSentimentScore,
       sentimentSource: hybrid.sentimentSource,
+      language: hybrid.language,
+      modelId: hybrid.modelId,
       topLiveHeadline: hybrid.topLiveHeadline,
       topLiveSource: hybrid.topLiveSource,
       newsDriftImpactPct: Number((hybrid.blendedSentimentScore * 1.5).toFixed(2)),
@@ -814,10 +977,9 @@ app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/predictions', authenticateToken, validateBody(createPredictionSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { ticker } = req.body;
-    if (!ticker) return res.status(400).json({ error: 'Ticker symbol is required.' });
 
     const sym = await resolveTickerOrName(ticker);
     const { bars: history, source: historySource } = await fetchHistoryWithSource(sym, 250);
@@ -835,6 +997,8 @@ app.post('/api/predictions', authenticateToken, async (req: AuthenticatedRequest
       baselineSentimentScore: hybrid.baselineSentimentScore,
       blendedSentimentScore: hybrid.blendedSentimentScore,
       sentimentSource: hybrid.sentimentSource,
+      language: hybrid.language,
+      modelId: hybrid.modelId,
       topLiveHeadline: hybrid.topLiveHeadline,
       topLiveSource: hybrid.topLiveSource,
       newsDriftImpactPct: Number((hybrid.blendedSentimentScore * 1.5).toFixed(2)),
@@ -942,7 +1106,7 @@ app.get('/api/model/metrics', async (req: Request, res: Response) => {
 });
 
 // Full Catalog Model Audit Endpoint (per-asset table, test window dates, data provenance, Wilson CI, p-value, gitCommit, evaluationParams, skippedTickers)
-app.get('/api/model/audit', async (req: Request, res: Response) => {
+app.get('/api/model/audit', heavyJobRateLimiter, async (req: Request, res: Response) => {
   try {
     const rawTicker = (req.query.ticker as string) || 'ALL';
     if (rawTicker.trim().toUpperCase() !== 'ALL') {
@@ -951,12 +1115,16 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
       let source: 'live' | 'synthetic' = 'live';
       let providerName: string | undefined;
       let providerLicence: string | undefined;
+      let fallbackFrom: string | undefined;
+      let providerWarning: string | undefined;
       try {
         const fetched = await fetchHistoryWithSource(ticker, 730);
         bars = fetched.bars;
         source = fetched.source;
         providerName = fetched.provider;
         providerLicence = fetched.providerLicence;
+        fallbackFrom = fetched.fallbackFrom;
+        providerWarning = fetched.warning;
       } catch {
         return res.status(503).json(
           buildModelAuditPayload({
@@ -977,6 +1145,8 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
             dataSource: 'synthetic',
             dataProvider: providerName,
             dataProviderLicence: providerLicence,
+            fallbackFrom,
+            providerWarning,
             evaluatedAssetsCount: 0,
             skippedTickers: [{ ticker, reason: 'synthetic_data', barsCount: bars.length }],
             ticker
@@ -991,6 +1161,8 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
             dataSource: 'live',
             dataProvider: providerName,
             dataProviderLicence: providerLicence,
+            fallbackFrom,
+            providerWarning,
             evaluatedAssetsCount: 0,
             skippedTickers: [{ ticker, reason: 'insufficient_history', barsCount: bars.length }],
             ticker
@@ -1000,6 +1172,8 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
       const evaluation = runModelEvaluation(bars, ticker, source);
       if (providerName) evaluation.dataProvider = providerName;
       if (providerLicence) evaluation.dataProviderLicence = providerLicence;
+      if (fallbackFrom) evaluation.fallbackFrom = fallbackFrom;
+      if (providerWarning) evaluation.providerWarning = providerWarning;
       const meta = TICKER_CATALOG.find(c => c.ticker === ticker) ?? await db.getTickerBySymbol(ticker);
       return res.json(buildModelAuditPayload(evaluation, meta?.name || ticker));
     }
@@ -1017,6 +1191,49 @@ app.get('/api/model/audit', async (req: Request, res: Response) => {
     console.error('Error computing model audit:', error);
     return res.status(500).json({ error: 'Failed to compute model audit.' });
   }
+});
+
+// Background Job Queue Endpoints (audit, sentiment backfill, model refits)
+app.post(
+  '/api/jobs',
+  authenticateToken,
+  heavyJobRateLimiter,
+  validateBody(createBackgroundJobSchema),
+  (req: AuthenticatedRequest, res: Response) => {
+    const { type, ticker, tickers, maxArticles } = req.body as {
+      type: 'audit' | 'backfill' | 'refit';
+      ticker?: string;
+      tickers?: string[];
+      maxArticles?: number;
+    };
+    const job = jobQueue.enqueue(
+      type,
+      {
+        ...(ticker ? { ticker } : {}),
+        ...(tickers ? { tickers } : {}),
+        ...(maxArticles ? { maxArticles } : {})
+      },
+      req.user?.id
+    );
+    return res.status(202).json({ job });
+  }
+);
+
+app.get('/api/jobs', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  const status = typeof req.query.status === 'string' ? (req.query.status as any) : undefined;
+  const type = typeof req.query.type === 'string' ? (req.query.type as any) : undefined;
+  return res.json({
+    stats: jobQueue.getStats(),
+    jobs: jobQueue.listJobs({ status, type })
+  });
+});
+
+app.get('/api/jobs/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+  const job = jobQueue.getJob(req.params.id);
+  if (!job) {
+    return res.status(404).json({ error: 'Background job not found.' });
+  }
+  return res.json({ job });
 });
 
 // Dynamic Project-Wide Price Accuracy Metric (100% - MAPE across catalog assets)
@@ -1200,12 +1417,9 @@ app.get('/api/broker/trades', authenticateToken, async (_req: AuthenticatedReque
   }
 });
 
-app.post('/api/broker/order', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/broker/order', authenticateToken, validateBody(brokerOrderSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { ticker, side, qty, type, limitPrice, stopLossPrice, takeProfitPrice, timeInForce } = req.body;
-    if (!ticker || !side || !qty || !type) {
-      return res.status(400).json({ error: 'Ticker, side, qty, and type are required.' });
-    }
     const sym = await resolveTickerOrName(ticker);
     const quote = await getStockQuote(sym);
     const order = brokerService.placeOrder({
@@ -1338,14 +1552,10 @@ app.get('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, r
   }
 });
 
-app.post('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/portfolio', authenticateToken, validateBody(addPortfolioHoldingSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
     const { ticker, quantity, avgBuyPrice, purchaseDate, notes } = req.body;
-
-    if (!ticker || !quantity || !avgBuyPrice) {
-      return res.status(400).json({ error: 'Ticker, quantity, and avgBuyPrice are required.' });
-    }
 
     const sym = await resolveTickerOrName(ticker);
     const quote = await getStockQuote(sym);
@@ -1380,14 +1590,10 @@ app.post('/api/portfolio', authenticateToken, async (req: AuthenticatedRequest, 
   }
 });
 
-app.post('/api/portfolio/batch', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/portfolio/batch', authenticateToken, validateBody(batchPortfolioSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
     const { holdings: incomingHoldings } = req.body;
-
-    if (!incomingHoldings || !Array.isArray(incomingHoldings) || incomingHoldings.length === 0) {
-      return res.status(400).json({ error: 'Holdings array is required.' });
-    }
 
     const createdHoldings = [];
     for (const item of incomingHoldings) {
@@ -1450,7 +1656,7 @@ app.delete('/api/portfolio/:id', authenticateToken, async (req: AuthenticatedReq
 });
 
 // Mean-Variance Optimization & Rebalance Suggester
-app.post('/api/portfolio/optimize', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/portfolio/optimize', authenticateToken, validateBody(optimizePortfolioSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
     const objective = (req.body?.objective as any) || 'max_sharpe';
@@ -1516,7 +1722,7 @@ app.post('/api/portfolio/optimize', authenticateToken, async (req: Authenticated
 });
 
 // Dedicated Portfolio Cross-Asset Correlation Matrix Endpoint
-app.post('/api/portfolio/correlation', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/portfolio/correlation', authenticateToken, validateBody(correlationPortfolioSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
     let holdings: any[] = req.body?.holdings;
@@ -1714,6 +1920,8 @@ app.get('/api/watchlist/pulse', authenticateToken, async (req: AuthenticatedRequ
               confidence: item.confidence,
               isLive: !!item.isLive,
               sentimentSource: item.sentimentSource,
+              language: item.language,
+              modelId: item.modelId,
               price: quote.price,
               changePercent: quote.changePercent
             });
@@ -1757,10 +1965,9 @@ app.get('/api/watchlist/pulse', authenticateToken, async (req: AuthenticatedRequ
   }
 });
 
-app.post('/api/watchlist', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/watchlist', authenticateToken, validateBody(watchlistAddSchema), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
   const { ticker } = req.body;
-  if (!ticker) return res.status(400).json({ error: 'Ticker symbol is required.' });
   const sym = await resolveTickerOrName(ticker);
   const updated = await db.addToWatchlist(userId, sym);
   return res.json({ success: true, watchlist: updated });
@@ -1806,7 +2013,7 @@ app.get('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res:
   return res.json(alerts);
 });
 
-app.post('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.post('/api/alerts', authenticateToken, validateBody(createAlertSchema), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
   const {
     ticker,
@@ -1838,9 +2045,6 @@ app.post('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res
     currentRsiValue
   } = req.body;
 
-  if (!ticker || !type || !label) {
-    return res.status(400).json({ error: 'Ticker, type, and label are required.' });
-  }
   const sym = ticker === 'ALL' ? 'ALL' : await resolveTickerOrName(ticker);
   const newAlert = {
     id: `alert-${Date.now()}`,
@@ -1880,7 +2084,7 @@ app.post('/api/alerts', authenticateToken, async (req: AuthenticatedRequest, res
   return res.status(201).json(newAlert);
 });
 
-app.put('/api/alerts/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+app.put('/api/alerts/:id', authenticateToken, validateBody(toggleAlertSchema), async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user?.id || 'user-alphaquant-demo-1';
   const { enabled } = req.body;
   const updated = await db.toggleAlert(userId, req.params.id, Boolean(enabled));
@@ -2093,8 +2297,8 @@ User Question: "${message}".`
     return res.status(404).json({ error: `API route not found: ${req.method} ${req.path}` });
   });
 
-  // Ensure middleware errors (such as malformed JSON body or payload limits) on /api return JSON, never Express HTML
-  app.use('/api', (err: any, _req: Request, res: Response, next: NextFunction) => {
+  // Ensure middleware errors (CORS, malformed JSON body, payload limits) return JSON, never Express HTML
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     if (res.headersSent) {
       return next(err);
     }
@@ -2109,6 +2313,12 @@ User Question: "${message}".`
         : err?.type === 'entity.too.large'
           ? 'Request payload too large.'
           : (err?.message || 'Internal server error.');
+    emitStructuredLog(status >= 500 ? 'error' : 'warn', 'http_error', {
+      method: req.method,
+      path: req.originalUrl?.split('?')[0] || req.path,
+      statusCode: status,
+      meta: { error: message }
+    });
     return res.status(status).json({ error: message });
   });
 

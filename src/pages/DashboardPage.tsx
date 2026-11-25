@@ -754,9 +754,11 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
           const sentSrcText =
             sentiment?.sentimentSource === 'finbert'
               ? 'FinBERT Sentiment'
-              : sentiment?.sentimentSource === 'mixed'
-                ? 'FinBERT + Lexicon'
-                : 'Lexicon Fallback';
+              : sentiment?.sentimentSource === 'multilingual-lexicon'
+                ? 'Multilingual Lexicon'
+                : sentiment?.sentimentSource === 'mixed'
+                  ? 'FinBERT + Lexicon'
+                  : 'Lexicon Fallback';
 
           return (
             <div className="rounded-2xl bg-white dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-5 shadow-xs hover:shadow-sm transition-all space-y-4">
@@ -900,7 +902,13 @@ export const DashboardPage: React.FC<Props> = ({ onSelectTicker, onNavigate }) =
                     </span>
                     <span className="text-cyan-700 dark:text-cyan-400 font-semibold flex items-center gap-1">
                       <Cpu className="w-3 h-3" />
-                      {sentiment?.sentimentSource === 'finbert' ? 'FinBERT Active' : sentiment?.sentimentSource === 'mixed' ? 'Hybrid NLP' : 'Lexicon Fallback'}
+                      {sentiment?.sentimentSource === 'finbert'
+                        ? 'FinBERT Active'
+                        : sentiment?.sentimentSource === 'multilingual-lexicon'
+                          ? 'Multilingual Lexicon'
+                          : sentiment?.sentimentSource === 'mixed'
+                            ? 'Hybrid NLP'
+                            : 'Lexicon Fallback'}
                     </span>
                   </div>
                 </div>

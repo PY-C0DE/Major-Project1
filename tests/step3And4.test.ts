@@ -9,6 +9,8 @@ import { resolveExchangeMicInfo } from '../src/shared/tickerMetadata';
 import {
   YahooFinanceMarketDataProvider,
   TwelveDataMarketDataProvider,
+  TWELVE_DATA_EXCHANGE_BY_MIC,
+  mapTickerToTwelveDataSymbol,
   createConfiguredMarketDataProvider,
   resetMarketDataProvider,
   setMarketDataProvider,
@@ -22,10 +24,17 @@ import {
   evaluateSentimentAblationOnSeries,
   isModelEvaluationAvailable
 } from '../src/server/math/evaluation';
+import { buildAuditCsv } from '../src/shared/auditExport';
 import {
+  EXCHANGE_HOLIDAY_COVERAGE,
+  HOLIDAY_DATA_RETRIEVED_AT,
+  MissingExchangeHolidayDataError,
   alignTimestampToTradingDate,
   alignSentimentRecordsToExchangeCalendar,
   formatTimestampInExchangeTimezone,
+  getExchangeHolidaysForYear,
+  getExchangeHolidayMetadata,
+  hasExchangeHolidayCoverage,
   isExchangeHoliday,
   isExchangeTradingDay,
   getNextTradingDay
@@ -452,5 +461,203 @@ describe('Step 4 — Exchange Calendars, Holidays, DST Transitions & Exchange-Lo
     );
     assert.equal(ablation.available, true);
     assert.ok(ablation.matchedSamples >= 10);
+  });
+
+  it('maps symbols across all 30 ticker_master exchange MICs for TwelveDataMarketDataProvider and fails non-silently on fallback', async () => {
+    assert.equal(Object.keys(TWELVE_DATA_EXCHANGE_BY_MIC).length, 30);
+
+    const sampleMappings: Array<[string, string | undefined, string]> = [
+      ['AAPL', 'XNAS', 'AAPL'],
+      ['JPM', 'XNYS', 'JPM'],
+      ['RELIANCE.NS', undefined, 'RELIANCE:NSE'],
+      ['TCS.BO', undefined, 'TCS:BSE'],
+      ['AZN.L', undefined, 'AZN:LSE'],
+      ['SAP.DE', undefined, 'SAP:XETR'],
+      ['MC.PA', undefined, 'MC:EPA'],
+      ['ASML.AS', undefined, 'ASML:AMS'],
+      ['ABI.BR', undefined, 'ABI:EBR'],
+      ['NESN.SW', undefined, 'NESN:SIX'],
+      ['7203.T', undefined, '7203:TSE'],
+      ['0700.HK', undefined, '0700:HKEX'],
+      ['005930.KS', undefined, '005930:KRX'],
+      ['035720.KQ', undefined, '035720:KOSDAQ'],
+      ['2330.TW', undefined, '2330:TWSE'],
+      ['RY.TO', undefined, 'RY:TSX'],
+      ['CBA.AX', undefined, 'CBA:ASX'],
+      ['D05.SI', undefined, 'D05:SGX'],
+      ['PETR4.SA', undefined, 'PETR4:BVMF'],
+      ['SAN.MC', undefined, 'SAN:BME'],
+      ['ENI.MI', undefined, 'ENI:MIL'],
+      ['600519.SS', undefined, '600519:SSE'],
+      ['000001.SZ', undefined, '000001:SZSE'],
+      ['NOVO-B.CO', undefined, 'NOVO-B:OMXC'],
+      ['VOLV-B.ST', undefined, 'VOLV-B:OMX'],
+      ['NOKIA.HE', undefined, 'NOKIA:OMXH'],
+      ['EQNR.OL', undefined, 'EQNR:OSL'],
+      ['NPN.JO', undefined, 'NPN:JSE'],
+      ['WALMEX.MX', undefined, 'WALMEX:BMV'],
+      ['BBCA.JK', undefined, 'BBCA:IDX']
+    ];
+    for (const [ticker, hint, expected] of sampleMappings) {
+      assert.equal(mapTickerToTwelveDataSymbol(ticker, hint), expected, `MIC mapping mismatch for ${ticker}`);
+    }
+
+    // Verify fallback never masks itself as 'twelvedata': logs warning, sets fallbackFrom='twelvedata', provider=actualProvider
+    const sampleBars = makeLiveTradingSeries(180, '2025-10-01', 4);
+    const mockTimestamps = sampleBars.map((b) => Math.floor(Date.parse(`${b.date}T15:00:00Z`) / 1000));
+    const warningsLogged: string[] = [];
+    const origWarn = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warningsLogged.push(args.map(String).join(' '));
+    };
+
+    try {
+      const mockFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const u = String(url);
+        if (u.includes('api.twelvedata.com')) {
+          return new Response(JSON.stringify({ status: 'error', message: 'Twelve Data symbol quota exhausted' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          });
+        }
+        return new Response(
+          JSON.stringify({
+            chart: {
+              result: [
+                {
+                  meta: { exchangeName: 'NMS', currency: 'USD', exchangeTimezoneName: 'America/New_York' },
+                  timestamp: mockTimestamps,
+                  indicators: {
+                    quote: [
+                      {
+                        open: sampleBars.map((b) => b.open),
+                        high: sampleBars.map((b) => b.high),
+                        low: sampleBars.map((b) => b.low),
+                        close: sampleBars.map((b) => b.close),
+                        volume: sampleBars.map((b) => b.volume)
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }) as typeof fetch;
+
+      const td = new TwelveDataMarketDataProvider({
+        apiKey: 'test-td-key',
+        fetchFn: mockFetch,
+        maxRetries: 0,
+        minIntervalMs: 0
+      });
+
+      const res = await td.getHistory('AAPL', 180);
+      assert.equal(res.source, 'live');
+      assert.equal(res.provider, 'yahoo-finance-v8');
+      assert.notEqual(res.provider, 'twelvedata');
+      assert.equal(res.fallbackFrom, 'twelvedata');
+      assert.match(res.warning || '', /fell back to yahoo-finance-v8/i);
+      assert.ok(warningsLogged.some((w) => w.includes('Twelve Data history unavailable for AAPL')));
+
+      clearEvaluationCaches();
+      setMarketDataProvider(td);
+      const evalRes = await runAggregateModelEvaluation(
+        async (ticker) => td.getHistory(ticker, 180),
+        [{ ticker: 'AAPL', name: 'Apple Inc.' }]
+      );
+      assert.ok(isModelEvaluationAvailable(evalRes));
+      const auditPayload = buildModelAuditPayload(evalRes);
+      assert.equal(auditPayload.dataProvider, 'yahoo-finance-v8');
+      assert.equal(auditPayload.fallbackFrom, 'twelvedata');
+      assert.match(auditPayload.providerWarning || '', /fell back to yahoo-finance-v8/i);
+
+      const csv = buildAuditCsv(auditPayload, 'AAPL');
+      assert.match(csv, /fallbackFrom=twelvedata/);
+      assert.match(csv, /# providerWarning:/);
+    } finally {
+      console.warn = origWarn;
+      resetMarketDataProvider();
+      clearEvaluationCaches();
+    }
+  });
+
+  it('enforces verified exchange holiday coverage bounds (throwing MissingExchangeHolidayDataError for uncovered years) and applies date-holidays market rules', () => {
+    assert.equal(HOLIDAY_DATA_RETRIEVED_AT, '2026-11-24');
+    const nseMeta = getExchangeHolidayMetadata('XNSE');
+    assert.ok(nseMeta);
+    assert.equal(nseMeta.retrievedAt, '2026-11-24');
+    assert.equal(hasExchangeHolidayCoverage('XNSE', 2026), true);
+    assert.equal(hasExchangeHolidayCoverage('XNSE', 2027), false);
+
+    // Uncovered future/past years and unsupported MICs must throw MissingExchangeHolidayDataError
+    assert.throws(
+      () => getExchangeHolidaysForYear('XNSE', 2027),
+      (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XNSE' && err.year === 2027
+    );
+    assert.throws(
+      () => isExchangeHoliday('2023-01-26', 'XNSE'),
+      (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XNSE' && err.year === 2023
+    );
+    assert.throws(
+      () => isExchangeTradingDay('2027-01-04', 'XKRX'),
+      (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XKRX' && err.year === 2027
+    );
+    assert.throws(
+      () => getExchangeHolidaysForYear('XUNKNOWN', 2026),
+      (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XUNKNOWN'
+    );
+
+    // Market vs civil rules derived cleanly from date-holidays + exchange overrides:
+    // NYSE Rule 7.2 remains OPEN on Columbus Day (2026-10-12) and Veterans Day (2026-11-11)
+    assert.equal(isExchangeHoliday('2026-10-12', 'XNYS'), false);
+    assert.equal(isExchangeHoliday('2026-11-11', 'XNYS'), false);
+    // XETRA closes Dec 24 & Dec 31 and stays open German Unity Day (2026-10-03 is Sat; check 2025-10-03 Fri)
+    assert.equal(isExchangeHoliday('2025-10-03', 'XETR'), false);
+    assert.equal(isExchangeHoliday('2026-12-24', 'XETR'), true);
+    assert.equal(isExchangeHoliday('2026-12-31', 'XETR'), true);
+    // Every configured coverage entry must yield non-empty holiday sets within its declared window
+    for (const [mic, spec] of Object.entries(EXCHANGE_HOLIDAY_COVERAGE)) {
+      const set2026 = getExchangeHolidaysForYear(mic, spec.maxYear);
+      assert.ok(set2026.size >= 4, `Expected >=4 holidays for ${mic} in ${spec.maxYear}, got ${set2026.size}`);
+    }
+  });
+
+  it('aligns Tokyo TSE (XTKS, Asia/Tokyo, 7203.T) and Hong Kong HKEX (XHKG, Asia/Hong_Kong, 0700.HK) calendars & holidays', () => {
+    // TSE (XTKS): session closes 15:30 JST (06:30 UTC)
+    // 2026-05-01 05:00 UTC == 14:00 JST (before 15:30 JST close on Friday before Golden Week May 4-6)
+    const tseOpen = alignTimestampToTradingDate('2026-05-01T05:00:00Z', '7203.T');
+    assert.equal(tseOpen.exchangeLocalDate, '2026-05-01');
+    assert.equal(tseOpen.tradingDate, '2026-05-01');
+    assert.equal(tseOpen.rolledForward, false);
+
+    // 2026-05-01 07:00 UTC == 16:00 JST (after close -> skips weekend + Greenery Day May 4 + Children's Day May 5 + Constitution Day substitute May 6 -> 2026-05-07!)
+    assert.equal(isExchangeHoliday('2026-05-04', 'XTKS'), true);
+    assert.equal(isExchangeHoliday('2026-05-05', 'XTKS'), true);
+    assert.equal(isExchangeHoliday('2026-05-06', 'XTKS'), true);
+    const tseGoldenWeek = alignTimestampToTradingDate('2026-05-01T07:00:00Z', '7203.T');
+    assert.equal(tseGoldenWeek.tradingDate, '2026-05-07');
+    assert.equal(tseGoldenWeek.rolledForward, true);
+
+    // Statutory JPX closures: Jan 2, Jan 3, Dec 31
+    assert.equal(isExchangeHoliday('2026-01-02', 'XTKS'), true);
+    assert.equal(isExchangeHoliday('2026-12-31', 'XTKS'), true);
+
+    // HKEX (XHKG): session closes 16:00 HKT (08:00 UTC)
+    // 2026-06-30 07:30 UTC == 15:30 HKT (before 16:00 close)
+    const hkOpen = alignTimestampToTradingDate('2026-06-30T07:30:00Z', '0700.HK');
+    assert.equal(hkOpen.tradingDate, '2026-06-30');
+    assert.equal(hkOpen.rolledForward, false);
+
+    // 2026-06-30 08:30 UTC == 16:30 HKT (after close before HKSAR Establishment Day 2026-07-01 -> rolls to 2026-07-02!)
+    assert.equal(isExchangeHoliday('2026-07-01', 'XHKG'), true);
+    const hkBeforeHksar = alignTimestampToTradingDate('2026-06-30T08:30:00Z', '0700.HK');
+    assert.equal(hkBeforeHksar.tradingDate, '2026-07-02');
+    assert.equal(hkBeforeHksar.rolledForward, true);
+
+    // HKEX National Day (2026-10-01) & Chung Yeung / Lunar New Year
+    assert.equal(isExchangeHoliday('2026-10-01', 'XHKG'), true);
+    assert.equal(isExchangeHoliday('2026-02-17', 'XHKG'), true);
   });
 });

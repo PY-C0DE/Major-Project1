@@ -185,10 +185,17 @@ export const NewsPage: React.FC<{ onSelectTicker: (ticker: string) => void }> = 
                   className={`px-2 py-0.5 rounded font-bold border ${
                     item.sentimentSource === 'finbert'
                       ? 'bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                      : item.sentimentSource === 'multilingual-lexicon'
+                      ? 'bg-violet-50 dark:bg-violet-950/70 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
                   }`}
+                  title={item.modelId ? `Model: ${item.modelId}` : undefined}
                 >
-                  {item.sentimentSource === 'finbert' ? 'FINBERT' : 'LEXICON'}
+                  {item.sentimentSource === 'finbert'
+                    ? 'FINBERT'
+                    : item.sentimentSource === 'multilingual-lexicon'
+                    ? `MULTILINGUAL LEXICON${item.language ? ` (${item.language.toUpperCase()})` : ''}`
+                    : 'LEXICON'}
                 </span>
 
                 <span className="text-slate-400 dark:text-slate-500 ml-auto">

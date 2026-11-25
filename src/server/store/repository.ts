@@ -819,6 +819,15 @@ export class InMemoryRepository implements DatabaseRepository {
       const existing = this.dailySentiment.get(key);
       const normalizedScore = Number(Math.max(-1, Math.min(1, rawRec.credibilityWeightedNetScore)).toFixed(4));
 
+      const normalizedLang = (rawRec.language || 'en').trim().toLowerCase();
+      const defaultModelForSrc =
+        rawRec.sentimentSource === 'finbert'
+          ? 'Xenova/finbert'
+          : rawRec.sentimentSource === 'multilingual-lexicon'
+            ? 'multilingual-lexicon-v1'
+            : 'keyword-lexicon-fallback';
+      const normalizedModelId = (rawRec.modelId || defaultModelForSrc).trim();
+
       if (existing) {
         if (rawRec.date < todayDate) {
           skippedExistingPast++;
@@ -827,14 +836,18 @@ export class InMemoryRepository implements DatabaseRepository {
         if (
           existing.articleCount === rawRec.articleCount &&
           Math.abs(existing.credibilityWeightedNetScore - normalizedScore) < 1e-6 &&
-          existing.sentimentSource === rawRec.sentimentSource
+          existing.sentimentSource === rawRec.sentimentSource &&
+          (existing.language || 'en') === normalizedLang &&
+          (existing.modelId || defaultModelForSrc) === normalizedModelId
         ) {
           continue;
         }
         this.dailySentiment.set(key, {
           ...rawRec,
           ticker: tickerUpper,
-          credibilityWeightedNetScore: normalizedScore
+          credibilityWeightedNetScore: normalizedScore,
+          language: normalizedLang,
+          modelId: normalizedModelId
         });
         updatedToday++;
         changed = true;
@@ -842,7 +855,9 @@ export class InMemoryRepository implements DatabaseRepository {
         this.dailySentiment.set(key, {
           ...rawRec,
           ticker: tickerUpper,
-          credibilityWeightedNetScore: normalizedScore
+          credibilityWeightedNetScore: normalizedScore,
+          language: normalizedLang,
+          modelId: normalizedModelId
         });
         inserted++;
         changed = true;
@@ -1751,6 +1766,15 @@ export class PostgresRepository implements DatabaseRepository {
       for (const rec of validRecords) {
         const key = dailySentimentKey(rec.ticker, rec.date);
         const existing = existingMap.get(key);
+        const normalizedLang = (rec.language || 'en').trim().toLowerCase();
+        const defaultModelForSrc =
+          rec.sentimentSource === 'finbert'
+            ? 'Xenova/finbert'
+            : rec.sentimentSource === 'multilingual-lexicon'
+              ? 'multilingual-lexicon-v1'
+              : 'keyword-lexicon-fallback';
+        const normalizedModelId = (rec.modelId || defaultModelForSrc).trim();
+
         if (existing) {
           if (rec.date < todayDate) {
             skippedExistingPast++;
@@ -1759,7 +1783,9 @@ export class PostgresRepository implements DatabaseRepository {
           if (
             existing.articleCount === rec.articleCount &&
             Math.abs(existing.credibilityWeightedNetScore - rec.credibilityWeightedNetScore) < 1e-6 &&
-            existing.sentimentSource === rec.sentimentSource
+            existing.sentimentSource === rec.sentimentSource &&
+            existing.language === normalizedLang &&
+            existing.modelId === normalizedModelId
           ) {
             continue;
           }
@@ -1771,6 +1797,8 @@ export class PostgresRepository implements DatabaseRepository {
               credibilityWeightedNetScore: rec.credibilityWeightedNetScore,
               articleCount: rec.articleCount,
               sentimentSource: rec.sentimentSource,
+              language: normalizedLang,
+              modelId: normalizedModelId,
               updatedAt: rec.updatedAt
             })
             .onConflictDoUpdate({
@@ -1779,6 +1807,8 @@ export class PostgresRepository implements DatabaseRepository {
                 credibilityWeightedNetScore: rec.credibilityWeightedNetScore,
                 articleCount: rec.articleCount,
                 sentimentSource: rec.sentimentSource,
+                language: normalizedLang,
+                modelId: normalizedModelId,
                 updatedAt: rec.updatedAt
               }
             });
@@ -1787,6 +1817,8 @@ export class PostgresRepository implements DatabaseRepository {
             credibilityWeightedNetScore: rec.credibilityWeightedNetScore,
             articleCount: rec.articleCount,
             sentimentSource: rec.sentimentSource,
+            language: normalizedLang,
+            modelId: normalizedModelId,
             updatedAt: rec.updatedAt
           });
           updatedToday++;
@@ -1799,6 +1831,8 @@ export class PostgresRepository implements DatabaseRepository {
               credibilityWeightedNetScore: rec.credibilityWeightedNetScore,
               articleCount: rec.articleCount,
               sentimentSource: rec.sentimentSource,
+              language: normalizedLang,
+              modelId: normalizedModelId,
               updatedAt: rec.updatedAt
             })
             .onConflictDoNothing();
@@ -1809,6 +1843,8 @@ export class PostgresRepository implements DatabaseRepository {
             credibilityWeightedNetScore: rec.credibilityWeightedNetScore,
             articleCount: rec.articleCount,
             sentimentSource: rec.sentimentSource,
+            language: normalizedLang,
+            modelId: normalizedModelId,
             updatedAt: rec.updatedAt
           });
           inserted++;
@@ -1838,6 +1874,8 @@ export class PostgresRepository implements DatabaseRepository {
           credibilityWeightedNetScore: r.credibilityWeightedNetScore,
           articleCount: r.articleCount,
           sentimentSource: r.sentimentSource as DailySentimentRecord['sentimentSource'],
+          language: r.language,
+          modelId: r.modelId,
           updatedAt: r.updatedAt
         }));
     } catch (err) {
@@ -1860,6 +1898,8 @@ export class PostgresRepository implements DatabaseRepository {
           credibilityWeightedNetScore: r.credibilityWeightedNetScore,
           articleCount: r.articleCount,
           sentimentSource: r.sentimentSource as DailySentimentRecord['sentimentSource'],
+          language: r.language,
+          modelId: r.modelId,
           updatedAt: r.updatedAt
         }));
     } catch (err) {

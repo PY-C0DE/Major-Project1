@@ -20,6 +20,8 @@ export interface StockQuote {
   isLive?: boolean;
   dataSource?: 'live' | 'synthetic';
   provider?: string;
+  fallbackFrom?: string;
+  warning?: string;
   exchangeTimezoneName?: string;
   marketPeriod?: {
     regularStart?: number;
@@ -120,7 +122,7 @@ export interface FeatureContribution {
   description: string;
 }
 
-export type SentimentSource = 'finbert' | 'lexicon';
+export type SentimentSource = 'finbert' | 'lexicon' | 'multilingual-lexicon';
 
 export interface LiveNewsMeta {
   isLive: boolean;
@@ -130,6 +132,8 @@ export interface LiveNewsMeta {
   baselineSentimentScore: number;
   blendedSentimentScore: number;
   sentimentSource?: SentimentSource | 'mixed';
+  language?: string;
+  modelId?: string;
   topLiveHeadline?: string;
   topLiveSource?: string;
   newsDriftImpactPct: number;
@@ -269,6 +273,8 @@ export interface NewsItem {
   dataSource?: 'live' | 'synthetic';
   fetchedAt?: string;
   sentimentSource?: SentimentSource;
+  language?: string;
+  modelId?: string;
 }
 
 export interface MarketIndexItem {
@@ -285,6 +291,8 @@ export interface MarketIndexItem {
   dataSource?: 'live' | 'synthetic';
   fetchedAt?: string;
   provider?: string;
+  fallbackFrom?: string;
+  warning?: string;
 }
 
 export interface QuickWatchItem {
@@ -301,6 +309,8 @@ export interface QuickWatchItem {
   dataSource?: 'live' | 'synthetic';
   fetchedAt?: string;
   provider?: string;
+  fallbackFrom?: string;
+  warning?: string;
 }
 
 export interface SentimentScoreResult {
@@ -320,15 +330,18 @@ export interface SentimentScoreResult {
   topLiveSource?: string;
   modelUsed: string;
   sentimentSource?: SentimentSource | 'mixed';
+  language?: string;
   lastUpdated: string;
 }
 
 export interface DailySentimentRecord {
   ticker: string;
-  date: string; // YYYY-MM-DD (UTC)
+  date: string; // YYYY-MM-DD (Exchange-local trading date)
   credibilityWeightedNetScore: number; // [-1, 1]
   articleCount: number; // strictly > 0; zero-article days are omitted (missing)
   sentimentSource: SentimentSource | 'mixed';
+  language?: string; // ISO 639-1 code or 'mixed'
+  modelId?: string; // exact scorer id (e.g. 'Xenova/finbert', 'multilingual-lexicon-v1', 'keyword-lexicon-fallback')
   updatedAt: string;
 }
 
@@ -558,6 +571,8 @@ export interface ModelEvaluation {
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
   dataProvider?: string;
   dataProviderLicence?: string;
+  fallbackFrom?: string;
+  providerWarning?: string;
   evaluatedAssetsCount?: number;
   skippedTickers?: SkippedTickerRecord[];
   ticker: string;
@@ -612,6 +627,8 @@ export interface UnavailableEvaluation {
   dataSource?: 'live' | 'synthetic' | 'mixed' | 'none';
   dataProvider?: string;
   dataProviderLicence?: string;
+  fallbackFrom?: string;
+  providerWarning?: string;
   evaluatedAssetsCount: number;
   skippedTickers?: SkippedTickerRecord[];
   ticker?: string;
@@ -625,6 +642,8 @@ export interface ModelAuditResponse {
   dataSource: 'live' | 'synthetic' | 'mixed' | 'none';
   dataProvider?: string;
   dataProviderLicence?: string;
+  fallbackFrom?: string;
+  providerWarning?: string;
   currency?: string;
   evaluatedAssetsCount: number;
   skippedTickers?: SkippedTickerRecord[];
@@ -645,6 +664,27 @@ export interface ModelAuditResponse {
   comparison?: ModelComparisonItem[];
   assets?: AssetBreakdownItem[];
   sentimentAblation?: SentimentAblationResult;
+}
+
+export type BackgroundJobType = 'audit' | 'backfill' | 'refit';
+export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export interface BackgroundJobRecord {
+  id: string;
+  type: BackgroundJobType;
+  status: BackgroundJobStatus;
+  requestedBy?: string;
+  payload: Record<string, unknown>;
+  progress: {
+    completed: number;
+    total: number;
+    message?: string;
+  };
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+  result?: unknown;
+  error?: string;
 }
 
 export interface PortfolioHolding {
@@ -759,6 +799,8 @@ export interface WatchlistPulseItem {
   confidence: number;
   isLive: boolean;
   sentimentSource?: SentimentSource;
+  language?: string;
+  modelId?: string;
   price?: number;
   changePercent?: number;
 }

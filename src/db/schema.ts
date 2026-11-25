@@ -130,6 +130,8 @@ export const dailySentiment = pgTable(
     credibilityWeightedNetScore: doublePrecision('credibility_weighted_net_score').notNull(),
     articleCount: integer('article_count').notNull(),
     sentimentSource: text('sentiment_source').notNull(),
+    language: text('language').default('en').notNull(),
+    modelId: text('model_id').default('keyword-lexicon-fallback').notNull(),
     updatedAt: text('updated_at').notNull()
   },
   (table) => [

@@ -28,3 +28,33 @@
 - Aligned OHLCV bar timestamps and news `publishedAt` timestamps to causal exchange-local trading sessions (`alignTimestampToTradingDate`), rolling weekend, holiday, and post-close articles forward to the next open trading session.
 - Updated `src/server/math/nlpEngine.ts`, `src/server/math/lagAnalysis.ts`, and `src/server/math/evaluation.ts` to normalize sentiment records onto exchange trading calendars prior to lag correlation and walk-forward ablation, with unit tests covering NSE, NYSE, KRX, and XETR holidays and DST transitions (`tests/step3And4.test.ts`).
 
+## Pre-Step Hardening Fixes — TwelveData Full MIC Mapping, Verified Holiday Sources & APAC Calendar Tests
+- **Full 30-MIC Twelve Data Symbol Mapping & Non-Silent Fallback**: Added complete `TWELVE_DATA_EXCHANGE_BY_MIC` (`mapTickerToTwelveDataSymbol`) coverage across all 30 exchanges in `ticker_master` (`src/server/providers/marketDataProvider.ts`). Refactored `TwelveDataMarketDataProvider` to compose `YahooFinanceMarketDataProvider` cleanly rather than masking fallback responses as `'twelvedata'` — any fallback explicitly sets `provider` to the actual backend source, records `fallbackFrom: 'twelvedata'`, attaches a visible `warning` / `providerWarning` + `X-Data-Fallback-From`/`X-Provider-Warning` HTTP headers (`server.ts`, `evaluation.ts`, `auditExport.ts`, `runAudit.ts`), and logs a `console.warn`.
+- **Verified Exchange Holiday Sources & Missing-Year Guard (`2026-11-24`)**: Replaced hand-typed global holiday tables in `src/server/math/exchangeCalendar.ts` with `date-holidays@^3.39.2` paired with official exchange trading-schedule rules and documented retrieval metadata (`HOLIDAY_DATA_RETRIEVED_AT = '2026-11-24'`). Requests for unsupported MICs or years outside verified bounds throw `MissingExchangeHolidayDataError`.
+- **Exchange Calendar Source Ledger (Retrieved `2026-11-24`)**:
+
+| Exchange MICs | Country / Subdivision | Coverage Window | Primary Source & Exchange Rule Alignment | Retrieved At |
+| :--- | :--- | :--- | :--- | :--- |
+| `XNSE`, `XBOM` | `IN` (`MH`) | `2024–2026` | `date-holidays (IN-MH)` + NSE India / BSE India Capital Market Holiday Circulars | `2026-11-24` |
+| `XNYS`, `XNAS` | `US` | `2020–2026` | `date-holidays (US)` filtered by NYSE Rule 7.2 & Nasdaq US Equities Schedule | `2026-11-24` |
+| `XKRX`, `XKOS` | `KR` | `2024–2026` | `date-holidays (KR)` + KRX Official Market Closures (Seollal/Chuseok 3-day, May 1, Dec 31, election circulars) | `2026-11-24` |
+| `XETR` | `DE` | `2020–2026` | `date-holidays (DE)` aligned to Deutsche Börse Xetra Trading Calendar (includes Dec 24 & Dec 31) | `2026-11-24` |
+| `XLON`, `XPAR`, `XAMS`, `XBRU`, `XSWX`, `XMAD`, `XMIL`, `XCSE`, `XSTO`, `XHEL`, `XOSL` | `GB-ENG`, `FR`, `NL`, `BE`, `CH`, `ES`, `IT`, `DK`, `SE`, `FI`, `NO` | `2020–2026` | `date-holidays` per-jurisdiction calendars aligned to LSE / Euronext / SIX / BME / Nordic exchange rules | `2026-11-24` |
+| `XTKS` | `JP` | `2020–2026` | `date-holidays (JP)` + JPX Tokyo Stock Exchange statutory closures (`Jan 2–3`, `Dec 31`) | `2026-11-24` |
+| `XHKG` | `HK` | `2020–2026` | `date-holidays (HK)` General Holidays aligned to HKEX Securities Market Calendar | `2026-11-24` |
+| `XSHG`, `XSHE`, `XTAI`, `XIDX` | `CN`, `TW`, `ID` | `2024–2026` | `date-holidays` official statutory holidays aligned to SSE / SZSE / TWSE / IDX trading windows | `2026-11-24` |
+| `XTSE`, `XASX`, `XSES`, `BVMF`, `XJSE`, `XMEX` | `CA-ON`, `AU-NSW`, `SG`, `BR`, `ZA`, `MX` | `2020–2026` | `date-holidays` aligned to TMX TSX, ASX, SGX, B3, JSE, and BMV equity schedules | `2026-11-24` |
+
+- **Additional Exchange Calendar Tests**: Added explicit unit tests for Tokyo (`XTKS`, `Asia/Tokyo`, `7203.T`, Golden Week & JPX statutory dates) and Hong Kong (`XHKG`, `Asia/Hong_Kong`, `0700.HK`, HKSAR Day & Lunar New Year) in `tests/step3And4.test.ts`.
+
+## STEP 5 — Multilingual News Detection & FinBERT Language Guard
+- Added `src/server/math/languageDetection.ts` (`detectTextLanguage`) detecting Unicode script families and Latin stopwords/diacritics across `en`, `ko`, `ja`, `zh`, `hi`, `de`, `fr`, `es`, `pt`, `it`, `nl`, `sv`, `no`, `da`, `fi`, `id`, `ru`, and `ar`.
+- Updated `src/server/math/finbertSentiment.ts` to strictly gate English FinBERT (`Xenova/finbert`): non-English headlines NEVER invoke FinBERT inference and are scored exclusively via `analyzeMultilingualLexiconSentiment` (`sentimentSource: 'multilingual-lexicon'`, `modelId: 'multilingual-lexicon-v1'`).
+- Added `language` and `model_id` columns to `daily_sentiment` (`src/db/schema.ts`, `drizzle/0001_step5_multilingual_sentiment.sql`) and propagated `language` / `modelId` across `PostgresRepository`, `InMemoryRepository`, `nlpEngine.ts`, `exchangeCalendar.ts`, API payloads, and UI badges (`NewsPage.tsx`, `DashboardPage.tsx`, `SentimentCard.tsx`, `RealTimeNewsPulse.tsx`, `DailyMarketDigest.tsx`, `NewsTicker.tsx`).
+
+## STEP 6 — Production Hardening, Operational Probes & Background Job Queue
+- Added `helmet` HTTP security headers (with iframe/Vite compatibility), `x-powered-by` suppression, and strict `cors` origin allowlist checking (`resolveCorsOriginAllowed`, rejecting disallowed origins with JSON HTTP 403) in `server.ts`.
+- Upgraded rate limiting with `express-rate-limit` across `/api/*`, credential auth endpoints, and heavy compute endpoints (`/api/model/audit`, `POST /api/jobs`), plus `zod` schema validation (`src/server/middleware/validation.ts`) returning structured HTTP 400 validation errors.
+- Added structured JSON request/event logging with `X-Request-Id` correlation (`src/server/middleware/logger.ts`), operational Kubernetes/Cloud Run probes (`GET /healthz` and DB-checked `GET /readyz`), and an async `BackgroundJobQueue` (`src/server/jobs/jobQueue.ts`) backing `POST /api/jobs`, `GET /api/jobs`, and `GET /api/jobs/:id` for `audit`, `backfill`, and `refit` workloads.
+
+

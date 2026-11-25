@@ -203,9 +203,11 @@ export function runConformalPrediction(
   const sentSrcLabel =
     liveNewsMeta?.sentimentSource === 'finbert'
       ? 'FinBERT'
-      : liveNewsMeta?.sentimentSource === 'mixed'
-        ? 'FinBERT + Lexicon'
-        : 'Lexicon Fallback';
+      : liveNewsMeta?.sentimentSource === 'multilingual-lexicon'
+        ? 'Multilingual Lexicon'
+        : liveNewsMeta?.sentimentSource === 'mixed'
+          ? 'FinBERT + Lexicon'
+          : 'Lexicon Fallback';
 
   const topFeatures: FeatureContribution[] = [
     {
