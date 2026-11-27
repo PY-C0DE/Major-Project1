@@ -24,7 +24,11 @@ import {
   DailySentimentRecord,
   SentimentAblationResult,
   SentimentAblationArmMetrics,
-  UniverseBreakdownMetrics
+  UniverseBreakdownMetrics,
+  InsufficientSampleBreakdownItem,
+  ProviderTelemetrySummary,
+  CalendarValidationSummary,
+  CalendarValidationMismatch
 } from '../../types';
 import type { HistoricalDataResult } from '../services/stockService';
 import {
@@ -41,8 +45,19 @@ import {
 import { MIN_CONFORMAL_BARS } from './conformal';
 import { DEFAULT_CONFORMAL_CONFIDENCE } from '../../shared/modelConfig';
 import { inferCurrencyFromTicker } from '../../utils/currency';
-import { alignSentimentRecordsToExchangeCalendar } from './exchangeCalendar';
-import { getMarketDataProvider } from '../providers/marketDataProvider';
+import {
+  alignSentimentRecordsToExchangeCalendar,
+  isExchangeTradingDay,
+  isExchangeHoliday,
+  MissingExchangeHolidayDataError
+} from './exchangeCalendar';
+import { getRegionForCountry } from './universeSampling';
+import {
+  FallbackReasonCode,
+  MarketHistoryFetchResult,
+  TwelveDataMarketDataProvider,
+  getMarketDataProvider
+} from '../providers/marketDataProvider';
 
 export function computeModelFeatureImportance(
   ensembleModel: ReturnType<typeof fitEnsembleModel>,
@@ -277,11 +292,11 @@ export function computeModelFeatureImportance(
 export type HistoryWithSourceFetcher = (
   ticker: string,
   days: number
-) => Promise<HistoricalDataResult | ComputedBar[]>;
+) => Promise<HistoricalDataResult | MarketHistoryFetchResult | ComputedBar[]>;
 
 function normalizeFetchedHistory(
-  fetched: HistoricalDataResult | ComputedBar[]
-): HistoricalDataResult {
+  fetched: HistoricalDataResult | MarketHistoryFetchResult | ComputedBar[]
+): MarketHistoryFetchResult {
   if (Array.isArray(fetched)) {
     return { bars: fetched, source: 'live' };
   }
@@ -1647,6 +1662,9 @@ function inferCountryAndExchangeFallback(ticker: string): { country: string; exc
   return { country: 'US', exchange: 'XNAS' };
 }
 
+export const DEFAULT_MIN_BREAKDOWN_ASSETS = 5;
+export const MIN_LONG_TEST_PREDICTIONS = 120;
+
 export function computeBreakdownStatsForEvaluations(
   subset: ModelEvaluation[],
   key: string,
@@ -1771,6 +1789,7 @@ export function computeBreakdownStatsForEvaluations(
     key,
     label,
     assetsCount: count,
+    totalTestPredictions: pooledTotal,
     tickers: subset.map((e) => e.ticker),
     currencies: distinctCurrencies,
     currency,
@@ -1796,11 +1815,15 @@ export function computeBreakdownStatsForEvaluations(
       pooledDirectionalAccuracyPct: pooledDirPct,
       pooledAlwaysUpAccuracyPct: Number((pooledAlwaysUpRate * 100).toFixed(2)),
       wilson95CI: computeWilson95Interval(pooledModelHits, pooledTotal),
-      binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(
-        pooledModelHits,
-        pooledTotal,
-        pooledAlwaysUpRate
-      ),
+      ...(count === 1
+        ? {
+            binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(
+              pooledModelHits,
+              pooledTotal,
+              pooledAlwaysUpRate
+            )
+          }
+        : {}),
       directionalEdgeVsAlwaysUpPct: boot.pointEdgePct,
       directionalEdgeVsAlwaysUp95CI: boot.ci95,
       bootstrapProbEdgePositive: boot.probEdgePositive,
@@ -1816,19 +1839,34 @@ export function computeBreakdownStatsForEvaluations(
 
 export function computeCountryAndExchangeBreakdowns(
   evaluations: ModelEvaluation[],
-  tickerMetaLookup?: Map<string, UniverseTickerMeta>
+  tickerMetaLookup?: Map<string, UniverseTickerMeta>,
+  options?: {
+    minBreakdownAssets?: number;
+    keyExchangeByMic?: boolean;
+    includeRegionBreakdowns?: boolean;
+  }
 ): {
+  minBreakdownAssets: number;
   countryBreakdowns: Record<string, UniverseBreakdownMetrics>;
   exchangeBreakdowns: Record<string, UniverseBreakdownMetrics>;
+  regionBreakdowns: Record<string, UniverseBreakdownMetrics>;
+  insufficientSampleCountries: InsufficientSampleBreakdownItem[];
+  insufficientSampleExchanges: InsufficientSampleBreakdownItem[];
 } {
+  const minBreakdownAssets = Math.max(0, options?.minBreakdownAssets ?? DEFAULT_MIN_BREAKDOWN_ASSETS);
+  const keyExchangeByMic = Boolean(options?.keyExchangeByMic);
   const byCountry = new Map<string, ModelEvaluation[]>();
   const byExchange = new Map<string, ModelEvaluation[]>();
+  const byRegion = new Map<string, ModelEvaluation[]>();
 
   for (const e of evaluations) {
     const meta = tickerMetaLookup?.get(e.ticker.toUpperCase());
     const fallback = inferCountryAndExchangeFallback(e.ticker);
     const country = (meta?.country || fallback.country || 'UNKNOWN').toUpperCase();
-    const exchange = (meta?.exchangeCode || meta?.exchange || fallback.exchange || 'UNKNOWN').toUpperCase();
+    const exchange = keyExchangeByMic
+      ? (meta?.exchange || fallback.exchange || 'UNKNOWN').toUpperCase()
+      : (meta?.exchangeCode || meta?.exchange || fallback.exchange || 'UNKNOWN').toUpperCase();
+    const region = getRegionForCountry(country);
 
     const cList = byCountry.get(country) || [];
     cList.push(e);
@@ -1837,19 +1875,68 @@ export function computeCountryAndExchangeBreakdowns(
     const xList = byExchange.get(exchange) || [];
     xList.push(e);
     byExchange.set(exchange, xList);
+
+    const rList = byRegion.get(region) || [];
+    rList.push(e);
+    byRegion.set(region, rList);
   }
 
   const countryBreakdowns: Record<string, UniverseBreakdownMetrics> = {};
+  const insufficientSampleCountries: InsufficientSampleBreakdownItem[] = [];
   for (const key of Array.from(byCountry.keys()).sort()) {
-    countryBreakdowns[key] = computeBreakdownStatsForEvaluations(byCountry.get(key)!, key, key);
+    const subset = byCountry.get(key)!;
+    const stats = computeBreakdownStatsForEvaluations(subset, key, key);
+    if (subset.length >= minBreakdownAssets) {
+      countryBreakdowns[key] = stats;
+    } else {
+      insufficientSampleCountries.push({
+        key,
+        label: key,
+        assetsCount: subset.length,
+        totalTestPredictions: stats.totalTestPredictions ?? 0,
+        tickers: stats.tickers,
+        currency: stats.currency,
+        reason: 'insufficient_sample_n_lt_5'
+      });
+    }
   }
 
   const exchangeBreakdowns: Record<string, UniverseBreakdownMetrics> = {};
+  const insufficientSampleExchanges: InsufficientSampleBreakdownItem[] = [];
   for (const key of Array.from(byExchange.keys()).sort()) {
-    exchangeBreakdowns[key] = computeBreakdownStatsForEvaluations(byExchange.get(key)!, key, key);
+    const subset = byExchange.get(key)!;
+    const stats = computeBreakdownStatsForEvaluations(subset, key, key);
+    if (subset.length >= minBreakdownAssets) {
+      exchangeBreakdowns[key] = stats;
+    } else {
+      insufficientSampleExchanges.push({
+        key,
+        label: key,
+        assetsCount: subset.length,
+        totalTestPredictions: stats.totalTestPredictions ?? 0,
+        tickers: stats.tickers,
+        currency: stats.currency,
+        reason: 'insufficient_sample_n_lt_5'
+      });
+    }
   }
 
-  return { countryBreakdowns, exchangeBreakdowns };
+  const regionBreakdowns: Record<string, UniverseBreakdownMetrics> = {};
+  if (options?.includeRegionBreakdowns !== false) {
+    for (const regionKey of Array.from(byRegion.keys()).sort()) {
+      const subset = byRegion.get(regionKey)!;
+      regionBreakdowns[regionKey] = computeBreakdownStatsForEvaluations(subset, regionKey, regionKey);
+    }
+  }
+
+  return {
+    minBreakdownAssets,
+    countryBreakdowns,
+    exchangeBreakdowns,
+    regionBreakdowns,
+    insufficientSampleCountries,
+    insufficientSampleExchanges
+  };
 }
 
 export async function runAggregateModelEvaluation(
@@ -1860,10 +1947,16 @@ export async function runAggregateModelEvaluation(
     tickerMetaLookup?: Map<string, UniverseTickerMeta>;
     universeMode?: 'catalog' | 'ticker_master';
     includeBreakdowns?: boolean;
+    minBreakdownAssets?: number;
+    includeCalendarValidation?: boolean;
   }
 ): Promise<ModelEvaluation | UnavailableEvaluation> {
   const universeMode: 'catalog' | 'ticker_master' = options?.universeMode ?? 'catalog';
   const includeBreakdowns = Boolean(options?.includeBreakdowns || universeMode === 'ticker_master');
+  const includeCalendarValidation = Boolean(options?.includeCalendarValidation ?? includeBreakdowns);
+  const minBreakdownAssets =
+    options?.minBreakdownAssets ??
+    (universeMode === 'ticker_master' ? DEFAULT_MIN_BREAKDOWN_ASSETS : 0);
 
   const sentimentSig = options?.sentimentByTicker
     ? Array.from(options.sentimentByTicker.entries())
@@ -1890,6 +1983,17 @@ export async function runAggregateModelEvaluation(
 
   const epochAtStart = cacheEpoch;
   const runPromise = (async (): Promise<ModelEvaluation | UnavailableEvaluation> => {
+    const activeProvider = getMarketDataProvider();
+    const tdKeyConfigured = Boolean(process.env.TWELVE_DATA_API_KEY?.trim());
+    const twelveDataStatus: 'configured' | 'not_configured' =
+      activeProvider instanceof TwelveDataMarketDataProvider
+        ? activeProvider.isConfigured()
+          ? 'configured'
+          : 'not_configured'
+        : tdKeyConfigured
+          ? 'configured'
+          : 'not_configured';
+
     // Evaluate ALL unique tickers in the target universe using >= 2 years of daily history, concurrency-limited
     const universe = Array.from(new Set(catalog.map(c => c.ticker)));
     const evaluations: ModelEvaluation[] = [];
@@ -1901,6 +2005,33 @@ export async function runAggregateModelEvaluation(
     const licenceSet = new Set<string>();
     const fallbackFromSet = new Set<string>();
     const providerWarningSet = new Set<string>();
+
+    const providerCounts: Record<string, number> = {};
+    const fallbackByProvider: Record<string, number> = {};
+    const fallbackByReason: Record<string, number> = {};
+    let fallbackTotal = 0;
+    let rateLimit429FromFetches = 0;
+
+    const recordFallbackTelemetry = (
+      actualProvider: string | undefined,
+      fallbackFrom: string | undefined,
+      fallbackReasonCode: FallbackReasonCode | undefined
+    ) => {
+      if (!fallbackFrom) return;
+      fallbackTotal++;
+      const dest = actualProvider || 'unknown';
+      const pairKey = `${fallbackFrom}->${dest}`;
+      fallbackByProvider[pairKey] = (fallbackByProvider[pairKey] || 0) + 1;
+      const reasonKey =
+        fallbackReasonCode ||
+        (twelveDataStatus === 'not_configured' && fallbackFrom === 'twelvedata'
+          ? 'not_configured'
+          : 'upstream_error');
+      fallbackByReason[reasonKey] = (fallbackByReason[reasonKey] || 0) + 1;
+      if (reasonKey === 'rate_limited_429') {
+        rateLimit429FromFetches++;
+      }
+    };
 
     for (let i = 0; i < universe.length; i += batchSize) {
       const batch = universe.slice(i, i + batchSize);
@@ -1924,18 +2055,42 @@ export async function runAggregateModelEvaluation(
                 }
               : {};
             if (source === 'synthetic') {
+              const reason: SkippedTickerRecord['reason'] =
+                normalized.unavailableReason === 'no_history'
+                  ? 'no_history'
+                  : normalized.unavailableReason === 'insufficient_history'
+                    ? 'insufficient_history'
+                    : normalized.unavailableReason === 'provider_error'
+                      ? 'provider_error'
+                      : 'synthetic_data';
+              const barsCount =
+                normalized.unavailableReason !== undefined
+                  ? normalized.liveBarsCount ?? 0
+                  : bars?.length ?? 0;
               return {
                 ticker: t,
-                skipped: { ticker: t, reason: 'synthetic_data' as const, barsCount: bars?.length ?? 0, ...skippedMeta },
+                skipped: {
+                  ticker: t,
+                  reason,
+                  barsCount,
+                  ...skippedMeta,
+                  ...(normalized.unavailableDetail ? { detail: normalized.unavailableDetail } : {})
+                },
+                provider: normalized.provider,
                 fallbackFrom: normalized.fallbackFrom,
+                fallbackReasonCode: normalized.fallbackReasonCode,
                 warning: normalized.warning
               };
             }
             if (!bars || bars.length < MIN_CONFORMAL_BARS) {
+              const reason: SkippedTickerRecord['reason'] =
+                !bars || bars.length === 0 ? 'no_history' : 'insufficient_history';
               return {
                 ticker: t,
-                skipped: { ticker: t, reason: 'insufficient_history' as const, barsCount: bars?.length ?? 0, ...skippedMeta },
+                skipped: { ticker: t, reason, barsCount: bars?.length ?? 0, ...skippedMeta },
+                provider: normalized.provider,
                 fallbackFrom: normalized.fallbackFrom,
+                fallbackReasonCode: normalized.fallbackReasonCode,
                 warning: normalized.warning
               };
             }
@@ -1943,12 +2098,13 @@ export async function runAggregateModelEvaluation(
               ticker: t,
               bars,
               source,
-              provider: normalized.provider,
-              providerLicence: normalized.providerLicence,
+              provider: normalized.provider || activeProvider.name,
+              providerLicence: normalized.providerLicence || activeProvider.licenceNote,
               fallbackFrom: normalized.fallbackFrom,
+              fallbackReasonCode: normalized.fallbackReasonCode,
               warning: normalized.warning
             };
-          } catch {
+          } catch (err: any) {
             const meta = options?.tickerMetaLookup?.get(t.toUpperCase());
             return {
               ticker: t,
@@ -1956,7 +2112,8 @@ export async function runAggregateModelEvaluation(
                 ticker: t,
                 reason: 'fetch_error' as const,
                 ...(meta?.country ? { country: meta.country } : {}),
-                ...(meta?.exchangeCode || meta?.exchange ? { exchange: meta.exchangeCode || meta.exchange } : {})
+                ...(meta?.exchangeCode || meta?.exchange ? { exchange: meta.exchangeCode || meta.exchange } : {}),
+                ...(err?.message && universeMode === 'ticker_master' ? { detail: String(err.message) } : {})
               }
             };
           }
@@ -1964,12 +2121,24 @@ export async function runAggregateModelEvaluation(
       );
 
       for (const item of batchFetched) {
-        if ('fallbackFrom' in item && item.fallbackFrom) fallbackFromSet.add(item.fallbackFrom);
+        if ('fallbackFrom' in item && item.fallbackFrom) {
+          fallbackFromSet.add(item.fallbackFrom);
+          recordFallbackTelemetry(
+            'provider' in item ? item.provider : undefined,
+            item.fallbackFrom,
+            'fallbackReasonCode' in item ? item.fallbackReasonCode : undefined
+          );
+        }
         if ('warning' in item && item.warning) providerWarningSet.add(item.warning);
         if ('evaluation' in item && item.evaluation) {
-          if (item.evaluation.dataProvider) providerSet.add(item.evaluation.dataProvider);
+          const prov = item.evaluation.dataProvider || activeProvider.name;
+          providerSet.add(prov);
+          providerCounts[prov] = (providerCounts[prov] || 0) + 1;
           if (item.evaluation.dataProviderLicence) licenceSet.add(item.evaluation.dataProviderLicence);
-          if (item.evaluation.fallbackFrom) fallbackFromSet.add(item.evaluation.fallbackFrom);
+          if (item.evaluation.fallbackFrom) {
+            fallbackFromSet.add(item.evaluation.fallbackFrom);
+            recordFallbackTelemetry(prov, item.evaluation.fallbackFrom, undefined);
+          }
           if (item.evaluation.providerWarning) providerWarningSet.add(item.evaluation.providerWarning);
           evaluations.push(item.evaluation);
         } else if ('skipped' in item && item.skipped) {
@@ -1989,10 +2158,10 @@ export async function runAggregateModelEvaluation(
           barsByTicker.set(item.ticker, item.bars);
           await yieldToEventLoop();
           const evaluation = runModelEvaluation(item.bars, item.ticker, item.source);
-          if (item.provider) {
-            evaluation.dataProvider = item.provider;
-            providerSet.add(item.provider);
-          }
+          const prov = item.provider || activeProvider.name;
+          evaluation.dataProvider = prov;
+          providerSet.add(prov);
+          providerCounts[prov] = (providerCounts[prov] || 0) + 1;
           if (item.providerLicence) {
             evaluation.dataProviderLicence = item.providerLicence;
             licenceSet.add(item.providerLicence);
@@ -2020,7 +2189,25 @@ export async function runAggregateModelEvaluation(
       }
     }
 
-  const activeProvider = getMarketDataProvider();
+  const httpPrimaryRateLimits =
+    activeProvider instanceof TwelveDataMarketDataProvider
+      ? activeProvider.getHttpStats().primary.rateLimitedResponses
+      : 0;
+  const rateLimit429Count =
+    twelveDataStatus === 'not_configured' && activeProvider.name !== 'twelvedata'
+      ? rateLimit429FromFetches
+      : Math.max(rateLimit429FromFetches, httpPrimaryRateLimits);
+
+  const providerTelemetry: ProviderTelemetrySummary = {
+    twelveDataStatus,
+    configuredProvider: activeProvider.name,
+    providerCounts,
+    fallbackTotal,
+    fallbackByProvider,
+    fallbackByReason,
+    rateLimit429Count
+  };
+
   const resolvedProviderName =
     providerSet.size > 0 ? Array.from(providerSet).join(', ') : activeProvider.name;
   const resolvedLicenceNote =
@@ -2041,6 +2228,7 @@ export async function runAggregateModelEvaluation(
       dataSource: 'none',
       dataProvider: resolvedProviderName,
       dataProviderLicence: resolvedLicenceNote,
+      providerTelemetry,
       ...(resolvedFallbackFrom ? { fallbackFrom: resolvedFallbackFrom } : {}),
       ...(resolvedProviderWarning ? { providerWarning: resolvedProviderWarning } : {}),
       evaluatedAssetsCount: 0,
@@ -2147,7 +2335,16 @@ export async function runAggregateModelEvaluation(
     pooledDirectionalAccuracyPct: pooledDirPct,
     pooledAlwaysUpAccuracyPct: Number((pooledAlwaysUpRate * 100).toFixed(2)),
     wilson95CI: computeWilson95Interval(pooledModelHits, pooledTotal),
-    binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(pooledModelHits, pooledTotal, pooledAlwaysUpRate),
+    // Never emit a pooled i.i.d. binomial p-value across correlated cross-asset portfolios
+    ...(count === 1
+      ? {
+          binomialPValueVsAlwaysUp: computeBinomialOneSidedPValue(
+            pooledModelHits,
+            pooledTotal,
+            pooledAlwaysUpRate
+          )
+        }
+      : {}),
     directionalEdgeVsAlwaysUpPct: aggBootstrap.pointEdgePct,
     directionalEdgeVsAlwaysUp95CI: aggBootstrap.ci95,
     bootstrapProbEdgePositive: aggBootstrap.probEdgePositive,
@@ -2248,12 +2445,22 @@ export async function runAggregateModelEvaluation(
 
   const assetBreakdown: AssetBreakdownItem[] = evaluations.map(e => {
     const meta = options?.tickerMetaLookup?.get(e.ticker.toUpperCase()) ?? catalog.find(c => c.ticker === e.ticker);
+    const uMeta = options?.tickerMetaLookup?.get(e.ticker.toUpperCase());
+    const locFallback = inferCountryAndExchangeFallback(e.ticker);
+    const country = (uMeta?.country || locFallback.country).toUpperCase();
+    const exchangeMic = (uMeta?.exchange || locFallback.exchange).toUpperCase();
+    const region = getRegionForCountry(country);
     const eNaiveMape = e.naiveMape ?? e.mape;
     return {
       ticker: e.ticker,
       name: meta?.name || e.ticker,
       currency: e.currency || inferCurrencyFromTicker(e.ticker),
+      country,
+      exchange: exchangeMic,
+      region,
       dataSource: e.dataSource === 'live' ? 'live' : 'synthetic',
+      ...(e.dataProvider ? { dataProvider: e.dataProvider } : {}),
+      ...(e.fallbackFrom ? { fallbackFrom: e.fallbackFrom } : {}),
       testWindowStart: e.testWindowStart || '',
       testWindowEnd: e.testWindowEnd || '',
       priceAccuracy: e.priceAccuracy ?? (100 - e.mape),
@@ -2267,12 +2474,77 @@ export async function runAggregateModelEvaluation(
       directionalAccuracy: Number(e.directionalAccuracy.toFixed(1)),
       alwaysUpAccuracy: Number((e.alwaysUpAccuracy ?? 0).toFixed(1)),
       samples: e.totalBacktestSamples,
+      shortTestWindow: e.totalBacktestSamples < MIN_LONG_TEST_PREDICTIONS,
       rmse: e.rmse ?? 0,
       naiveRmse: e.naiveRmse ?? e.rmse ?? 0,
       mae: e.mae ?? 0,
       naiveMae: e.naiveMae ?? e.mae ?? 0
     };
   });
+
+  const shortTestWindowTickers = assetBreakdown
+    .filter((a) => a.samples < MIN_LONG_TEST_PREDICTIONS)
+    .map((a) => ({
+      ticker: a.ticker,
+      samples: a.samples,
+      exchange: a.exchange,
+      country: a.country
+    }));
+  const shortTestWindowCount = shortTestWindowTickers.length;
+
+  let calendarValidation: CalendarValidationSummary | undefined;
+  if (includeCalendarValidation) {
+    const checkedExchanges = new Set<string>();
+    const mismatches: CalendarValidationMismatch[] = [];
+    let checkedTestDatesCount = 0;
+
+    for (const e of evaluations) {
+      const uMeta = options?.tickerMetaLookup?.get(e.ticker.toUpperCase());
+      const locFallback = inferCountryAndExchangeFallback(e.ticker);
+      const mic = (uMeta?.exchange || locFallback.exchange || 'UNKNOWN').toUpperCase();
+      checkedExchanges.add(mic);
+
+      for (const pt of e.backtestSeries) {
+        if (!pt?.date) continue;
+        checkedTestDatesCount++;
+        try {
+          const isTrading = isExchangeTradingDay(pt.date, mic);
+          if (!isTrading) {
+            const dow = new Date(`${pt.date}T12:00:00Z`).getUTCDay();
+            const reason: CalendarValidationMismatch['reason'] =
+              dow === 0 || dow === 6
+                ? 'weekend'
+                : isExchangeHoliday(pt.date, mic)
+                  ? 'holiday'
+                  : 'weekend';
+            mismatches.push({
+              ticker: e.ticker,
+              exchange: mic,
+              date: pt.date,
+              reason
+            });
+          }
+        } catch (err) {
+          if (err instanceof MissingExchangeHolidayDataError) {
+            mismatches.push({
+              ticker: e.ticker,
+              exchange: mic,
+              date: pt.date,
+              reason: 'calendar_missing'
+            });
+          }
+        }
+      }
+    }
+
+    calendarValidation = {
+      checkedExchangesCount: checkedExchanges.size,
+      checkedAssetsCount: evaluations.length,
+      checkedTestDatesCount,
+      mismatchCount: mismatches.length,
+      mismatches
+    };
+  }
 
   const featureMap = new Map<string, { totalImportance: number; rawWeightSum: number; count: number; category: any; description: string; direction: any }>();
   for (const e of evaluations) {
@@ -2336,7 +2608,11 @@ export async function runAggregateModelEvaluation(
   }
 
   const breakdowns = includeBreakdowns
-    ? computeCountryAndExchangeBreakdowns(evaluations, options?.tickerMetaLookup)
+    ? computeCountryAndExchangeBreakdowns(evaluations, options?.tickerMetaLookup, {
+        minBreakdownAssets,
+        keyExchangeByMic: universeMode === 'ticker_master',
+        includeRegionBreakdowns: true
+      })
     : undefined;
 
   const result: ModelEvaluation = {
@@ -2346,6 +2622,7 @@ export async function runAggregateModelEvaluation(
     dataSource: 'live',
     dataProvider: resolvedProviderName,
     dataProviderLicence: resolvedLicenceNote,
+    providerTelemetry,
     ...(resolvedFallbackFrom ? { fallbackFrom: resolvedFallbackFrom } : {}),
     ...(resolvedProviderWarning ? { providerWarning: resolvedProviderWarning } : {}),
     evaluatedAssetsCount: evaluations.length,
@@ -2383,11 +2660,19 @@ export async function runAggregateModelEvaluation(
     backtestSeries: compositeBacktestSeries,
     assetBreakdown,
     featureImportance: aggregatedFeatureImportance,
+    shortTestWindowCount,
+    minTestPredictionsThreshold: MIN_LONG_TEST_PREDICTIONS,
+    shortTestWindowTickers,
+    ...(calendarValidation ? { calendarValidation } : {}),
     ...(sentimentAblation ? { sentimentAblation } : {}),
     ...(breakdowns
       ? {
+          minBreakdownAssets: breakdowns.minBreakdownAssets,
           countryBreakdowns: breakdowns.countryBreakdowns,
-          exchangeBreakdowns: breakdowns.exchangeBreakdowns
+          exchangeBreakdowns: breakdowns.exchangeBreakdowns,
+          regionBreakdowns: breakdowns.regionBreakdowns,
+          insufficientSampleCountries: breakdowns.insufficientSampleCountries,
+          insufficientSampleExchanges: breakdowns.insufficientSampleExchanges
         }
       : {})
   };
@@ -2432,6 +2717,10 @@ export function buildModelAuditPayload(
       dataSource: evaluation.dataSource || 'none',
       dataProvider,
       dataProviderLicence,
+      ...(evaluation.providerTelemetry ? { providerTelemetry: evaluation.providerTelemetry } : {}),
+      ...(evaluation.sampling ? { sampling: evaluation.sampling } : {}),
+      ...(evaluation.perExchangeCounts ? { perExchangeCounts: evaluation.perExchangeCounts } : {}),
+      ...(evaluation.delistedStratum ? { delistedStratum: evaluation.delistedStratum } : {}),
       ...(evaluation.fallbackFrom ? { fallbackFrom: evaluation.fallbackFrom } : {}),
       ...(evaluation.providerWarning ? { providerWarning: evaluation.providerWarning } : {}),
       evaluatedAssetsCount: 0,
@@ -2445,10 +2734,12 @@ export function buildModelAuditPayload(
       available: true,
       gitCommit,
       ...(evaluation.universeMode ? { universeMode: evaluation.universeMode } : {}),
+      ...(evaluation.minBreakdownAssets !== undefined ? { minBreakdownAssets: evaluation.minBreakdownAssets } : {}),
       evaluationParams,
       dataSource: evaluation.dataSource || 'live',
       dataProvider,
       dataProviderLicence,
+      ...(evaluation.providerTelemetry ? { providerTelemetry: evaluation.providerTelemetry } : {}),
       ...(evaluation.fallbackFrom ? { fallbackFrom: evaluation.fallbackFrom } : {}),
       ...(evaluation.providerWarning ? { providerWarning: evaluation.providerWarning } : {}),
       currency: evaluation.currency,
@@ -2472,6 +2763,16 @@ export function buildModelAuditPayload(
       assets: evaluation.assetBreakdown || [],
       ...(evaluation.countryBreakdowns ? { countryBreakdowns: evaluation.countryBreakdowns } : {}),
       ...(evaluation.exchangeBreakdowns ? { exchangeBreakdowns: evaluation.exchangeBreakdowns } : {}),
+      ...(evaluation.regionBreakdowns ? { regionBreakdowns: evaluation.regionBreakdowns } : {}),
+      ...(evaluation.insufficientSampleCountries ? { insufficientSampleCountries: evaluation.insufficientSampleCountries } : {}),
+      ...(evaluation.insufficientSampleExchanges ? { insufficientSampleExchanges: evaluation.insufficientSampleExchanges } : {}),
+      ...(evaluation.sampling ? { sampling: evaluation.sampling } : {}),
+      ...(evaluation.perExchangeCounts ? { perExchangeCounts: evaluation.perExchangeCounts } : {}),
+      ...(evaluation.calendarValidation ? { calendarValidation: evaluation.calendarValidation } : {}),
+      ...(evaluation.shortTestWindowCount !== undefined ? { shortTestWindowCount: evaluation.shortTestWindowCount } : {}),
+      ...(evaluation.minTestPredictionsThreshold !== undefined ? { minTestPredictionsThreshold: evaluation.minTestPredictionsThreshold } : {}),
+      ...(evaluation.shortTestWindowTickers ? { shortTestWindowTickers: evaluation.shortTestWindowTickers } : {}),
+      ...(evaluation.delistedStratum ? { delistedStratum: evaluation.delistedStratum } : {}),
       ...(evaluation.sentimentAblation ? { sentimentAblation: evaluation.sentimentAblation } : {})
     };
   }

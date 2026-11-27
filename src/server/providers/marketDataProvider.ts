@@ -58,6 +58,13 @@ export class MarketDataProviderError extends Error {
   }
 }
 
+export type FallbackReasonCode =
+  | 'rate_limited_429'
+  | 'insufficient_bars'
+  | 'upstream_error'
+  | 'network_error'
+  | 'not_configured';
+
 export interface MarketHistoryFetchResult {
   ticker?: string;
   bars: ComputedBar[];
@@ -67,6 +74,10 @@ export interface MarketHistoryFetchResult {
   providerLicence?: string;
   fetchedAt?: string;
   fallbackFrom?: string;
+  fallbackReasonCode?: FallbackReasonCode;
+  unavailableReason?: 'no_history' | 'insufficient_history' | 'provider_error';
+  unavailableDetail?: string;
+  liveBarsCount?: number;
   warning?: string;
 }
 
@@ -130,11 +141,15 @@ export interface ResilientHttpOptions {
   maxRetries?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  retryAfterMaxMs?: number;
   timeoutMs?: number;
   maxConcurrent?: number;
   minIntervalMs?: number;
+  maxRequestsPerMinute?: number;
+  rateLimitWindowMs?: number;
   userAgent?: string;
   sleepFn?: (ms: number) => Promise<void>;
+  randomFn?: () => number;
 }
 
 const DEFAULT_USER_AGENT =
@@ -229,24 +244,49 @@ export function buildExplicitSyntheticHistory(meta: TickerMeta, days = 250, targ
   return bars;
 }
 
+export function parseRetryAfterMs(headerVal: string | null | undefined, nowMs = Date.now()): number | null {
+  if (!headerVal) return null;
+  const trimmed = headerVal.trim();
+  if (!trimmed) return null;
+  const numericSec = Number(trimmed);
+  if (Number.isFinite(numericSec) && numericSec >= 0) {
+    return Math.round(numericSec * 1000);
+  }
+  const parsedDateMs = Date.parse(trimmed);
+  if (Number.isFinite(parsedDateMs)) {
+    return Math.max(0, parsedDateMs - nowMs);
+  }
+  return null;
+}
+
 /**
  * Safe single-release HTTP request wrapper guaranteeing releaseSlot once per acquireSlot.
+ * Implements exponential backoff with jitter and honors Retry-After (seconds or HTTP-date).
  */
 async function executeWithResilience(
   client: {
     acquire: () => Promise<void>;
     release: () => void;
+    recordAttempt: () => void;
+    recordRateLimit: () => void;
+    recordRetry: () => void;
     fetchFn: typeof fetch;
     providerName: string;
     maxRetries: number;
     baseDelayMs: number;
     maxDelayMs: number;
+    retryAfterMaxMs: number;
     defaultTimeoutMs: number;
     userAgent: string;
     sleepFn: (ms: number) => Promise<void>;
+    randomFn: () => number;
   },
   url: string,
-  init?: { headers?: Record<string, string>; timeoutMs?: number }
+  init?: {
+    headers?: Record<string, string>;
+    timeoutMs?: number;
+    checkJsonError?: (text: string, contentType: string, status: number) => MarketDataProviderError | null;
+  }
 ): Promise<{ text: string; contentType: string; status: number }> {
   let lastError: MarketDataProviderError | null = null;
 
@@ -257,6 +297,7 @@ async function executeWithResilience(
 
     await client.acquire();
     try {
+      client.recordAttempt();
       const timeoutMs = init?.timeoutMs ?? client.defaultTimeoutMs;
       const res = await client.fetchFn(url, {
         headers: {
@@ -269,14 +310,26 @@ async function executeWithResilience(
 
       if (res.ok) {
         const text = await res.text();
-        responseOrError = { ok: true, text, contentType, status: res.status };
+        const customErr = init?.checkJsonError ? init.checkJsonError(text, contentType, res.status) : null;
+        if (customErr) {
+          if (customErr.code === 'RATE_LIMITED') client.recordRateLimit();
+          responseOrError = {
+            ok: false,
+            retryAfter: res.headers?.get?.('retry-after'),
+            error: customErr
+          };
+        } else {
+          responseOrError = { ok: true, text, contentType, status: res.status };
+        }
       } else {
-        const retryable = res.status === 429 || (res.status >= 500 && res.status <= 599);
+        const is429 = res.status === 429;
+        if (is429) client.recordRateLimit();
+        const retryable = is429 || (res.status >= 500 && res.status <= 599);
         responseOrError = {
           ok: false,
           retryAfter: res.headers?.get?.('retry-after'),
           error: new MarketDataProviderError(`${client.providerName} responded with HTTP ${res.status}`, {
-            code: res.status === 429 ? 'RATE_LIMITED' : 'UPSTREAM_HTTP_ERROR',
+            code: is429 ? 'RATE_LIMITED' : 'UPSTREAM_HTTP_ERROR',
             provider: client.providerName,
             status: res.status,
             retryable
@@ -311,12 +364,15 @@ async function executeWithResilience(
       throw lastError;
     }
 
-    let backoff = Math.min(client.maxDelayMs, client.baseDelayMs * Math.pow(2, attempt));
-    if (responseOrError.retryAfter) {
-      const sec = Number(responseOrError.retryAfter);
-      if (Number.isFinite(sec) && sec > 0) {
-        backoff = Math.min(client.maxDelayMs, Math.round(sec * 1000));
-      }
+    client.recordRetry();
+    const rawExp = Math.min(client.maxDelayMs, client.baseDelayMs * Math.pow(2, attempt));
+    // Equal jitter: [0.5 * rawExp, rawExp] prevents synchronized thundering herds while preserving exponential growth
+    const jitterFactor = 0.5 + 0.5 * Math.max(0, Math.min(1, client.randomFn()));
+    let backoff = Math.max(1, Math.round(rawExp * jitterFactor));
+
+    const parsedRetryAfter = parseRetryAfterMs(responseOrError.retryAfter);
+    if (parsedRetryAfter !== null && parsedRetryAfter > 0) {
+      backoff = Math.min(client.retryAfterMaxMs, Math.max(backoff, parsedRetryAfter));
     }
     await client.sleepFn(backoff);
   }
@@ -330,20 +386,30 @@ async function executeWithResilience(
   );
 }
 
-class RateLimitedHttpRunner {
+export class RateLimitedHttpRunner {
   private activeCount = 0;
   private lastStartMs = 0;
   private queue: Array<() => void> = [];
+  private windowTimestamps: number[] = [];
+  private paceMutex: Promise<void> = Promise.resolve();
+  private requestsAttempted = 0;
+  private rateLimitedResponses = 0;
+  private retriesAttempted = 0;
+
   readonly providerName: string;
   readonly fetchFn: typeof fetch;
   readonly maxRetries: number;
   readonly baseDelayMs: number;
   readonly maxDelayMs: number;
+  readonly retryAfterMaxMs: number;
   readonly defaultTimeoutMs: number;
   readonly maxConcurrent: number;
   readonly minIntervalMs: number;
+  readonly maxRequestsPerMinute: number | null;
+  readonly rateLimitWindowMs: number;
   readonly userAgent: string;
   readonly sleepFn: (ms: number) => Promise<void>;
+  readonly randomFn: () => number;
 
   constructor(options: ResilientHttpOptions) {
     this.providerName = options.providerName;
@@ -351,11 +417,76 @@ class RateLimitedHttpRunner {
     this.maxRetries = options.maxRetries ?? 2;
     this.baseDelayMs = options.baseDelayMs ?? 150;
     this.maxDelayMs = options.maxDelayMs ?? 2500;
+    this.retryAfterMaxMs = options.retryAfterMaxMs ?? 65000;
     this.defaultTimeoutMs = options.timeoutMs ?? 5000;
     this.maxConcurrent = Math.max(1, options.maxConcurrent ?? 6);
     this.minIntervalMs = Math.max(0, options.minIntervalMs ?? 20);
+    this.maxRequestsPerMinute =
+      options.maxRequestsPerMinute !== undefined && options.maxRequestsPerMinute > 0
+        ? Math.floor(options.maxRequestsPerMinute)
+        : null;
+    this.rateLimitWindowMs = Math.max(50, options.rateLimitWindowMs ?? 60_000);
     this.userAgent = options.userAgent || DEFAULT_USER_AGENT;
     this.sleepFn = options.sleepFn || defaultSleep;
+    this.randomFn = options.randomFn || Math.random;
+  }
+
+  recordAttempt = (): void => {
+    this.requestsAttempted++;
+  };
+
+  recordRateLimit = (): void => {
+    this.rateLimitedResponses++;
+  };
+
+  recordRetry = (): void => {
+    this.retriesAttempted++;
+  };
+
+  getStats() {
+    return {
+      requestsAttempted: this.requestsAttempted,
+      rateLimitedResponses: this.rateLimitedResponses,
+      retriesAttempted: this.retriesAttempted
+    };
+  }
+
+  private paceRequest(): Promise<void> {
+    const run = async () => {
+      if (this.maxRequestsPerMinute !== null) {
+        while (true) {
+          const now = Date.now();
+          const cutoff = now - this.rateLimitWindowMs;
+          while (this.windowTimestamps.length > 0 && this.windowTimestamps[0] <= cutoff) {
+            this.windowTimestamps.shift();
+          }
+          if (this.windowTimestamps.length < this.maxRequestsPerMinute) {
+            break;
+          }
+          const earliest = this.windowTimestamps[0];
+          const waitMs = Math.max(5, earliest + this.rateLimitWindowMs - now + 5);
+          await this.sleepFn(waitMs);
+        }
+      }
+
+      if (this.minIntervalMs > 0) {
+        const now = Date.now();
+        const delay = Math.max(0, this.lastStartMs + this.minIntervalMs - now);
+        if (delay > 0) {
+          await this.sleepFn(delay);
+        }
+      }
+
+      const issuedAt = Date.now();
+      this.lastStartMs = issuedAt;
+      if (this.maxRequestsPerMinute !== null) {
+        this.windowTimestamps.push(issuedAt);
+      }
+    };
+
+    const next = this.paceMutex.then(run, run);
+    this.paceMutex = next.catch(() => undefined);
+    return next;
   }
 
   acquire = async (): Promise<void> => {
@@ -363,14 +494,11 @@ class RateLimitedHttpRunner {
       await new Promise<void>((resolve) => this.queue.push(resolve));
     }
     this.activeCount++;
-    if (this.minIntervalMs > 0) {
-      const now = Date.now();
-      const target = Math.max(now, this.lastStartMs + this.minIntervalMs);
-      const delay = target - now;
-      this.lastStartMs = target;
-      if (delay > 0) {
-        await this.sleepFn(delay);
-      }
+    try {
+      await this.paceRequest();
+    } catch (err) {
+      this.release();
+      throw err;
     }
   };
 
@@ -380,7 +508,14 @@ class RateLimitedHttpRunner {
     if (next) next();
   };
 
-  async fetchJson<T = any>(url: string, init?: { headers?: Record<string, string>; timeoutMs?: number }): Promise<T> {
+  async fetchJson<T = any>(
+    url: string,
+    init?: {
+      headers?: Record<string, string>;
+      timeoutMs?: number;
+      checkJsonError?: (text: string, contentType: string, status: number) => MarketDataProviderError | null;
+    }
+  ): Promise<T> {
     const res = await executeWithResilience(this, url, init);
     if (res.contentType && !res.contentType.includes('application/json') && !res.text.trim().startsWith('{')) {
       throw new MarketDataProviderError(`${this.providerName} returned non-JSON content`, {
@@ -414,10 +549,14 @@ export interface YahooProviderOptions {
   maxRetries?: number;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  retryAfterMaxMs?: number;
   timeoutMs?: number;
   maxConcurrent?: number;
   minIntervalMs?: number;
+  maxRequestsPerMinute?: number;
+  rateLimitWindowMs?: number;
   sleepFn?: (ms: number) => Promise<void>;
+  randomFn?: () => number;
 }
 
 /**
@@ -442,11 +581,19 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
       maxRetries: options.maxRetries ?? 2,
       baseDelayMs: options.baseDelayMs ?? 150,
       maxDelayMs: options.maxDelayMs ?? 2500,
+      retryAfterMaxMs: options.retryAfterMaxMs ?? 30000,
       timeoutMs: options.timeoutMs ?? 5000,
-      maxConcurrent: options.maxConcurrent ?? 6,
-      minIntervalMs: options.minIntervalMs ?? 20,
-      sleepFn: options.sleepFn
+      maxConcurrent: options.maxConcurrent ?? 5,
+      minIntervalMs: options.minIntervalMs ?? 25,
+      maxRequestsPerMinute: options.maxRequestsPerMinute,
+      rateLimitWindowMs: options.rateLimitWindowMs,
+      sleepFn: options.sleepFn,
+      randomFn: options.randomFn
     });
+  }
+
+  getHttpStats() {
+    return this.http.getStats();
   }
 
   clearCache(): void {
@@ -488,6 +635,7 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
 
     const rawByDate = new Map<string, PriceBar>();
     let liveFailed = false;
+    let liveErrorDetail: string | undefined;
 
     try {
       const data = await this.http.fetchJson<any>(url, { timeoutMs: 5000 });
@@ -517,9 +665,12 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
             });
           }
         }
+      } else if (data?.chart?.error) {
+        liveErrorDetail = String(data.chart.error.description || data.chart.error.code || 'Yahoo chart error');
       }
-    } catch {
+    } catch (err: any) {
       liveFailed = true;
+      liveErrorDetail = err?.message || 'Upstream fetch error';
     }
 
     const rawBars = Array.from(rawByDate.values()).sort((a, b) => a.date.localeCompare(b.date));
@@ -550,6 +701,13 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
       ...b,
       source: 'synthetic' as const
     }));
+    const unavailableReason: 'no_history' | 'insufficient_history' | 'provider_error' = liveFailed
+      ? liveErrorDetail && /404|not found|no data|delisted/i.test(liveErrorDetail) && rawBars.length === 0
+        ? 'no_history'
+        : 'provider_error'
+      : rawBars.length === 0
+        ? 'no_history'
+        : 'insufficient_history';
     const fallbackPayload: MarketHistoryFetchResult = {
       ticker: upper,
       bars: computedSynthetic,
@@ -557,6 +715,9 @@ export class YahooFinanceMarketDataProvider implements MarketDataProvider {
       dataSource: 'synthetic',
       provider: 'simulated-fallback',
       providerLicence: 'Deterministic fallback price series (synthetic; excluded from model audits).',
+      unavailableReason,
+      ...(liveErrorDetail ? { unavailableDetail: liveErrorDetail } : {}),
+      liveBarsCount: rawBars.length,
       fetchedAt
     };
     this.historyCache.set(cacheKey, {
@@ -1009,18 +1170,35 @@ export class TwelveDataMarketDataProvider implements MarketDataProvider {
 
   constructor(options: TwelveDataProviderOptions) {
     this.apiKey = (options.apiKey || '').trim();
+    const envRpm = Number(process.env.TWELVE_DATA_RPM);
+    const defaultRpm = Number.isFinite(envRpm) && envRpm > 0 ? envRpm : 7;
     this.http = new RateLimitedHttpRunner({
       providerName: this.name,
       fetchFn: options.fetchFn,
-      maxRetries: options.maxRetries ?? 2,
-      baseDelayMs: options.baseDelayMs ?? 150,
-      maxDelayMs: options.maxDelayMs ?? 2500,
-      timeoutMs: options.timeoutMs ?? 5000,
-      maxConcurrent: options.maxConcurrent ?? 6,
-      minIntervalMs: options.minIntervalMs ?? 20,
-      sleepFn: options.sleepFn
+      maxRetries: options.maxRetries ?? 3,
+      baseDelayMs: options.baseDelayMs ?? 1000,
+      maxDelayMs: options.maxDelayMs ?? 15000,
+      retryAfterMaxMs: options.retryAfterMaxMs ?? 65000,
+      timeoutMs: options.timeoutMs ?? 6000,
+      maxConcurrent: options.maxConcurrent ?? 1,
+      minIntervalMs: options.minIntervalMs ?? 500,
+      maxRequestsPerMinute: options.maxRequestsPerMinute ?? defaultRpm,
+      rateLimitWindowMs: options.rateLimitWindowMs ?? 60_000,
+      sleepFn: options.sleepFn,
+      randomFn: options.randomFn
     });
     this.yahooFallback = new YahooFinanceMarketDataProvider(options);
+  }
+
+  isConfigured(): boolean {
+    return this.apiKey.length > 0;
+  }
+
+  getHttpStats() {
+    return {
+      primary: this.http.getStats(),
+      fallback: this.yahooFallback.getHttpStats()
+    };
   }
 
   clearCache(): void {
@@ -1031,9 +1209,32 @@ export class TwelveDataMarketDataProvider implements MarketDataProvider {
     return mapTickerToTwelveDataSymbol(ticker, exchangeHint);
   }
 
+  private checkTwelveDataRateLimitJson = (text: string): MarketDataProviderError | null => {
+    try {
+      const parsed = JSON.parse(text);
+      const codeNum = Number(parsed?.code);
+      const msg = String(parsed?.message || '');
+      if (
+        codeNum === 429 ||
+        (parsed?.status === 'error' && /run out of api credits|rate limit|too many requests/i.test(msg))
+      ) {
+        return new MarketDataProviderError(`${this.name} rate limit (429): ${msg || 'API credits exhausted'}`, {
+          code: 'RATE_LIMITED',
+          provider: this.name,
+          status: 429,
+          retryable: true
+        });
+      }
+    } catch {
+      // let main JSON parser report malformed JSON
+    }
+    return null;
+  };
+
   async getHistory(ticker: string, days = 250, metaOverride?: TickerMeta): Promise<MarketHistoryFetchResult> {
     const upper = ticker.trim().toUpperCase();
     let fallbackReason = 'TWELVE_DATA_API_KEY not configured';
+    let fallbackReasonCode: FallbackReasonCode = 'not_configured';
 
     if (this.apiKey) {
       const sym = this.toTwelveDataSymbol(upper, metaOverride?.exchange);
@@ -1041,7 +1242,10 @@ export class TwelveDataMarketDataProvider implements MarketDataProvider {
       const fetchedAt = new Date().toISOString();
 
       try {
-        const json = await this.http.fetchJson<any>(url, { timeoutMs: 6000 });
+        const json = await this.http.fetchJson<any>(url, {
+          timeoutMs: 6000,
+          checkJsonError: this.checkTwelveDataRateLimitJson
+        });
         if (json?.status === 'ok' && Array.isArray(json.values) && json.values.length >= 30) {
           const bars: PriceBar[] = json.values
             .map((row: any) => ({
@@ -1068,11 +1272,20 @@ export class TwelveDataMarketDataProvider implements MarketDataProvider {
             };
           }
           fallbackReason = `Twelve Data returned insufficient bars (${bars.length}) for ${sym}`;
+          fallbackReasonCode = 'insufficient_bars';
         } else {
           fallbackReason = json?.message ? `Twelve Data error: ${String(json.message)}` : `Twelve Data returned non-ok status for ${sym}`;
+          fallbackReasonCode = 'upstream_error';
         }
       } catch (err: any) {
         fallbackReason = err?.message || `Twelve Data request failed for ${sym}`;
+        if (err instanceof MarketDataProviderError && (err.code === 'RATE_LIMITED' || err.status === 429)) {
+          fallbackReasonCode = 'rate_limited_429';
+        } else if (err instanceof MarketDataProviderError && (err.code === 'NETWORK_ERROR' || err.code === 'TIMEOUT')) {
+          fallbackReasonCode = 'network_error';
+        } else {
+          fallbackReasonCode = 'upstream_error';
+        }
       }
     }
 
@@ -1087,6 +1300,7 @@ export class TwelveDataMarketDataProvider implements MarketDataProvider {
       provider: actualProvider,
       providerLicence: yahooRes.providerLicence || this.yahooFallback.licenceNote,
       fallbackFrom: 'twelvedata',
+      fallbackReasonCode,
       warning
     };
   }
@@ -1101,7 +1315,10 @@ export class TwelveDataMarketDataProvider implements MarketDataProvider {
       const fetchedAt = new Date().toISOString();
 
       try {
-        const json = await this.http.fetchJson<any>(url, { timeoutMs: 4500 });
+        const json = await this.http.fetchJson<any>(url, {
+          timeoutMs: 4500,
+          checkJsonError: this.checkTwelveDataRateLimitJson
+        });
         const closePrice = Number(json?.close ?? json?.price);
         if (json && json.status !== 'error' && Number.isFinite(closePrice) && closePrice > 0) {
           const prevClose = Number.isFinite(Number(json.previous_close))

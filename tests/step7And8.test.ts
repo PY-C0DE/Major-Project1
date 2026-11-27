@@ -24,7 +24,9 @@ import {
   UniverseTickerMeta
 } from '../src/server/math/evaluation';
 import { buildAuditCsv } from '../src/shared/auditExport';
-import { DailySentimentRecord, ModelEvaluation } from '../src/types';
+import { isExchangeTradingDay } from '../src/server/math/exchangeCalendar';
+import { stratifiedSampleUniverse } from '../src/server/math/universeSampling';
+import { DailySentimentRecord, ModelEvaluation, TickerMasterItem } from '../src/types';
 
 function makeLiveTradingSeries(days = 220, startIso = '2025-10-01', seedOffset = 1, basePrice = 120): ComputedBar[] {
   const raw: PriceBar[] = [];
@@ -492,54 +494,152 @@ describe('Step 7C — Compliance Config, User Data Export & Account Deletion', (
   });
 });
 
-describe('Step 8 — Global Universe Audit (--universe) Breakdowns, Currency Separation & Skipped Tickers', () => {
-  it('computes country/exchange breakdowns, enforces null raw MAE/RMSE for MIXED currencies, and lists skipped tickers with reasons', async () => {
+describe('Step 8 — Global Universe Audit (--universe) Stratified Sampling, Breakdowns & Calendar Validation', () => {
+  it('stratifies active equities per exchange (marketCap first, deterministic seeded fill) and isolates delisted equities', () => {
+    const mkItem = (
+      symbol: string,
+      exchange: string,
+      country: string,
+      opts?: { marketCap?: number | null; active?: boolean }
+    ): TickerMasterItem => ({
+      symbol,
+      name: symbol,
+      exchange,
+      exchangeCode: exchange,
+      country,
+      currency: country === 'US' ? 'USD' : country === 'IN' ? 'INR' : 'GBP',
+      timezone: 'UTC',
+      assetType: 'EQUITY',
+      sector: 'Technology',
+      aliases: [],
+      marketCap: opts?.marketCap ?? null,
+      active: opts?.active ?? true
+    });
+
+    const masterList: TickerMasterItem[] = [
+      // XNAS: 20 active (3 with marketCap) + 2 delisted
+      mkItem('MEGA1', 'XNAS', 'US', { marketCap: 3_000_000 }),
+      mkItem('MEGA2', 'XNAS', 'US', { marketCap: 2_000_000 }),
+      mkItem('MEGA3', 'XNAS', 'US', { marketCap: 1_000_000 }),
+      ...Array.from({ length: 17 }, (_, i) => mkItem(`NAS${i + 1}`, 'XNAS', 'US')),
+      mkItem('DEAD_US1', 'XNAS', 'US', { active: false }),
+      mkItem('DEAD_US2', 'XNAS', 'US', { active: false }),
+      // XNSE: 10 active (none with marketCap) + 1 delisted
+      ...Array.from({ length: 10 }, (_, i) => mkItem(`NSE${i + 1}.NS`, 'XNSE', 'IN')),
+      mkItem('DEAD_IN.NS', 'XNSE', 'IN', { active: false }),
+      // XLON: 3 active (< perExchange=5)
+      mkItem('UK1.L', 'XLON', 'GB'),
+      mkItem('UK2.L', 'XLON', 'GB'),
+      mkItem('UK3.L', 'XLON', 'GB')
+    ];
+
+    const runA = stratifiedSampleUniverse(masterList, { perExchange: 5, seed: 20261127 });
+    const runB = stratifiedSampleUniverse(masterList, { perExchange: 5, seed: 20261127 });
+    const runDiffSeed = stratifiedSampleUniverse(masterList, { perExchange: 5, seed: 999999 });
+
+    assert.equal(runA.sampling.perExchange, 5);
+    assert.equal(runA.sampling.seed, 20261127);
+    assert.equal(runA.sampling.exchangesCovered, 3);
+    assert.equal(runA.sampling.activeEquitiesCount, 33);
+    assert.equal(runA.sampling.delistedEquitiesCount, 3);
+    assert.equal(runA.sampledActive.length, 5 + 5 + 3);
+    assert.deepEqual(
+      runA.sampledActive.map((t) => t.symbol),
+      runB.sampledActive.map((t) => t.symbol),
+      'Seeded sampling must be deterministic'
+    );
+    assert.notDeepEqual(
+      runA.sampledActive.filter((t) => t.exchange === 'XNSE').map((t) => t.symbol),
+      runDiffSeed.sampledActive.filter((t) => t.exchange === 'XNSE').map((t) => t.symbol),
+      'Different seeds must produce different random draws on uncapped pools'
+    );
+
+    const xnasSampled = runA.sampledActive.filter((t) => t.exchange === 'XNAS').map((t) => t.symbol);
+    assert.deepEqual(xnasSampled.slice(0, 3), ['MEGA1', 'MEGA2', 'MEGA3']);
+    assert.equal(
+      runA.sampledActive.some((t) => t.active === false),
+      false,
+      'Delisted rows must never appear in active sample'
+    );
+    assert.deepEqual(
+      runA.delistedEquities.map((t) => t.symbol).sort(),
+      ['DEAD_IN.NS', 'DEAD_US1', 'DEAD_US2']
+    );
+  });
+
+  it('enforces n>=5 country/exchange breakdowns, routes n<5 separately, emits regional metrics, checks calendars, and omits pooled binomial p', async () => {
     clearEvaluationCaches();
 
-    const aaplBars = makeLiveTradingSeries(220, '2025-10-01', 1, 185);
-    const msftBars = makeLiveTradingSeries(220, '2025-10-01', 2, 410);
-    const relianceBars = makeLiveTradingSeries(220, '2025-10-01', 3, 2850);
-    const tcsBars = makeLiveTradingSeries(220, '2025-10-01', 4, 3900);
-    const hsbaBars = makeLiveTradingSeries(220, '2025-10-01', 5, 680);
+    const makeSeries = (offset: number, base: number) => makeLiveTradingSeries(420, '2025-01-02', offset, base);
+    const shortLive = makeLiveTradingSeries(180, '2026-02-02', 9, 95); // <260 bars -> testSize=45 (<120 -> shortTestWindow)
 
     const universeCatalog = [
+      // 5 US / XNAS assets -> meets n>=5 threshold
       { ticker: 'AAPL', name: 'Apple Inc.' },
       { ticker: 'MSFT', name: 'Microsoft Corp.' },
+      { ticker: 'NVDA', name: 'NVIDIA Corp.' },
+      { ticker: 'GOOGL', name: 'Alphabet Inc.' },
+      { ticker: 'AMZN', name: 'Amazon.com Inc.' },
+      // 2 IN / XNSE assets -> insufficient sample (n<5)
       { ticker: 'RELIANCE.NS', name: 'Reliance Industries' },
       { ticker: 'TCS.NS', name: 'Tata Consultancy Services' },
+      // 1 GB / XLON short-window asset -> insufficient sample (n<5) + short window (<120 predictions)
       { ticker: 'HSBA.L', name: 'HSBC Holdings' },
+      // Skipped assets
       { ticker: 'SKIP_SYNTH', name: 'Synthetic Fallback Asset' },
       { ticker: 'SKIP_SHORT', name: 'Short History Asset' },
+      { ticker: 'SKIP_EMPTY', name: 'Empty History Asset' },
       { ticker: 'SKIP_ERR', name: 'Errored Feed Asset' }
     ];
 
     const tickerMetaLookup = new Map<string, UniverseTickerMeta>([
       ['AAPL', { name: 'Apple Inc.', country: 'US', exchange: 'XNAS', exchangeCode: 'NASDAQ' }],
       ['MSFT', { name: 'Microsoft Corp.', country: 'US', exchange: 'XNAS', exchangeCode: 'NASDAQ' }],
+      ['NVDA', { name: 'NVIDIA Corp.', country: 'US', exchange: 'XNAS', exchangeCode: 'NASDAQ' }],
+      ['GOOGL', { name: 'Alphabet Inc.', country: 'US', exchange: 'XNAS', exchangeCode: 'NASDAQ' }],
+      ['AMZN', { name: 'Amazon.com Inc.', country: 'US', exchange: 'XNAS', exchangeCode: 'NASDAQ' }],
       ['RELIANCE.NS', { name: 'Reliance Industries', country: 'IN', exchange: 'XNSE', exchangeCode: 'NSE' }],
       ['TCS.NS', { name: 'Tata Consultancy Services', country: 'IN', exchange: 'XNSE', exchangeCode: 'NSE' }],
       ['HSBA.L', { name: 'HSBC Holdings', country: 'GB', exchange: 'XLON', exchangeCode: 'LSE' }],
       ['SKIP_SYNTH', { name: 'Synthetic Fallback Asset', country: 'US', exchange: 'XNYS', exchangeCode: 'NYSE' }],
       ['SKIP_SHORT', { name: 'Short History Asset', country: 'JP', exchange: 'XTKS', exchangeCode: 'TSE' }],
+      ['SKIP_EMPTY', { name: 'Empty History Asset', country: 'BR', exchange: 'BVMF', exchangeCode: 'B3' }],
       ['SKIP_ERR', { name: 'Errored Feed Asset', country: 'DE', exchange: 'XETR', exchangeCode: 'XETRA' }]
     ]);
+
+    const aaplBars = makeSeries(1, 185);
+    const relianceBars = makeSeries(6, 2850);
 
     const mockFetcher = async (ticker: string) => {
       switch (ticker) {
         case 'AAPL':
-          return { bars: aaplBars, source: 'live' as const, provider: 'test-feed' };
+          return { bars: aaplBars, source: 'live' as const, provider: 'yahoo-finance-v8' };
         case 'MSFT':
-          return { bars: msftBars, source: 'live' as const, provider: 'test-feed' };
+          return { bars: makeSeries(2, 410), source: 'live' as const, provider: 'yahoo-finance-v8' };
+        case 'NVDA':
+          return { bars: makeSeries(3, 130), source: 'live' as const, provider: 'yahoo-finance-v8' };
+        case 'GOOGL':
+          return { bars: makeSeries(4, 175), source: 'live' as const, provider: 'yahoo-finance-v8' };
+        case 'AMZN':
+          return { bars: makeSeries(5, 210), source: 'live' as const, provider: 'yahoo-finance-v8' };
         case 'RELIANCE.NS':
-          return { bars: relianceBars, source: 'live' as const, provider: 'test-feed' };
+          return { bars: relianceBars, source: 'live' as const, provider: 'yahoo-finance-v8' };
         case 'TCS.NS':
-          return { bars: tcsBars, source: 'live' as const, provider: 'test-feed' };
+          return { bars: makeSeries(7, 3900), source: 'live' as const, provider: 'yahoo-finance-v8' };
         case 'HSBA.L':
-          return { bars: hsbaBars, source: 'live' as const, provider: 'test-feed' };
+          return { bars: shortLive, source: 'live' as const, provider: 'yahoo-finance-v8' };
         case 'SKIP_SYNTH':
           return { bars: aaplBars.slice(0, 120), source: 'synthetic' as const, provider: 'test-feed' };
         case 'SKIP_SHORT':
-          return { bars: aaplBars.slice(0, 25), source: 'live' as const, provider: 'test-feed' };
+          return { bars: aaplBars.slice(0, 25), source: 'live' as const, provider: 'yahoo-finance-v8' };
+        case 'SKIP_EMPTY':
+          return {
+            bars: aaplBars.slice(0, 60),
+            source: 'synthetic' as const,
+            provider: 'simulated-fallback',
+            unavailableReason: 'no_history' as const,
+            liveBarsCount: 0
+          };
         default:
           throw new Error('Upstream HTTP 502');
       }
@@ -548,7 +648,7 @@ describe('Step 8 — Global Universe Audit (--universe) Breakdowns, Currency Sep
     const sentimentByTicker = new Map<string, DailySentimentRecord[]>([
       [
         'AAPL',
-        aaplBars.slice(60, 180).map((b, idx) => ({
+        aaplBars.slice(120, 260).map((b, idx) => ({
           date: b.date,
           ticker: 'AAPL',
           credibilityWeightedNetScore: Number((Math.sin(idx * 0.3) * 0.45).toFixed(4)),
@@ -561,7 +661,7 @@ describe('Step 8 — Global Universe Audit (--universe) Breakdowns, Currency Sep
       ],
       [
         'RELIANCE.NS',
-        relianceBars.slice(60, 180).map((b, idx) => ({
+        relianceBars.slice(120, 260).map((b, idx) => ({
           date: b.date,
           ticker: 'RELIANCE.NS',
           credibilityWeightedNetScore: Number((Math.cos(idx * 0.25) * 0.35).toFixed(4)),
@@ -583,50 +683,58 @@ describe('Step 8 — Global Universe Audit (--universe) Breakdowns, Currency Sep
 
     assert.ok(isModelEvaluationAvailable(evalRes));
     assert.equal(evalRes.universeMode, 'ticker_master');
-    assert.equal(evalRes.evaluatedAssetsCount, 5);
+    assert.equal(evalRes.evaluatedAssetsCount, 8);
     assert.equal(evalRes.currency, 'MIXED');
     assert.equal(evalRes.mae, null, 'Top-level MIXED-currency aggregate MAE must be null');
     assert.equal(evalRes.rmse, null, 'Top-level MIXED-currency aggregate RMSE must be null');
-    assert.equal(evalRes.naiveMae, null, 'Top-level MIXED-currency aggregate naive MAE must be null');
-    assert.equal(evalRes.naiveRmse, null, 'Top-level MIXED-currency aggregate naive RMSE must be null');
+    assert.equal(evalRes.directionalStats?.binomialPValueVsAlwaysUp, undefined, 'Must not emit pooled binomial p-value for multi-asset results');
 
-    // Skipped tickers captured with explicit reasons & metadata
-    assert.equal(evalRes.skippedTickers?.length, 3);
-    const synthSkip = evalRes.skippedTickers?.find((s) => s.ticker === 'SKIP_SYNTH');
-    const shortSkip = evalRes.skippedTickers?.find((s) => s.ticker === 'SKIP_SHORT');
-    const errSkip = evalRes.skippedTickers?.find((s) => s.ticker === 'SKIP_ERR');
-    assert.equal(synthSkip?.reason, 'synthetic_data');
-    assert.equal(synthSkip?.country, 'US');
-    assert.equal(shortSkip?.reason, 'insufficient_history');
-    assert.equal(shortSkip?.country, 'JP');
-    assert.equal(errSkip?.reason, 'fetch_error');
-    assert.equal(errSkip?.country, 'DE');
+    // Short test-window flagging (< 120 predictions)
+    assert.equal(evalRes.minTestPredictionsThreshold, 120);
+    assert.equal(evalRes.shortTestWindowCount, 1);
+    assert.equal(evalRes.shortTestWindowTickers?.[0]?.ticker, 'HSBA.L');
+    assert.ok((evalRes.shortTestWindowTickers?.[0]?.samples ?? 0) < 120);
 
-    // Country breakdowns preserve single-currency MAE/RMSE cleanly
-    assert.ok(evalRes.countryBreakdowns);
-    const us = evalRes.countryBreakdowns.US;
-    const india = evalRes.countryBreakdowns.IN;
-    const uk = evalRes.countryBreakdowns.GB;
-    assert.equal(us.assetsCount, 2);
-    assert.equal(us.currency, 'USD');
-    assert.ok(typeof us.mae === 'number' && Number.isFinite(us.mae));
-    assert.ok(typeof us.naiveMae === 'number' && Number.isFinite(us.naiveMae));
-    assert.ok(typeof us.directionalStats.directionalEdgeVsAlwaysUpPct === 'number');
-    assert.ok(Array.isArray(us.directionalStats.directionalEdgeVsAlwaysUp95CI));
+    // Calendar validation checks all test dates across exchanges
+    assert.ok(evalRes.calendarValidation);
+    assert.equal(evalRes.calendarValidation.checkedExchangesCount, 3);
+    assert.equal(evalRes.calendarValidation.checkedAssetsCount, 8);
+    assert.ok(evalRes.calendarValidation.checkedTestDatesCount > 0);
 
-    assert.equal(india.assetsCount, 2);
-    assert.equal(india.currency, 'INR');
-    assert.ok(typeof india.mae === 'number' && Number.isFinite(india.mae));
+    // Skipped tickers captured cleanly with explicit reasons
+    assert.equal(evalRes.skippedTickers?.length, 4);
+    assert.equal(evalRes.skippedTickers?.find((s) => s.ticker === 'SKIP_SYNTH')?.reason, 'synthetic_data');
+    assert.equal(evalRes.skippedTickers?.find((s) => s.ticker === 'SKIP_SHORT')?.reason, 'insufficient_history');
+    assert.equal(evalRes.skippedTickers?.find((s) => s.ticker === 'SKIP_EMPTY')?.reason, 'no_history');
+    assert.equal(evalRes.skippedTickers?.find((s) => s.ticker === 'SKIP_ERR')?.reason, 'fetch_error');
 
-    assert.equal(uk.assetsCount, 1);
-    assert.equal(uk.currency, 'GBP');
-    assert.ok(typeof uk.mae === 'number' && Number.isFinite(uk.mae));
+    // Only US (>=5 assets) in countryBreakdowns; IN (2) and GB (1) routed to insufficientSampleCountries
+    assert.ok(evalRes.countryBreakdowns?.US);
+    assert.equal(evalRes.countryBreakdowns.US.assetsCount, 5);
+    assert.equal(evalRes.countryBreakdowns.US.currency, 'USD');
+    assert.equal(evalRes.countryBreakdowns.US.directionalStats.binomialPValueVsAlwaysUp, undefined);
+    assert.equal(evalRes.countryBreakdowns.IN, undefined);
+    assert.equal(evalRes.countryBreakdowns.GB, undefined);
+    assert.deepEqual(
+      evalRes.insufficientSampleCountries?.map((c) => `${c.key}:${c.assetsCount}`).sort(),
+      ['GB:1', 'IN:2']
+    );
 
-    // Exchange breakdowns
-    assert.ok(evalRes.exchangeBreakdowns);
-    assert.equal(evalRes.exchangeBreakdowns.NASDAQ.assetsCount, 2);
-    assert.equal(evalRes.exchangeBreakdowns.NSE.assetsCount, 2);
-    assert.equal(evalRes.exchangeBreakdowns.LSE.assetsCount, 1);
+    // Only XNAS (>=5 assets) in exchangeBreakdowns (keyed by canonical MIC); XNSE and XLON in insufficientSampleExchanges
+    assert.ok(evalRes.exchangeBreakdowns?.XNAS);
+    assert.equal(evalRes.exchangeBreakdowns.XNAS.assetsCount, 5);
+    assert.equal(evalRes.exchangeBreakdowns.XNSE, undefined);
+    assert.equal(evalRes.exchangeBreakdowns.XLON, undefined);
+    assert.deepEqual(
+      evalRes.insufficientSampleExchanges?.map((x) => `${x.key}:${x.assetsCount}`).sort(),
+      ['XLON:1', 'XNSE:2']
+    );
+
+    // Regional summary present
+    assert.ok(evalRes.regionBreakdowns?.['North America']);
+    assert.ok(evalRes.regionBreakdowns?.['Asia-Pacific']);
+    assert.ok(evalRes.regionBreakdowns?.['Europe']);
+    assert.equal(evalRes.regionBreakdowns['North America'].assetsCount, 5);
 
     // Mixed-currency helper check: manually mixing USD + INR evaluations must yield currency='MIXED' and null MAE/RMSE
     const usdItem: ModelEvaluation = {
@@ -665,21 +773,94 @@ describe('Step 8 — Global Universe Audit (--universe) Breakdowns, Currency Sep
     assert.equal(mixedStats.naiveMae, null);
     assert.equal(mixedStats.rmse, null);
     assert.equal(mixedStats.naiveRmse, null);
+    assert.equal(mixedStats.directionalStats.binomialPValueVsAlwaysUp, undefined);
     assert.ok(Number.isFinite(mixedStats.priceAccuracy));
 
     // Causal sentiment ablation + audit payload + CSV formatting
     const audit = buildModelAuditPayload(evalRes);
     assert.equal(audit.available, true);
     assert.equal(audit.universeMode, 'ticker_master');
-    assert.equal(audit.skippedTickers?.length, 3);
+    assert.equal(audit.providerTelemetry?.providerCounts['yahoo-finance-v8'], 8);
+    assert.equal(audit.providerTelemetry?.rateLimit429Count, 0);
     assert.ok(audit.countryBreakdowns?.US);
-    assert.ok(audit.exchangeBreakdowns?.NSE);
+    assert.ok(audit.exchangeBreakdowns?.XNAS);
+    assert.ok(audit.regionBreakdowns?.['North America']);
     assert.ok(audit.sentimentAblation?.available);
     assert.equal(audit.sentimentAblation?.pairedDiff?.maeDiff, null, 'Mixed-currency sentiment ablation ΔMAE must be null');
 
     const csv = buildAuditCsv(audit, 'UNIVERSE_TICKER_MASTER');
     assert.match(csv, /# Country Breakdown \[US\]/);
-    assert.match(csv, /# Exchange Breakdown \[NASDAQ\]/);
+    assert.match(csv, /# Insufficient Sample Countries \(n<5\):/);
+    assert.match(csv, /# Exchange Breakdown \[XNAS\]/);
+    assert.match(csv, /# Region Breakdown \[North America\]/);
+    assert.match(csv, /# calendarValidation:/);
+    assert.match(csv, /# shortTestWindow: threshold=120, shortWindowAssetsCount=1/);
     assert.match(csv, /# skippedTickers: SKIP_SYNTH/);
+  });
+
+  it('reports 0 mismatches on real trading dates and flags weekend/holiday mismatches in calendarValidation', async () => {
+    clearEvaluationCaches();
+    // 1. Clean series strictly on real XNAS trading dates in 2026 -> 0 mismatches
+    const raw2026 = makeLiveTradingSeries(260, '2026-01-02', 11, 150).filter((b) =>
+      isExchangeTradingDay(b.date, 'XNAS')
+    );
+    const cleanBars = computeAllIndicators(
+      raw2026.map((b) => ({
+        date: b.date,
+        open: b.open,
+        high: b.high,
+        low: b.low,
+        close: b.close,
+        volume: b.volume,
+        source: 'live' as const
+      }))
+    );
+
+    const cleanRes = await runAggregateModelEvaluation(
+      async () => ({ bars: cleanBars, source: 'live' as const, provider: 'test-feed' }),
+      [{ ticker: 'AAPL', name: 'Apple Inc.' }],
+      {
+        tickerMetaLookup: new Map([['AAPL', { name: 'Apple Inc.', country: 'US', exchange: 'XNAS' }]]),
+        universeMode: 'ticker_master',
+        includeBreakdowns: true
+      }
+    );
+    assert.ok(isModelEvaluationAvailable(cleanRes));
+    assert.ok(cleanRes.calendarValidation);
+    assert.equal(cleanRes.calendarValidation.mismatchCount, 0);
+
+    // 2. Polluted series with a Saturday (2026-07-11) and Independence Day observed holiday (2026-07-03) -> 2 mismatches
+    clearEvaluationCaches();
+    const rawPolluted = cleanBars.slice(0, -1).map((b) => ({
+      date: b.date,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+      volume: b.volume,
+      source: 'live' as const
+    }));
+    const last = rawPolluted[rawPolluted.length - 1];
+    rawPolluted.push({ ...last, date: '2026-07-03' }); // XNAS holiday
+    rawPolluted.push({ ...last, date: '2026-07-11' }); // Saturday
+    const pollutedBars = computeAllIndicators(rawPolluted);
+
+    const dirtyRes = await runAggregateModelEvaluation(
+      async () => ({ bars: pollutedBars, source: 'live' as const, provider: 'test-feed' }),
+      [{ ticker: 'AAPL', name: 'Apple Inc.' }],
+      {
+        tickerMetaLookup: new Map([['AAPL', { name: 'Apple Inc.', country: 'US', exchange: 'XNAS' }]]),
+        universeMode: 'ticker_master',
+        includeBreakdowns: true
+      }
+    );
+
+    assert.ok(isModelEvaluationAvailable(dirtyRes));
+    assert.ok(dirtyRes.calendarValidation);
+    assert.equal(dirtyRes.calendarValidation.mismatchCount, 2);
+    assert.deepEqual(dirtyRes.calendarValidation.mismatches, [
+      { ticker: 'AAPL', exchange: 'XNAS', date: '2026-07-03', reason: 'holiday' },
+      { ticker: 'AAPL', exchange: 'XNAS', date: '2026-07-11', reason: 'weekend' }
+    ]);
   });
 });

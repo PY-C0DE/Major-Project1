@@ -60,6 +60,7 @@ export interface TickerMasterItem {
   sector: string;
   pe?: number | null;
   marketCap?: number | null;
+  liquidity?: number | null;
   basePrice?: number | null;
   aliases: string[];
   active: boolean;
@@ -496,7 +497,12 @@ export interface AssetBreakdownItem {
   ticker: string;
   name: string;
   currency?: string;
+  country?: string;
+  exchange?: string;
+  region?: string;
   dataSource: 'live' | 'synthetic';
+  dataProvider?: string;
+  fallbackFrom?: string;
   testWindowStart: string;
   testWindowEnd: string;
   priceAccuracy: number;
@@ -510,6 +516,7 @@ export interface AssetBreakdownItem {
   directionalAccuracy: number;
   alwaysUpAccuracy: number;
   samples: number;
+  shortTestWindow?: boolean;
   rmse: number;
   naiveRmse: number;
   mae: number;
@@ -536,7 +543,7 @@ export interface PooledDirectionalStats {
   pooledDirectionalAccuracyPct: number;
   pooledAlwaysUpAccuracyPct: number;
   wilson95CI: [number, number];
-  binomialPValueVsAlwaysUp: number;
+  binomialPValueVsAlwaysUp?: number | null;
   directionalEdgeVsAlwaysUpPct?: number;
   directionalEdgeVsAlwaysUp95CI?: [number, number];
   bootstrapProbEdgePositive?: number;
@@ -559,10 +566,11 @@ export interface ModelFeatureImportance {
 
 export interface SkippedTickerRecord {
   ticker: string;
-  reason: 'synthetic_data' | 'insufficient_history' | 'fetch_error';
+  reason: 'synthetic_data' | 'insufficient_history' | 'no_history' | 'delisted' | 'provider_error' | 'fetch_error';
   barsCount?: number;
   country?: string;
   exchange?: string;
+  detail?: string;
 }
 
 export interface AuditEvaluationParams {
@@ -633,8 +641,20 @@ export interface ModelEvaluation {
   featureImportance?: ModelFeatureImportance[];
   sentimentAblation?: SentimentAblationResult;
   universeMode?: 'catalog' | 'ticker_master';
+  minBreakdownAssets?: number;
   countryBreakdowns?: Record<string, UniverseBreakdownMetrics>;
   exchangeBreakdowns?: Record<string, UniverseBreakdownMetrics>;
+  regionBreakdowns?: Record<string, UniverseBreakdownMetrics>;
+  insufficientSampleCountries?: InsufficientSampleBreakdownItem[];
+  insufficientSampleExchanges?: InsufficientSampleBreakdownItem[];
+  sampling?: UniverseSamplingMetadata;
+  perExchangeCounts?: PerExchangeSamplingCount[];
+  providerTelemetry?: ProviderTelemetrySummary;
+  calendarValidation?: CalendarValidationSummary;
+  shortTestWindowCount?: number;
+  minTestPredictionsThreshold?: number;
+  shortTestWindowTickers?: Array<{ ticker: string; samples: number; exchange?: string; country?: string }>;
+  delistedStratum?: DelistedStratumReport;
 }
 
 export interface UnavailableEvaluation {
@@ -648,12 +668,17 @@ export interface UnavailableEvaluation {
   evaluatedAssetsCount: number;
   skippedTickers?: SkippedTickerRecord[];
   ticker?: string;
+  sampling?: UniverseSamplingMetadata;
+  providerTelemetry?: ProviderTelemetrySummary;
+  perExchangeCounts?: PerExchangeSamplingCount[];
+  delistedStratum?: DelistedStratumReport;
 }
 
 export interface UniverseBreakdownMetrics {
   key: string;
   label: string;
   assetsCount: number;
+  totalTestPredictions?: number;
   tickers: string[];
   currencies: string[];
   currency: string;
@@ -675,11 +700,100 @@ export interface UniverseBreakdownMetrics {
   directionalStats: PooledDirectionalStats;
 }
 
+export interface InsufficientSampleBreakdownItem {
+  key: string;
+  label: string;
+  assetsCount: number;
+  totalTestPredictions: number;
+  tickers: string[];
+  currency: string;
+  reason: 'insufficient_sample_n_lt_5';
+}
+
+export interface UniverseSamplingMetadata {
+  perExchange: number;
+  seed: number;
+  method: 'market_cap_or_liquidity_then_seeded_random';
+  totalMasterRows: number;
+  activeEquitiesCount: number;
+  delistedEquitiesCount: number;
+  sampledActiveRequested: number;
+  exchangesCovered: number;
+}
+
+export interface PerExchangeSamplingCount {
+  exchange: string;
+  exchangeCode: string;
+  country: string;
+  availableActive: number;
+  requested: number;
+  evaluated: number;
+  skipped: number;
+  skippedByReason: Record<string, number>;
+  delistedCount: number;
+  samplingStrategy: 'market_cap' | 'mixed_cap_and_seeded_random' | 'seeded_random';
+}
+
+export interface ProviderTelemetrySummary {
+  twelveDataStatus: 'configured' | 'not_configured';
+  configuredProvider: string;
+  providerCounts: Record<string, number>;
+  fallbackTotal: number;
+  fallbackByProvider: Record<string, number>;
+  fallbackByReason: Record<string, number>;
+  rateLimit429Count: number;
+}
+
+export interface CalendarValidationMismatch {
+  ticker: string;
+  exchange: string;
+  date: string;
+  reason: 'weekend' | 'holiday' | 'calendar_missing';
+}
+
+export interface CalendarValidationSummary {
+  checkedExchangesCount: number;
+  checkedAssetsCount: number;
+  checkedTestDatesCount: number;
+  mismatchCount: number;
+  mismatches: CalendarValidationMismatch[];
+}
+
+export interface DelistedStratumAssetReport {
+  ticker: string;
+  name: string;
+  exchange: string;
+  country: string;
+  currency: string;
+  status: 'evaluated_stopped' | 'skipped';
+  lastBarDate?: string;
+  samples?: number;
+  priceAccuracy?: number;
+  naivePriceAccuracy?: number;
+  conformalCoverage?: number;
+  directionalAccuracy?: number;
+  dataProvider?: string;
+  fallbackFrom?: string;
+  skipReason?: 'no_history' | 'insufficient_history' | 'synthetic_data' | 'provider_error' | 'fetch_error' | 'delisted';
+  detail?: string;
+}
+
+export interface DelistedStratumReport {
+  note: string;
+  requestedCount: number;
+  evaluatedCount: number;
+  skippedCount: number;
+  skippedByReason: Record<string, number>;
+  evaluatedAt: string;
+  assets: DelistedStratumAssetReport[];
+}
+
 export interface ModelAuditResponse {
   available: boolean;
   reason?: string;
   gitCommit?: string | null;
   universeMode?: 'catalog' | 'ticker_master';
+  minBreakdownAssets?: number;
   evaluationParams?: AuditEvaluationParams;
   dataSource: 'live' | 'synthetic' | 'mixed' | 'none';
   dataProvider?: string;
@@ -707,6 +821,17 @@ export interface ModelAuditResponse {
   assets?: AssetBreakdownItem[];
   countryBreakdowns?: Record<string, UniverseBreakdownMetrics>;
   exchangeBreakdowns?: Record<string, UniverseBreakdownMetrics>;
+  regionBreakdowns?: Record<string, UniverseBreakdownMetrics>;
+  insufficientSampleCountries?: InsufficientSampleBreakdownItem[];
+  insufficientSampleExchanges?: InsufficientSampleBreakdownItem[];
+  sampling?: UniverseSamplingMetadata;
+  perExchangeCounts?: PerExchangeSamplingCount[];
+  providerTelemetry?: ProviderTelemetrySummary;
+  calendarValidation?: CalendarValidationSummary;
+  shortTestWindowCount?: number;
+  minTestPredictionsThreshold?: number;
+  shortTestWindowTickers?: Array<{ ticker: string; samples: number; exchange?: string; country?: string }>;
+  delistedStratum?: DelistedStratumReport;
   sentimentAblation?: SentimentAblationResult;
 }
 

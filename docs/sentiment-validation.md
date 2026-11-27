@@ -47,3 +47,12 @@ Evaluated across **840 held-out financial sentences** (120 per language) from `K
 | `ja` | 120 | 120 | 120 | 0.00 | None |
 | `zh` | 120 | 120 | 120 | 0.00 | None |
 | `ar` | 120 | 120 | 119 | 0.00 | None |
+
+## 4. Live Sentiment History Accumulation for Causal Ablation
+
+In live model audits (`npm run audit` and `npm run audit -- --universe`), the paired sentiment ablation (`sentimentAblation`) enforces strict walk-forward causality (`sentimentDate < predictionDate` aligned to the exchange trading calendar) and never backfills or fabricates historical sentiment.
+
+- **Activation thresholds**:
+  - `minRequiredDates >= 10` distinct exchange-local trading dates with live news sentiment overlapping the out-of-sample evaluation test window.
+  - `minRequiredSamples >= 30` matched `(ticker, predictionDate)` pairs across evaluated assets.
+- Until scheduled daily sentiment collection accumulates at least **10 distinct trading days** overlapping the OOS test window (`>= 30` matched ticker-date pairs), `sentimentAblation.available` honestly reports `false` with the exact observed `matchedSamples` and `matchedDates` counts.

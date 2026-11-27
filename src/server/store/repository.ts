@@ -2443,9 +2443,9 @@ export class PostgresRepository implements DatabaseRepository {
                 timezone: sql`excluded.timezone`,
                 assetType: sql`excluded.asset_type`,
                 sector: sql`excluded.sector`,
-                pe: sql`excluded.pe`,
-                marketCap: sql`excluded.market_cap`,
-                basePrice: sql`excluded.base_price`,
+                pe: sql`COALESCE(excluded.pe, ${tickerMasterTable.pe})`,
+                marketCap: sql`COALESCE(excluded.market_cap, ${tickerMasterTable.marketCap})`,
+                basePrice: sql`COALESCE(excluded.base_price, ${tickerMasterTable.basePrice})`,
                 aliases: sql`excluded.aliases`,
                 active: sql`excluded.active`,
                 updatedAt: sql`excluded.updated_at`

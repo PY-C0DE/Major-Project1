@@ -779,13 +779,30 @@ export const ModelPerformancePage: React.FC = () => {
                     </div>
 
                     <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                      <span className="text-[10px] uppercase text-slate-400 block">Binomial p — pooled (assumes independence)</span>
-                      <span className={`text-base font-bold tabular-nums ${metrics.directionalStats.binomialPValueVsAlwaysUp < 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-                        p = {formatPValue(metrics.directionalStats.binomialPValueVsAlwaysUp)}
+                      <span className="text-[10px] uppercase text-slate-400 block">
+                        {metrics.directionalStats.binomialPValueVsAlwaysUp != null
+                          ? 'Binomial p — single asset (vs Always-Up)'
+                          : 'Cross-Asset Binomial p'}
                       </span>
-                      <span className="text-[10px] text-slate-500 block">
-                        One-sided test (treats assets as i.i.d.)
-                      </span>
+                      {metrics.directionalStats.binomialPValueVsAlwaysUp != null ? (
+                        <>
+                          <span className={`text-base font-bold tabular-nums ${metrics.directionalStats.binomialPValueVsAlwaysUp < 0.05 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                            p = {formatPValue(metrics.directionalStats.binomialPValueVsAlwaysUp)}
+                          </span>
+                          <span className="text-[10px] text-slate-500 block">
+                            Exact one-sided test
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-base font-bold text-slate-500 dark:text-slate-400 tabular-nums">
+                            Omitted (i.i.d. violated)
+                          </span>
+                          <span className="text-[10px] text-slate-500 block">
+                            Cite Date-Clustered Bootstrap CI below
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 

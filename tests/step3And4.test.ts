@@ -10,6 +10,8 @@ import { getExchangeMarketStatus } from '../src/utils/marketStatus';
 import {
   YahooFinanceMarketDataProvider,
   TwelveDataMarketDataProvider,
+  RateLimitedHttpRunner,
+  parseRetryAfterMs,
   TWELVE_DATA_EXCHANGE_BY_MIC,
   mapTickerToTwelveDataSymbol,
   createConfiguredMarketDataProvider,
@@ -301,6 +303,182 @@ describe('Step 3 — MarketDataProvider Abstraction (Retries, Rate Limiting, Cac
     } finally {
       resetMarketDataProvider();
       clearEvaluationCaches();
+    }
+  });
+
+  it('enforces sliding-window RPM limit, honors Retry-After with jittered backoff on HTTP/JSON 429, and reports not_configured cleanly', async () => {
+    // 1. parseRetryAfterMs supports integer seconds and HTTP dates
+    assert.equal(parseRetryAfterMs('5'), 5000);
+    const futureDate = new Date(Date.now() + 2500).toUTCString();
+    const parsedDateWait = parseRetryAfterMs(futureDate);
+    assert.ok(parsedDateWait !== null && parsedDateWait >= 500 && parsedDateWait <= 4000);
+    assert.equal(parseRetryAfterMs('not-a-date'), null);
+
+    // 2. Sliding-window RPM pacing + HTTP 429 Retry-After backoff
+    const sleeps: number[] = [];
+    let attempt = 0;
+    const mockHttp429Fetch: typeof fetch = (async () => {
+      attempt++;
+      if (attempt === 1) {
+        return new Response('Too Many Requests', {
+          status: 429,
+          headers: { 'retry-after': '1' }
+        });
+      }
+      return new Response(JSON.stringify({ ok: true, attempt }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      });
+    }) as typeof fetch;
+
+    const runner = new RateLimitedHttpRunner({
+      providerName: 'mock-td',
+      fetchFn: mockHttp429Fetch,
+      maxRetries: 2,
+      baseDelayMs: 25,
+      maxDelayMs: 2000,
+      retryAfterMaxMs: 5000,
+      maxConcurrent: 1,
+      minIntervalMs: 0,
+      maxRequestsPerMinute: 2,
+      rateLimitWindowMs: 50,
+      sleepFn: async (ms) => {
+        sleeps.push(ms);
+        if (ms <= 100) await new Promise((r) => setTimeout(r, ms));
+      },
+      randomFn: () => 0.5
+    });
+
+    const res1 = await runner.fetchJson<{ ok: boolean }>('https://example.com/1');
+    assert.equal(res1.ok, true);
+    assert.equal(attempt, 2);
+    assert.ok(sleeps.some((ms) => ms >= 1000), 'Retry-After header >= 1s must delay retry');
+
+    const rpmStatsBeforeBurst = runner.getStats();
+    assert.equal(rpmStatsBeforeBurst.rateLimitedResponses, 1);
+    assert.equal(rpmStatsBeforeBurst.retriesAttempted, 1);
+
+    // Concurrent calls exceeding maxRequestsPerMinute=2 trigger sliding-window sleep
+    sleeps.length = 0;
+    await Promise.all([
+      runner.fetchJson('https://example.com/a'),
+      runner.fetchJson('https://example.com/b'),
+      runner.fetchJson('https://example.com/c')
+    ]);
+    assert.ok(sleeps.length >= 1, 'Sliding-window RPM cap must pace requests beyond quota');
+
+    // 3. TwelveData JSON 200 error code 429 triggers retry and recovers cleanly; exhausted 429 falls back with rate_limited_429
+    const sampleBars = makeLiveTradingSeries(180, '2025-10-01', 5);
+    const mockTimestamps = sampleBars.map((b) => Math.floor(Date.parse(`${b.date}T15:00:00Z`) / 1000));
+    let tdCalls = 0;
+    const origWarn = console.warn;
+    console.warn = () => {};
+
+    try {
+      const recoveryFetch: typeof fetch = (async () => {
+        tdCalls++;
+        if (tdCalls === 1) {
+          return new Response(
+            JSON.stringify({ status: 'error', code: 429, message: 'You have run out of api credits for the current minute' }),
+            { status: 200, headers: { 'content-type': 'application/json' } }
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            status: 'ok',
+            values: sampleBars
+              .slice()
+              .reverse()
+              .map((b) => ({
+                datetime: b.date,
+                open: String(b.open),
+                high: String(b.high),
+                low: String(b.low),
+                close: String(b.close),
+                volume: String(b.volume)
+              }))
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }) as typeof fetch;
+
+      const tdRecovered = new TwelveDataMarketDataProvider({
+        apiKey: 'test-td-key',
+        fetchFn: recoveryFetch,
+        maxRetries: 2,
+        baseDelayMs: 5,
+        minIntervalMs: 0,
+        maxRequestsPerMinute: 100,
+        sleepFn: async () => {}
+      });
+      const okRes = await tdRecovered.getHistory('AAPL', 180);
+      assert.equal(okRes.provider, 'twelvedata');
+      assert.equal(okRes.fallbackFrom, undefined);
+      assert.equal(tdCalls, 2);
+      assert.equal(tdRecovered.getHttpStats().primary.rateLimitedResponses, 1);
+
+      // Exhausted 429 falls back cleanly to Yahoo with fallbackReasonCode='rate_limited_429'
+      const exhaustedFetch: typeof fetch = (async (url: string | URL | Request) => {
+        const u = String(url);
+        if (u.includes('api.twelvedata.com')) {
+          return new Response('rate limit', { status: 429, headers: { 'retry-after': '0' } });
+        }
+        return new Response(
+          JSON.stringify({
+            chart: {
+              result: [
+                {
+                  meta: { exchangeName: 'NMS', currency: 'USD', exchangeTimezoneName: 'America/New_York' },
+                  timestamp: mockTimestamps,
+                  indicators: {
+                    quote: [
+                      {
+                        open: sampleBars.map((b) => b.open),
+                        high: sampleBars.map((b) => b.high),
+                        low: sampleBars.map((b) => b.low),
+                        close: sampleBars.map((b) => b.close),
+                        volume: sampleBars.map((b) => b.volume)
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        );
+      }) as typeof fetch;
+
+      const tdExhausted = new TwelveDataMarketDataProvider({
+        apiKey: 'test-td-key',
+        fetchFn: exhaustedFetch,
+        maxRetries: 1,
+        baseDelayMs: 2,
+        minIntervalMs: 0,
+        maxRequestsPerMinute: 100,
+        sleepFn: async () => {}
+      });
+      const fbRes = await tdExhausted.getHistory('AAPL', 180);
+      assert.equal(fbRes.provider, 'yahoo-finance-v8');
+      assert.equal(fbRes.fallbackFrom, 'twelvedata');
+      assert.equal(fbRes.fallbackReasonCode, 'rate_limited_429');
+      assert.equal(tdExhausted.getHttpStats().primary.rateLimitedResponses, 2);
+
+      // Unconfigured API key reports not_configured without recording a 429
+      const tdUnconfigured = new TwelveDataMarketDataProvider({
+        apiKey: '',
+        fetchFn: exhaustedFetch,
+        maxRetries: 1,
+        minIntervalMs: 0
+      });
+      assert.equal(tdUnconfigured.isConfigured(), false);
+      const uncfgRes = await tdUnconfigured.getHistory('AAPL', 180);
+      assert.equal(uncfgRes.provider, 'yahoo-finance-v8');
+      assert.equal(uncfgRes.fallbackFrom, 'twelvedata');
+      assert.equal(uncfgRes.fallbackReasonCode, 'not_configured');
+      assert.equal(tdUnconfigured.getHttpStats().primary.rateLimitedResponses, 0);
+    } finally {
+      console.warn = origWarn;
     }
   });
 });
