@@ -1,19 +1,21 @@
 /**
- * FinBERT Transformer Sentiment Scorer (with Keyword Lexicon Fallback)
+ * Multilingual & English Transformer Sentiment Scorer (Item 2)
  *
- * Uses @xenova/transformers (`Xenova/finbert`, ONNX-quantized ProsusAI/finbert)
- * lazily loaded in Node.js with:
- * - Per-headline SHA-256 caching keyed on (title + publisher)
- * - Asynchronous batched inference
- * - Graceful timeout / load-failure fallback to keyword financial lexicon
- * - Normalized { positive, neutral, negative } probabilities and netScore = p_pos - p_neg in [-1, 1]
+ * - English (`en`): `Xenova/finbert` (ONNX ProsusAI/finbert), fallback `'lexicon'`
+ * - Supported Non-English (`ar, de, es, fr, ja, zh, id, hi, it, ms, pt`):
+ *   `Xenova/distilbert-base-multilingual-cased-sentiments-student` (ONNX multilingual 3-class sentiment),
+ *   fallback `'multilingual-lexicon'`
+ * - Unsupported languages (e.g. `ko`, `ru`, `nl`, `sv`, `no`, `da`, `fi`, `und`, etc.):
+ *   marked explicitly as `sentimentSource: 'unsupported_language'` (`modelId: 'unsupported'`, `modelVersion: 'n/a'`)
+ *   and excluded from daily sentiment aggregates.
+ *
+ * Non-English text is NEVER passed to the English FinBERT model.
  */
 
 import crypto from 'node:crypto';
 import { SentimentSource } from '../../types';
 import { detectTextLanguage } from './languageDetection';
 
-// Canonical Financial Sentiment Lexicon & Markers (used for fallback & synthetic baselines)
 const POSITIVE_MARKERS = [
   'surge', 'jump', 'gain', 'beat', 'record', 'profit', 'outperform', 'upgrade',
   'growth', 'bullish', 'strong', 'expansion', 'dividend', 'rally', 'breakthrough',
@@ -44,6 +46,7 @@ export interface ScoredSentimentResult {
   sentimentSource: SentimentSource;
   language: string;
   modelId: string;
+  modelVersion: string;
 }
 
 export type FinbertRawOutputItem =
@@ -56,8 +59,38 @@ export type FinbertPipelineFn = (
 ) => Promise<FinbertRawOutputItem | FinbertRawOutputItem[]>;
 
 export const FINBERT_MODEL_ID = 'Xenova/finbert';
+export const FINBERT_MODEL_VERSION = 'onnx-prosusai-finbert-v1';
+
+export const MULTILINGUAL_MODEL_ID = 'Xenova/distilbert-base-multilingual-cased-sentiments-student';
+export const MULTILINGUAL_MODEL_VERSION = 'onnx-lxyuan-mbert-v1';
+
 export const LEXICON_FALLBACK_MODEL_ID = 'keyword-lexicon-fallback';
+export const LEXICON_FALLBACK_MODEL_VERSION = 'v1';
+
 export const MULTILINGUAL_LEXICON_MODEL_ID = 'multilingual-lexicon-v1';
+export const MULTILINGUAL_LEXICON_MODEL_VERSION = 'v1';
+
+export const UNSUPPORTED_LANGUAGE_MODEL_ID = 'unsupported';
+export const UNSUPPORTED_LANGUAGE_MODEL_VERSION = 'n/a';
+
+/**
+ * Languages supported by `lxyuan/distilbert-base-multilingual-cased-sentiments-student`
+ * (excluding `en`, which routes to ProsusAI/finbert).
+ */
+export const SUPPORTED_MULTILINGUAL_LANGUAGES = new Set([
+  'ar',
+  'de',
+  'es',
+  'fr',
+  'ja',
+  'zh',
+  'id',
+  'hi',
+  'it',
+  'ms',
+  'pt'
+]);
+
 const DEFAULT_LOAD_TIMEOUT_MS = Number(process.env.FINBERT_LOAD_TIMEOUT_MS || 20000);
 const DEFAULT_INFERENCE_TIMEOUT_MS = Number(process.env.FINBERT_INFER_TIMEOUT_MS || 10000);
 const MAX_CACHE_ENTRIES = 5000;
@@ -68,17 +101,11 @@ const MULTILINGUAL_POSITIVE_MARKERS: Record<string, string[]> = {
   es: ['sube', 'crecimiento', 'beneficio', 'récord', 'supera', 'fuerte', 'dividendo', 'mejora', 'alza', 'expansión', 'ganancia'],
   pt: ['alta', 'lucro', 'crescimento', 'recorde', 'supera', 'forte', 'dividendo', 'expansão', 'avança'],
   it: ['cresce', 'utile', 'utili', 'record', 'ricavi', 'dividendo', 'rialzo', 'migliora', 'solido', 'espansione'],
-  nl: ['stijgt', 'winst', 'groei', 'record', 'omzetstijging', 'sterk', 'dividend', 'verhoogt', 'herstel'],
-  sv: ['stiger', 'vinst', 'tillväxt', 'rekord', 'stark', 'utdelning', 'höjer', 'framgång'],
-  no: ['stiger', 'overskudd', 'vekst', 'rekord', 'sterk', 'utbytte', 'oppgang'],
-  da: ['stiger', 'overskud', 'vækst', 'rekord', 'stærk', 'udbytte', 'opjusterer'],
-  fi: ['nousee', 'tulos', 'kasvu', 'ennätys', 'vahva', 'osinko', 'parantaa'],
   id: ['naik', 'laba', 'pertumbuhan', 'rekor', 'kuat', 'dividen', 'melonjak', 'menguat'],
+  ms: ['naik', 'untung', 'pertumbuhan', 'rekod', 'kukuh', 'dividen', 'melonjak'],
   ja: ['増益', '上方修正', '最高益', '成長', '上昇', '増配', '好調', '黒字', '急騰', '買い'],
-  ko: ['상승', '호실적', '성장', '최대', '급등', '흑자', '배당', '상향', '수주', '매수'],
   zh: ['增长', '上涨', '创纪录', '盈利', '大涨', '突破', '分红', '利好', '买入', '上调'],
   hi: ['मुनाफा', 'बढ़त', 'रिकॉर्ड', 'तेजी', 'मजबूत', 'लाभांश', 'विकास', 'उछाल'],
-  ru: ['рост', 'прибыль', 'рекорд', 'дивиденды', 'укрепление', 'повышение'],
   ar: ['نمو', 'أرباح', 'ارتفاع', 'قياسي', 'توزيعات', 'قوي']
 };
 
@@ -88,17 +115,11 @@ const MULTILINGUAL_NEGATIVE_MARKERS: Record<string, string[]> = {
   es: ['cae', 'caída', 'pérdida', 'pérdidas', 'débil', 'advertencia', 'recorte', 'demanda', 'deuda', 'crisis', 'desplome'],
   pt: ['queda', 'prejuízo', 'recuo', 'fraco', 'crise', 'dívida', 'investigação', 'desaba'],
   it: ['cala', 'perdita', 'ribasso', 'debole', 'crollo', 'indagine', 'debito', 'crisi'],
-  nl: ['daalt', 'verlies', 'krimp', 'zwak', 'waarschuwing', 'schuld', 'daling', 'onderzoek'],
-  sv: ['faller', 'förlust', 'nedgång', 'svag', 'varning', 'skuld', 'rasar'],
-  no: ['faller', 'underskudd', 'nedgang', 'svak', 'advarsel', 'gjeld'],
-  da: ['falder', 'underskud', 'nedgang', 'svag', 'nedjusterer', 'gæld'],
-  fi: ['laskee', 'tappio', 'heikko', 'varoitus', 'velka', 'pudotus'],
   id: ['turun', 'rugi', 'anjlok', 'lemah', 'utang', 'penurunan', 'koreksi'],
+  ms: ['turun', 'rugi', 'merosot', 'lemah', 'hutang', 'penurunan'],
   ja: ['減益', '下方修正', '赤字', '下落', '急落', '悪化', '減配', '売り', '訴訟'],
-  ko: ['하락', '적자', '급락', '부진', '감소', '하향', '손실', '악화', '매도'],
   zh: ['下跌', '亏损', '暴跌', '下滑', '疲软', '下调', '违约', '利空', '卖出', '衰退'],
   hi: ['गिरावट', 'नुकसान', 'घाटा', 'कमजोर', 'मंदी', 'संकट', 'दबाव'],
-  ru: ['падение', 'убыток', 'снижение', 'кризис', 'слабый', 'штраф'],
   ar: ['انخفاض', 'خسارة', 'تراجع', 'أزمة', 'ضعيف', 'هبوط']
 };
 
@@ -147,7 +168,8 @@ export function analyzeMultilingualLexiconSentiment(
     confidence,
     sentimentSource: 'multilingual-lexicon',
     language,
-    modelId: MULTILINGUAL_LEXICON_MODEL_ID
+    modelId: MULTILINGUAL_LEXICON_MODEL_ID,
+    modelVersion: MULTILINGUAL_LEXICON_MODEL_VERSION
   };
 }
 
@@ -236,7 +258,6 @@ function normalizeLabelScores(raw: FinbertRawOutputItem): {
     return { positive: 0.333, neutral: 0.334, negative: 0.333 };
   }
 
-  // If pipeline only returned top-1 label (e.g. a mock without topk scores), allocate residual cleanly
   if (items.length === 1 && sum < 0.999) {
     const rem = Math.max(0, 1 - sum);
     if (pos > 0) {
@@ -263,9 +284,12 @@ function normalizeLabelScores(raw: FinbertRawOutputItem): {
   };
 }
 
-function buildFinbertResult(
+function buildTransformerResult(
   probs: { positive: number; neutral: number; negative: number },
-  language = 'en'
+  language: string,
+  sentimentSource: 'finbert' | 'multilingual-transformer',
+  modelId: string,
+  modelVersion: string
 ): ScoredSentimentResult {
   const { positive, neutral, negative } = probs;
   let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
@@ -284,9 +308,10 @@ function buildFinbertResult(
     sentimentScore: Number(net.toFixed(4)),
     probabilities: probs,
     confidence: Number(confidence.toFixed(4)),
-    sentimentSource: 'finbert',
+    sentimentSource,
     language,
-    modelId: FINBERT_MODEL_ID
+    modelId,
+    modelVersion
   };
 }
 
@@ -299,7 +324,21 @@ function buildLexiconFallbackResult(headline: string, summary = '', language = '
     confidence: lex.confidence,
     sentimentSource: 'lexicon',
     language,
-    modelId: LEXICON_FALLBACK_MODEL_ID
+    modelId: LEXICON_FALLBACK_MODEL_ID,
+    modelVersion: LEXICON_FALLBACK_MODEL_VERSION
+  };
+}
+
+function buildUnsupportedLanguageResult(language: string): ScoredSentimentResult {
+  return {
+    sentiment: 'neutral',
+    sentimentScore: 0,
+    probabilities: { positive: 0, neutral: 1, negative: 0 },
+    confidence: 0,
+    sentimentSource: 'unsupported_language',
+    language: language || 'und',
+    modelId: UNSUPPORTED_LANGUAGE_MODEL_ID,
+    modelVersion: UNSUPPORTED_LANGUAGE_MODEL_VERSION
   };
 }
 
@@ -322,7 +361,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): 
   });
 }
 
-// Module state for lazy singleton + per-headline cache + test overrides
+// Module state for lazy singletons + per-headline cache + test overrides
 const HEADLINE_CACHE = new Map<string, ScoredSentimentResult>();
 let cacheHits = 0;
 let cacheMisses = 0;
@@ -330,12 +369,23 @@ let cacheMisses = 0;
 let pipelinePromise: Promise<FinbertPipelineFn> | null = null;
 let overrideLoader: (() => Promise<FinbertPipelineFn>) | null = null;
 let lastLoadFailureAt = 0;
+
+let multiPipelinePromise: Promise<FinbertPipelineFn> | null = null;
+let multiOverrideLoader: (() => Promise<FinbertPipelineFn>) | null = null;
+let multiLastLoadFailureAt = 0;
+
 const RETRY_LOAD_COOLDOWN_MS = 60 * 1000;
 
 export function setFinbertPipelineOverride(loader: (() => Promise<FinbertPipelineFn>) | null): void {
   overrideLoader = loader;
   pipelinePromise = null;
   lastLoadFailureAt = 0;
+}
+
+export function setMultilingualPipelineOverride(loader: (() => Promise<FinbertPipelineFn>) | null): void {
+  multiOverrideLoader = loader;
+  multiPipelinePromise = null;
+  multiLastLoadFailureAt = 0;
 }
 
 export function resetFinbertState(): void {
@@ -345,6 +395,9 @@ export function resetFinbertState(): void {
   pipelinePromise = null;
   overrideLoader = null;
   lastLoadFailureAt = 0;
+  multiPipelinePromise = null;
+  multiOverrideLoader = null;
+  multiLastLoadFailureAt = 0;
 }
 
 export function getFinbertCacheStats() {
@@ -353,6 +406,14 @@ export function getFinbertCacheStats() {
     hits: cacheHits,
     misses: cacheMisses
   };
+}
+
+function setCacheEntry(key: string, value: ScoredSentimentResult): void {
+  if (HEADLINE_CACHE.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = HEADLINE_CACHE.keys().next().value;
+    if (oldestKey) HEADLINE_CACHE.delete(oldestKey);
+  }
+  HEADLINE_CACHE.set(key, value);
 }
 
 async function loadFinbertPipeline(loadTimeoutMs: number): Promise<FinbertPipelineFn> {
@@ -401,10 +462,77 @@ async function loadFinbertPipeline(loadTimeoutMs: number): Promise<FinbertPipeli
   }
 }
 
+async function loadMultilingualPipeline(loadTimeoutMs: number): Promise<FinbertPipelineFn> {
+  if (multiOverrideLoader) {
+    if (!multiPipelinePromise) {
+      multiPipelinePromise = withTimeout(
+        multiOverrideLoader(),
+        loadTimeoutMs,
+        'Multilingual sentiment pipeline override load'
+      );
+    }
+    try {
+      return await multiPipelinePromise;
+    } catch (err) {
+      multiPipelinePromise = null;
+      throw err;
+    }
+  }
+
+  if (process.env.DISABLE_MULTILINGUAL_SENTIMENT === 'true' || process.env.DISABLE_FINBERT === 'true') {
+    throw new Error('Multilingual transformer disabled via env');
+  }
+
+  if (!multiPipelinePromise) {
+    if (multiLastLoadFailureAt > 0 && Date.now() - multiLastLoadFailureAt < RETRY_LOAD_COOLDOWN_MS) {
+      throw new Error('Multilingual transformer load in cooldown after previous failure');
+    }
+    multiPipelinePromise = withTimeout(
+      (async () => {
+        const { pipeline, env } = await import('@xenova/transformers');
+        if (env) {
+          env.allowLocalModels = true;
+        }
+        const clf = await pipeline('text-classification', MULTILINGUAL_MODEL_ID, {
+          quantized: true
+        });
+        return clf as unknown as FinbertPipelineFn;
+      })(),
+      loadTimeoutMs,
+      'Multilingual transformer model load'
+    );
+  }
+
+  try {
+    return await multiPipelinePromise;
+  } catch (err) {
+    multiPipelinePromise = null;
+    multiLastLoadFailureAt = Date.now();
+    throw err;
+  }
+}
+
+function normalizeBatchOutput(rawOutputs: FinbertRawOutputItem | FinbertRawOutputItem[], expectedLen: number): FinbertRawOutputItem[] {
+  if (Array.isArray(rawOutputs)) {
+    if (
+      expectedLen === 1 &&
+      rawOutputs.length > 0 &&
+      !Array.isArray(rawOutputs[0]) &&
+      typeof (rawOutputs[0] as { label?: string }).label === 'string'
+    ) {
+      return [rawOutputs as Array<{ label: string; score: number }>];
+    }
+    return rawOutputs as FinbertRawOutputItem[];
+  }
+  return [rawOutputs];
+}
+
 /**
- * Scores a batch of headlines asynchronously with FinBERT (`Xenova/finbert`),
- * using per-(title+publisher) SHA-256 caching and falling back to the keyword
- * lexicon if FinBERT fails to load or times out.
+ * Scores a batch of headlines asynchronously:
+ * - English (`en`) -> FinBERT (`Xenova/finbert`), falling back to `lexicon`
+ * - Supported Non-English -> Multilingual Transformer (`Xenova/distilbert-base-multilingual-cased-sentiments-student`),
+ *   falling back to `multilingual-lexicon`
+ * - Unsupported languages -> `unsupported_language` (excluded from daily sentiment aggregates)
  */
 export async function scoreHeadlinesWithFinbert(
   items: HeadlineInput[],
@@ -412,6 +540,7 @@ export async function scoreHeadlinesWithFinbert(
     loadTimeoutMs?: number;
     inferenceTimeoutMs?: number;
     batchSize?: number;
+    forceLanguage?: string;
   }
 ): Promise<ScoredSentimentResult[]> {
   if (!items || items.length === 0) return [];
@@ -422,14 +551,18 @@ export async function scoreHeadlinesWithFinbert(
 
   const results: Array<ScoredSentimentResult | undefined> = new Array(items.length);
   const detectedLangs = new Array<string>(items.length);
-  const uncachedEnglishIndices: number[] = [];
   const keyByIdx = new Array<string>(items.length);
+
+  const uncachedEnglishIndices: number[] = [];
+  const uncachedMultilingualIndices: number[] = [];
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const detected = detectTextLanguage(`${item.headline} ${item.summary || ''}`);
-    detectedLangs[i] = detected.language;
-    const key = `${hashHeadlineKey(item.headline, item.publisher)}:${detected.language}`;
+    const lang = options?.forceLanguage
+      ? options.forceLanguage.trim().toLowerCase()
+      : detectTextLanguage(`${item.headline} ${item.summary || ''}`).language;
+    detectedLangs[i] = lang;
+    const key = `${hashHeadlineKey(item.headline, item.publisher)}:${lang}`;
     keyByIdx[i] = key;
 
     const cached = HEADLINE_CACHE.get(key);
@@ -441,83 +574,124 @@ export async function scoreHeadlinesWithFinbert(
 
     cacheMisses++;
 
-    // Step 5 Guard: NEVER pass non-English text to English FinBERT (`Xenova/finbert`)
-    if (!detected.isEnglish) {
-      const multiResult = analyzeMultilingualLexiconSentiment(
-        item.headline,
-        item.summary || '',
-        detected.language
-      );
-      results[i] = multiResult;
-      if (HEADLINE_CACHE.size >= MAX_CACHE_ENTRIES) {
-        const oldestKey = HEADLINE_CACHE.keys().next().value;
-        if (oldestKey) HEADLINE_CACHE.delete(oldestKey);
-      }
-      HEADLINE_CACHE.set(key, multiResult);
-      continue;
+    if (lang === 'en') {
+      uncachedEnglishIndices.push(i);
+    } else if (SUPPORTED_MULTILINGUAL_LANGUAGES.has(lang)) {
+      uncachedMultilingualIndices.push(i);
+    } else {
+      // Unsupported language: never pass to FinBERT or fabricate score; mark explicitly & cache
+      const unsupportedRes = buildUnsupportedLanguageResult(lang);
+      results[i] = unsupportedRes;
+      setCacheEntry(key, unsupportedRes);
     }
-
-    uncachedEnglishIndices.push(i);
   }
 
-  if (uncachedEnglishIndices.length === 0) {
-    return results as ScoredSentimentResult[];
-  }
+  // 1. Score English headlines via FinBERT (never receives non-English text)
+  if (uncachedEnglishIndices.length > 0) {
+    try {
+      const clf = await loadFinbertPipeline(loadTimeoutMs);
+      for (let start = 0; start < uncachedEnglishIndices.length; start += batchSize) {
+        const chunkIndices = uncachedEnglishIndices.slice(start, start + batchSize);
+        const texts = chunkIndices.map((idx) => items[idx].headline.trim().slice(0, 512));
 
-  try {
-    const clf = await loadFinbertPipeline(loadTimeoutMs);
+        const rawOutputs = await withTimeout(
+          clf(texts, { topk: null }),
+          inferenceTimeoutMs,
+          'FinBERT batch inference'
+        );
+        const normalizedBatch = normalizeBatchOutput(rawOutputs, texts.length);
 
-    for (let start = 0; start < uncachedEnglishIndices.length; start += batchSize) {
-      const chunkIndices = uncachedEnglishIndices.slice(start, start + batchSize);
-      const texts = chunkIndices.map((idx) => items[idx].headline.trim().slice(0, 512));
-
-      const rawOutputs = await withTimeout(
-        clf(texts, { topk: null }),
-        inferenceTimeoutMs,
-        'FinBERT batch inference'
-      );
-
-      const normalizedBatch: FinbertRawOutputItem[] = Array.isArray(rawOutputs)
-        ? texts.length === 1 && rawOutputs.length > 0 && !Array.isArray(rawOutputs[0]) && typeof (rawOutputs[0] as any).label === 'string'
-          ? [rawOutputs as Array<{ label: string; score: number }>]
-          : (rawOutputs as FinbertRawOutputItem[])
-        : [rawOutputs];
-
-      for (let j = 0; j < chunkIndices.length; j++) {
-        const origIdx = chunkIndices[j];
-        const rawOut = normalizedBatch[j];
-        if (!rawOut) {
-          results[origIdx] = buildLexiconFallbackResult(
-            items[origIdx].headline,
-            items[origIdx].summary,
-            detectedLangs[origIdx]
+        for (let j = 0; j < chunkIndices.length; j++) {
+          const origIdx = chunkIndices[j];
+          const rawOut = normalizedBatch[j];
+          if (!rawOut) {
+            results[origIdx] = buildLexiconFallbackResult(
+              items[origIdx].headline,
+              items[origIdx].summary,
+              'en'
+            );
+            continue;
+          }
+          const probs = normalizeLabelScores(rawOut);
+          const scored = buildTransformerResult(
+            probs,
+            'en',
+            'finbert',
+            FINBERT_MODEL_ID,
+            FINBERT_MODEL_VERSION
           );
-          continue;
+          results[origIdx] = scored;
+          setCacheEntry(keyByIdx[origIdx], scored);
         }
-        const probs = normalizeLabelScores(rawOut);
-        const scored = buildFinbertResult(probs, detectedLangs[origIdx]);
-        results[origIdx] = scored;
-
-        if (HEADLINE_CACHE.size >= MAX_CACHE_ENTRIES) {
-          const oldestKey = HEADLINE_CACHE.keys().next().value;
-          if (oldestKey) HEADLINE_CACHE.delete(oldestKey);
-        }
-        HEADLINE_CACHE.set(keyByIdx[origIdx], scored);
       }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[Sentiment] FinBERT unavailable (${message}); falling back to keyword lexicon.`);
     }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.warn(`[Sentiment] FinBERT unavailable (${message}); falling back to keyword lexicon.`);
   }
 
-  // Fill any unscored English slots with deterministic English keyword lexicon fallback
+  // 2. Score supported non-English headlines via Multilingual Transformer
+  if (uncachedMultilingualIndices.length > 0) {
+    try {
+      const multiClf = await loadMultilingualPipeline(loadTimeoutMs);
+      for (let start = 0; start < uncachedMultilingualIndices.length; start += batchSize) {
+        const chunkIndices = uncachedMultilingualIndices.slice(start, start + batchSize);
+        const texts = chunkIndices.map((idx) => items[idx].headline.trim().slice(0, 512));
+
+        const rawOutputs = await withTimeout(
+          multiClf(texts, { topk: null }),
+          inferenceTimeoutMs,
+          'Multilingual transformer batch inference'
+        );
+        const normalizedBatch = normalizeBatchOutput(rawOutputs, texts.length);
+
+        for (let j = 0; j < chunkIndices.length; j++) {
+          const origIdx = chunkIndices[j];
+          const rawOut = normalizedBatch[j];
+          const lang = detectedLangs[origIdx];
+          if (!rawOut) {
+            results[origIdx] = analyzeMultilingualLexiconSentiment(
+              items[origIdx].headline,
+              items[origIdx].summary || '',
+              lang
+            );
+            continue;
+          }
+          const probs = normalizeLabelScores(rawOut);
+          const scored = buildTransformerResult(
+            probs,
+            lang,
+            'multilingual-transformer',
+            MULTILINGUAL_MODEL_ID,
+            MULTILINGUAL_MODEL_VERSION
+          );
+          results[origIdx] = scored;
+          setCacheEntry(keyByIdx[origIdx], scored);
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[Sentiment] Multilingual transformer unavailable (${message}); falling back to multilingual lexicon.`
+      );
+    }
+  }
+
+  // 3. Fill any remaining un-scored slots with the appropriate labeled fallback
   for (let i = 0; i < items.length; i++) {
     if (!results[i]) {
-      results[i] = buildLexiconFallbackResult(
-        items[i].headline,
-        items[i].summary,
-        detectedLangs[i] || 'en'
-      );
+      const lang = detectedLangs[i] || 'en';
+      if (lang === 'en') {
+        results[i] = buildLexiconFallbackResult(items[i].headline, items[i].summary, 'en');
+      } else if (SUPPORTED_MULTILINGUAL_LANGUAGES.has(lang)) {
+        results[i] = analyzeMultilingualLexiconSentiment(
+          items[i].headline,
+          items[i].summary || '',
+          lang
+        );
+      } else {
+        results[i] = buildUnsupportedLanguageResult(lang);
+      }
     }
   }
 

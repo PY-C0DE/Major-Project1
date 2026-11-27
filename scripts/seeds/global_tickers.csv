@@ -1,140 +1,1753 @@
+# Source: JerBouma/FinanceDatabase (MIT License) merged with AlphaQuant curated global aliases
+# RetrievedAt: 2026-11-26 | Exchanges: 38 | Countries: 34 | Active: 1703 | Delisted(inactive): 47
 symbol,name,exchange,exchangeCode,country,currency,timezone,assetType,sector,aliases,active
-ORCL,Oracle Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Enterprise Software,"oracle|larry ellison|oci",true
-CRM,Salesforce Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Cloud Software,"salesforce|crm",true
-ADBE,Adobe Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Software & Creative,"adobe|photoshop|acrobat",true
-INTC,Intel Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,"intel|foundry",true
-QCOM,Qualcomm Incorporated,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,"qualcomm|snapdragon",true
-TXN,Texas Instruments Incorporated,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,"texas instruments|ti",true
-INTU,Intuit Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Fintech & Software,"intuit|turbotax|quickbooks",true
-AMAT,Applied Materials Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductor Equipment,"applied materials",true
-LRCX,Lam Research Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductor Equipment,"lam research",true
-MU,Micron Technology Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,"micron|dram|hbm",true
-PANW,Palo Alto Networks Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Cybersecurity,"palo alto|cybersecurity",true
-CRWD,CrowdStrike Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Cybersecurity,"crowdstrike|falcon",true
-NOW,ServiceNow Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Enterprise Software,"servicenow",true
-SNOW,Snowflake Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Cloud Data,"snowflake",true
-PLTR,Palantir Technologies Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,AI & Analytics,"palantir|gotham|aip",true
-UBER,Uber Technologies Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Mobility & Delivery,"uber|uber eats",true
-SHOP,Shopify Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,E-Commerce Software,"shopify",true
-BKNG,Booking Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Travel & Consumer,"booking|priceline|kayak",true
-SBUX,Starbucks Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer & Dining,"starbucks",true
-NKE,NIKE Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Apparel & Consumer,"nike|jordan",true
-MCD,McDonald's Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer & Dining,"mcdonalds|mcdonald's",true
-PEP,PepsiCo Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Beverages & Snacks,"pepsi|pepsico|frito-lay",true
-PG,Procter & Gamble Co.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Staples,"procter gamble|p&g",true
-CAT,Caterpillar Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,"caterpillar",true
-BA,The Boeing Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Aerospace & Defense,"boeing",true
-GE,GE Aerospace,XNYS,NYSE,US,USD,America/New_York,EQUITY,Aerospace & Defense,"general electric|ge aerospace",true
-HON,Honeywell International Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,"honeywell",true
-UNH,UnitedHealth Group Incorporated,XNYS,NYSE,US,USD,America/New_York,EQUITY,Healthcare,"unitedhealth|optum",true
-LLY,Eli Lilly and Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,"eli lilly|lilly|mounjaro",true
-PFE,Pfizer Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,"pfizer",true
-ABBV,AbbVie Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,"abbvie|humira",true
-MRK,Merck & Co. Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,"merck",true
-BAC,Bank of America Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,"bank of america|bofa",true
-WFC,Wells Fargo & Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,"wells fargo",true
-MS,Morgan Stanley,XNYS,NYSE,US,USD,America/New_York,EQUITY,Investment Banking,"morgan stanley",true
-C,Citigroup Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,"citi|citigroup",true
-BLK,BlackRock Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Asset Management,"blackrock|ishares|aladdin",true
-BRK-B,Berkshire Hathaway Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Diversified Financials,"berkshire|buffett|berkshire hathaway",true
-PYPL,PayPal Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Fintech & Payments,"paypal|venmo",true
-COP,ConocoPhillips,XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy,"conocophillips",true
-SLB,SLB (Schlumberger),XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy Services,"slb|schlumberger",true
-DMART.NS,Avenue Supermarts Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Retail,"dmart|avenue supermarts",true
-ADANIGREEN.NS,Adani Green Energy Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Renewable Energy,"adani green",true
-HAL.NS,Hindustan Aeronautics Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Aerospace & Defense,"hal|hindustan aeronautics",true
-BEL.NS,Bharat Electronics Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Defense Electronics,"bel|bharat electronics",true
-TRENT.NS,Trent Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Retail & Apparel,"trent|zudio|westside",true
-ETERNAL.NS,Eternal Ltd. (Zomato),XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Tech,"zomato|eternal|blinkit",true
-INDIGO.NS,InterGlobe Aviation Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Aviation,"indigo|interglobe",true
-PIDILITIND.NS,Pidilite Industries Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Specialty Chemicals,"pidilite|fevicol",true
-GRASIM.NS,Grasim Industries Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Materials & Cement,"grasim",true
-CIPLA.NS,Cipla Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Pharmaceuticals,"cipla",true
-DRREDDY.NS,Dr. Reddy's Laboratories Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Pharmaceuticals,"dr reddy|dr reddys",true
-TECHM.NS,Tech Mahindra Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Information Technology,"tech mahindra|techm",true
-RELIANCE.BO,Reliance Industries Ltd. (BSE),XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Energy & Conglomerate,"reliance bse",true
-TCS.BO,Tata Consultancy Services (BSE),XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Information Technology,"tcs bse",true
-AZN.L,AstraZeneca PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Pharmaceuticals,"astrazeneca",true
-SHEL.L,Shell plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Energy,"shell|royal dutch shell",true
-HSBA.L,HSBC Holdings plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,"hsbc",true
-ULVR.L,Unilever PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Consumer Staples,"unilever uk",true
-BP.L,BP p.l.c.,XLON,LSE,GB,GBP,Europe/London,EQUITY,Energy,"bp|british petroleum",true
-GSK.L,GSK plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Pharmaceuticals,"gsk|glaxosmithkline",true
-RIO.L,Rio Tinto Group,XLON,LSE,GB,GBP,Europe/London,EQUITY,Metals & Mining,"rio tinto",true
-BARC.L,Barclays PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,"barclays",true
-LLOY.L,Lloyds Banking Group plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,"lloyds",true
-DGE.L,Diageo plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Consumer Beverages,"diageo|guinness|johnnie walker",true
-SAP.DE,SAP SE,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Enterprise Software,"sap",true
-SIE.DE,Siemens AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Industrials & Automation,"siemens",true
-ALV.DE,Allianz SE,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Insurance & Financials,"allianz",true
-BMW.DE,Bayerische Motoren Werke AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Automobile,"bmw",true
-MBG.DE,Mercedes-Benz Group AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Automobile,"mercedes|mercedes-benz|daimler",true
-DTE.DE,Deutsche Telekom AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Telecommunications,"deutsche telekom|t-mobile",true
-MC.PA,LVMH Moët Hennessy Louis Vuitton,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Luxury & Consumer,"lvmh|louis vuitton|moet",true
-OR.PA,L'Oréal S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Beauty,"loreal|l'oreal",true
-TTE.PA,TotalEnergies SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Energy,"totalenergies|total",true
-AIR.PA,Airbus SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Aerospace & Defense,"airbus",true
-SAN.PA,Sanofi,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Pharmaceuticals,"sanofi",true
-ASML.AS,ASML Holding N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Semiconductor Equipment,"asml|euv",true
-NESN.SW,Nestlé S.A.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Staples,"nestle|nespresso",true
-NOVN.SW,Novartis AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Pharmaceuticals,"novartis",true
-ROG.SW,Roche Holding AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Pharmaceuticals,"roche",true
-UBSG.SW,UBS Group AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Banking & Wealth Management,"ubs",true
-NOVO-B.CO,Novo Nordisk A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Pharmaceuticals,"novo nordisk|ozempic|wegovy",true
-7203.T,Toyota Motor Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Automobile,"toyota",true
-6758.T,Sony Group Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Electronics & Media,"sony|playstation",true
-6861.T,Keyence Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Automation & Sensors,"keyence",true
-9984.T,SoftBank Group Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Tech Investment,"softbank",true
-8306.T,Mitsubishi UFJ Financial Group,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Banking & Financials,"mufg|mitsubishi ufj",true
-9983.T,Fast Retailing Co. Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Apparel & Retail,"fast retailing|uniqlo",true
-8035.T,Tokyo Electron Limited,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Semiconductor Equipment,"tokyo electron|tel",true
-7974.T,Nintendo Co. Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Gaming & Entertainment,"nintendo|switch",true
-0700.HK,Tencent Holdings Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Internet & Gaming,"tencent|wechat",true
-9988.HK,Alibaba Group Holding Ltd.,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,E-Commerce & Cloud,"alibaba|taobao|aliyun",true
-3690.HK,Meituan,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Tech,"meituan",true
-1211.HK,BYD Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Automobile & EV,"byd",true
-005930.KS,Samsung Electronics Co. Ltd.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Semiconductors & Electronics,"samsung|samsung electronics",true
-000660.KS,SK hynix Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Semiconductors,"sk hynix|hynix",true
-005380.KS,Hyundai Motor Company,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Automobile,"hyundai",true
-035420.KS,NAVER Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Internet & Search,"naver",true
-2330.TW,Taiwan Semiconductor Mfg. (TSMC),XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Semiconductors,"tsmc|taiwan semiconductor",true
-2317.TW,Hon Hai Precision Industry (Foxconn),XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Electronics Manufacturing,"foxconn|hon hai",true
-RY.TO,Royal Bank of Canada,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Banking & Financials,"rbc|royal bank of canada",true
-TD.TO,Toronto-Dominion Bank,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Banking & Financials,"td bank|toronto-dominion",true
-ENB.TO,Enbridge Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Energy Infrastructure,"enbridge",true
-CNR.TO,Canadian National Railway,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Rail & Logistics,"cn rail|canadian national",true
-BHP.AX,BHP Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Metals & Mining,"bhp",true
-CBA.AX,Commonwealth Bank of Australia,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Banking & Financials,"commbank|commonwealth bank",true
-CSL.AX,CSL Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Biotechnology,"csl",true
-WES.AX,Wesfarmers Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Retail & Industrials,"wesfarmers|bunnings",true
-D05.SI,DBS Group Holdings Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Banking & Financials,"dbs|dbs bank",true
-O39.SI,Oversea-Chinese Banking Corp,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Banking & Financials,"ocbc",true
-Z74.SI,Singapore Telecommunications Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Telecommunications,"singtel",true
-PETR4.SA,Petróleo Brasileiro S.A. (Petrobras),BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Energy,"petrobras",true
-VALE3.SA,Vale S.A.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Metals & Mining,"vale",true
-ITUB4.SA,Itaú Unibanco Holding S.A.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Banking & Financials,"itau|itau unibanco",true
-247540.KQ,Ecopro BM Co. Ltd.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Battery Materials,"ecopro bm",true
-091990.KQ,Celltrion Healthcare Co.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Biotechnology,"celltrion healthcare",true
-600519.SS,Kweichow Moutai Co. Ltd.,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Beverages,"moutai|kweichow moutai",true
-601318.SS,Ping An Insurance Group Co.,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Insurance & Financials,"ping an",true
-300750.SZ,Contemporary Amperex Technology (CATL),XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Battery & EV,"catl",true
-002594.SZ,BYD Company Limited (Shenzhen),XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Automobile & EV,"byd shenzhen",true
-ITX.MC,Industria de Diseño Textil (Inditex),XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Apparel & Retail,"inditex|zara",true
-SAN.MC,Banco Santander S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Banking & Financials,"santander|banco santander",true
-IBE.MC,Iberdrola S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Utilities & Renewables,"iberdrola",true
-RACE.MI,Ferrari N.V. (Milan),XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Luxury Automobile,"ferrari",true
-ENEL.MI,Enel S.p.A.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Utilities & Energy,"enel",true
-ISP.MI,Intesa Sanpaolo S.p.A.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Banking & Financials,"intesa sanpaolo",true
-ATCO-A.ST,Atlas Copco AB,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrial Machinery,"atlas copco",true
-VOLV-B.ST,AB Volvo,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Commercial Vehicles,"volvo",true
-EQNR.OL,Equinor ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,"equinor",true
-DNB.OL,DNB Bank ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Banking & Financials,"dnb",true
-NOKIA.HE,Nokia Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Telecom Equipment,"nokia",true
-KNEBV.HE,KONE Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Industrial Machinery,"kone",true
-ABI.BR,Anheuser-Busch InBev SA/NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Consumer Beverages,"ab inbev|budweiser",true
-NPN.JO,Naspers Limited,XJSE,JSE,ZA,ZAR,Africa/Johannesburg,EQUITY,Consumer Internet,"naspers",true
-FSR.JO,FirstRand Limited,XJSE,JSE,ZA,ZAR,Africa/Johannesburg,EQUITY,Banking & Financials,"firstrand|fnb",true
-WALMEX.MX,Wal-Mart de México S.A.B.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Retail,"walmex|walmart mexico",true
-AMXB.MX,América Móvil S.A.B. de C.V.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Telecommunications,"america movil",true
-BBCA.JK,Bank Central Asia Tbk PT,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Banking & Financials,"bca|bank central asia",true
-TLKM.JK,Telkom Indonesia Tbk PT,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Telecommunications,"telkom indonesia",true
+AAPL.VI,Apple Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Information Technology,,true
+ABBV.VI,AbbVie Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Health Care,,true
+AHLA.VI,Alibaba Group Holding Limited,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Consumer Discretionary,,true
+AMAT.VI,"Applied Materials, Inc.",XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Information Technology,,true
+AMD.VI,"Advanced Micro Devices, Inc.",XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Information Technology,,true
+AMGN.VI,Amgen Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Health Care,,true
+AMZN.VI,"Amazon.com, Inc.",XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Consumer Discretionary,,true
+ASML.VI,ASML Holding N.V.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Information Technology,,true
+AXP.VI,American Express Company,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Financials,,true
+BOAC.VI,Bank of America Corporation,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Financials,,true
+BOCN.VI,Bank of China Limited,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Financials,,true
+BRKA.VI,Berkshire Hathaway Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Financials,,true
+BRKB.VI,Berkshire Hathaway Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Financials,,true
+BROA.VI,Broadcom Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Information Technology,,true
+CAT.VI,Caterpillar Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Industrials,,true
+CITI.VI,Citigroup Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Financials,,true
+CNCB.VI,China Construction Bank Corporation,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Financials,,true
+COST.VI,Costco Wholesale Corporation,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Consumer Staples,,true
+CSCO.VI,"Cisco Systems, Inc.",XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Information Technology,,true
+CVX.VI,Chevron Corporation,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Energy,,true
+DELL.VI,Dell Technologies Inc.,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Information Technology,,true
+DIS.VI,Walt Disney Company,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Communication Services,,true
+EK7.VI,Agricultural Bank of China Limited,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Financials,,true
+GE.VI,GE Aerospace,XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Industrials,,true
+GILD.VI,"Gilead Sciences, Inc.",XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Health Care,,true
+360.AX,"Life360, Inc.",XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Information Technology,,true
+A2M.AX,The a2 Milk Company Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Consumer Staples,,true
+AAI.AX,Alcoa Corporation,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+AFI.AX,Australian Foundation Investment Company Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+AGL.AX,AGL Energy Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Utilities,,true
+AIA.AX,Auckland International Airport Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Industrials,,true
+ALD.AX,Ampol Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Energy,,true
+ALL.AX,Aristocrat Leisure Ltd.,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Consumer Discretionary,,true
+ALQ.AX,ALS Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Industrials,,true
+ALX.AX,Atlas Arteria Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Industrials,,true
+AMC.AX,Amcor plc,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+AMP.AX,AMP Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+ANN.AX,Ansell Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Health Care,,true
+ANZ.AX,ANZ Group Holdings Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+BHP.AX,BHP Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Metals & Mining,bhp,true
+BXB.AX,Brambles Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Industrials,,true
+CBA.AX,Commonwealth Bank of Australia,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Banking & Financials,commbank|commonwealth bank,true
+CBAPI.AX,Commonwealth Bank of Australia,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+CBAPJ.AX,Commonwealth Bank of Australia,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+COL.AX,Coles Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Consumer Staples,,true
+CPU.AX,Computershare Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Information Technology,,true
+CSL.AX,CSL Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Biotechnology,csl,true
+EVN.AX,Evolution Mining Ltd.,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+FMG.AX,Fortescue Ltd,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+FPH.AX,Fisher & Paykel Healthcare Corp. Ltd.,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Health Care,,true
+GMG.AX,Goodman Group,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Real Estate,,true
+IAG.AX,Insurance Australia Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+JHX.AX,James Hardie Industries plc,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+MQG.AX,Macquarie Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+MQGPD.AX,Macquarie Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+MQGPE.AX,Macquarie Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+NAB.AX,National Australia Bank Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+NABPH.AX,National Australia Bank Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+NEM.AX,Newmont Corporation,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+NST.AX,Northern Star Resources Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+NWS.AX,News Corporation,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Communication Services,,true
+NWSLV.AX,News Corporation,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Communication Services,,true
+ORG.AX,Origin Energy Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Energy,,true
+PME.AX,Pro Medicus Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Health Care,,true
+QBE.AX,QBE Insurance Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+REA.AX,REA Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Communication Services,,true
+RHCPA.AX,Ramsay Health Care Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Health Care,,true
+RIO.AX,Rio Tinto plc,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+RMD.AX,ResMed Inc.,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Health Care,,true
+S32.AX,South32 Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Materials,,true
+SCG.AX,Scentre Group,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Real Estate,,true
+SGH.AX,SGH Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Industrials,,true
+SIG.AX,Sigma Healthcare Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Health Care,,true
+SOL.AX,Washington H. Soul Pattinson and Company Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+STO.AX,Santos Ltd.,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Energy,,true
+SUN.AX,Suncorp Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+TCL.AX,Transurban Group,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Industrials,,true
+TLS.AX,Telstra Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Communication Services,,true
+TPG.AX,TPG Telecom Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Communication Services,,true
+WBC.AX,Westpac Banking Corporation,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+WBCPJ.AX,Westpac Banking Corporation,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,true
+WDS.AX,Woodside Energy Group Ltd,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Energy,,true
+WES.AX,Wesfarmers Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Retail & Industrials,wesfarmers|bunnings,true
+WOW.AX,Woolworths Group Ltd,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Consumer Staples,,true
+XYZ.AX,"Block, Inc.",XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Information Technology,,true
+ABI.BR,Anheuser-Busch InBev SA/NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Consumer Beverages,ab inbev|budweiser,true
+ACKB.BR,Ackermans & Van Haaren NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Industrials,,true
+AED.BR,Aedifica SA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Real Estate,,true
+AGS.BR,ageas SA/NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Financials,,true
+ARGX.BR,argenx SE,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Health Care,,true
+AZE.BR,Azelis Group NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Industrials,,true
+BEKB.BR,Bekaert SA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Industrials,,true
+BREB.BR,Brederode SA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Financials,,true
+CENER.BR,Cenergy Holdings SA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Industrials,,true
+CMBT.BR,Cmb.Tech N.V.,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Industrials,,true
+COLR.BR,Colruyt Group N.V.,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Consumer Staples,,true
+DEME.BR,Deme Group NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Industrials,,true
+DIE.BR,D'Ieteren Group SA/NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Consumer Discretionary,,true
+ELI.BR,Elia Group SA/NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Utilities,,true
+GBLB.BR,Groupe Bruxelles Lambert SA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Financials,,true
+KBC.BR,KBC Group NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Financials,,true
+KBCA.BR,KBC Ancora SCA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Financials,,true
+LOTB.BR,Lotus Bakeries NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Consumer Staples,,true
+MELE.BR,Melexis NV,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Information Technology,,true
+PROX.BR,Proximus PLC,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Communication Services,,true
+SHUR.BR,Shurgard Self Storage S.A.,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Real Estate,,true
+SOF.BR,Sofina Societe Anonyme,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Financials,,true
+SOLB.BR,Solvay SA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Materials,,true
+SOLV.BR,Solvac S.A.,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Materials,,true
+SYENS.BR,Syensqo,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Materials,,true
+TITC.BR,Titan Cement International S.A.,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Materials,,true
+TUB.BR,Financiere de Tubize SA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Health Care,,true
+UCB.BR,UCB S.A.,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Health Care,,true
+UMI.BR,Umicore SA,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Materials,,true
+VGP.BR,Vgp N.V.,XBRU,EURONEXT,BE,EUR,Europe/Brussels,EQUITY,Real Estate,,true
+A1MD34.SA,"Advanced Micro Devices, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+A1MT34.SA,"Applied Materials, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+AAPL34.SA,Apple Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+ABBV34.SA,AbbVie Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Health Care,,true
+AMGN34.SA,Amgen Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Health Care,,true
+AMZO34.SA,"Amazon.com, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Consumer Discretionary,,true
+AVGO34.SA,Broadcom Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+AXPB34.SA,American Express Company,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Financials,,true
+B1BL34.SA,BHP Group,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Materials,,true
+BERK34.SA,Berkshire Hathaway Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Financials,,true
+BHPG34.SA,BHP Group,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Materials,,true
+BOAC34.SA,Bank of America Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Financials,,true
+CATP34.SA,Caterpillar Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Industrials,,true
+CHVX34.SA,Chevron Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Energy,,true
+COCA34.SA,Coca-Cola Company,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Consumer Staples,,true
+COWC34.SA,Costco Wholesale Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Consumer Staples,,true
+CSCO34.SA,"Cisco Systems, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+CTGP34.SA,Citigroup Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Financials,,true
+D1EL34.SA,Dell Technologies Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+DISB34.SA,Walt Disney Company,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Communication Services,,true
+EXXO34.SA,Exxon Mobil Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Energy,,true
+FBOK34.SA,"Meta, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Communication Services,,true
+GEOO34.SA,GE Aerospace,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Industrials,,true
+GILD34.SA,"Gilead Sciences, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Health Care,,true
+GOGL34.SA,Alphabet Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Communication Services,,true
+GOGL35.SA,Alphabet Inc.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Communication Services,,true
+GSGI34.SA,"The Goldman Sachs Group, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Financials,,true
+H1SB34.SA,HSBC Holdings Plc,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Financials,,true
+HOME34.SA,"Home Depot, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Consumer Discretionary,,true
+IBMB34.SA,International Business Machines Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+ITLC34.SA,Intel Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+ITUB4.SA,Itaú Unibanco Holding S.A.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Banking & Financials,itau|itau unibanco,true
+JNJB34.SA,Johnson & Johnson,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Health Care,,true
+JPMC34.SA,JPMorgan Chase & Co.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Financials,,true
+K1LA34.SA,KLA Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+L1IN34.SA,Linde plc,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Materials,,true
+L1RC34.SA,Lam Research Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+LILY34.SA,Eli Lilly and Company,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Health Care,,true
+MRCK34.SA,"Merck & Co., Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Health Care,,true
+MSCD34.SA,Mastercard Incorporated Class A,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Financials,,true
+MSFT34.SA,Microsoft Corporation,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+MUTC34.SA,"Micron Technology, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Information Technology,,true
+N1VS34.SA,Novartis AG,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Health Care,,true
+PETR4.SA,Petróleo Brasileiro S.A. (Petrobras),BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Energy,petrobras,true
+VALE3.SA,Vale S.A.,BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Metals & Mining,vale,true
+AAPL.TO,Apple CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+ABBV.TO,AbbVie CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Health Care,,true
+ABT.TO,Abbott Labs CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Health Care,,true
+ABX.TO,Barrick Gold Corporation,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Materials,,true
+ADBE.TO,Adobe CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+AEM.TO,Agnico Eagle Mines Limited,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Materials,,true
+AGI.TO,Alamos Gold Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Materials,,true
+ALA-PG.TO,AltaGas Ltd.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Utilities,,true
+ALA.TO,AltaGas Ltd.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Utilities,,true
+AMAT.TO,Applied Materials CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+AMD.TO,Advanced Micro Devices CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+AMGN.TO,Amgen CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Health Care,,true
+AMZN.TO,Amazon.com CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Consumer Discretionary,,true
+ANET.TO,Arista Networks CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+APH.TO,Amphenol CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+APPS.TO,AppLovin CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+ASML.TO,ASML CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+ATD.TO,Alimentation Couche-Tard Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Consumer Staples,,true
+AVGO.TO,Broadcom CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+AXP.TO,American Express CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+AZO.TO,AutoZone CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Consumer Discretionary,,true
+BA.TO,Boeing CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Industrials,,true
+BAM.TO,Brookfield Asset Management Ltd.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+BBD-A.TO,Bombardier Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Industrials,,true
+BBD-B.TO,Bombardier Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Industrials,,true
+BCE.TO,BCE Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Communication Services,,true
+BOFA.TO,Bank of America CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+BRK.TO,Berkshire Hathaway CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+CATR.TO,Caterpillar CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Industrials,,true
+CITI.TO,Citigroup CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+CNR.TO,Canadian National Railway,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Rail & Logistics,cn rail|canadian national,true
+COLA.TO,Coca-Cola CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Consumer Staples,,true
+COST.TO,Costco CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Consumer Staples,,true
+CSCO.TO,Cisco CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+ENB.TO,Enbridge Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Energy Infrastructure,enbridge,true
+GE.TO,GE Aerospace CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Industrials,,true
+GEV.TO,GE Vernova CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Industrials,,true
+GOOG.TO,Alphabet CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Communication Services,,true
+GS.TO,Goldman Sachs CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+INTC.TO,Intel CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+JNJ.TO,Johnson & Johnson CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Health Care,,true
+JPM.TO,JPMorgan CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+LLY.TO,Eli Lilly CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Health Care,,true
+META.TO,Meta CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Communication Services,,true
+MS.TO,Morgan Stanley CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+MSFT.TO,Microsoft CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+MU.TO,Micron CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+NFLX.TO,Netflix CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Communication Services,,true
+NVDA.TO,Nvidia CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+PANW.TO,Palo Alto Networks CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+RY.TO,Royal Bank of Canada,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Banking & Financials,rbc|royal bank of canada,true
+SHOP.TO,Shopify Inc.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+TD.TO,Toronto-Dominion Bank,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Banking & Financials,td bank|toronto-dominion,true
+TMO.TO,Thermo Fisher CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Health Care,,true
+TSLA.TO,Tesla CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Consumer Discretionary,,true
+TXN.TO,Texas Instruments CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Information Technology,,true
+UNH.TO,UnitedHealth CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Health Care,,true
+VISA.TO,Visa CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Financials,,true
+WMT.TO,Walmart CDR (CAD Hedged),XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Consumer Staples,,true
+XOM.TO,ExxonMobil Holdings Corporation,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Energy,,true
+ABBN.SW,ABB Ltd,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Industrials,,true
+ABBNE.SW,ABB Ltd,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Industrials,,true
+ABT.SW,Abbott Laboratories,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Health Care,,true
+ADBE.SW,Adobe Inc.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Information Technology,,true
+ALC.SW,Alcon AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Health Care,,true
+AMD.SW,"Advanced Micro Devices, Inc.",XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Information Technology,,true
+AMRZ.SW,Amrize AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Materials,,true
+AT000000STR1.SW,Strabag SE,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Industrials,,true
+BAER.SW,Julius Bar Gruppe AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Financials,,true
+BAYN.SW,Bayer AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Health Care,,true
+BCVN.SW,Banque Cantonale Vaudoise,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Financials,,true
+BE0003822393.SW,Elia Group SA/NV,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Utilities,,true
+BEAN.SW,BELIMO Holding AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Industrials,,true
+BKNG.SW,Booking Holdings Inc.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Discretionary,,true
+BMW.SW,Bayerische Motoren Werke AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Discretionary,,true
+BNP.SW,BNP Paribas S.A.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Financials,,true
+CFR.SW,Compagnie Financiere Richemont SA,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Discretionary,,true
+DBK.SW,Deutsche Bank AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Financials,,true
+DE000SYM9999.SW,Symrise AG,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Materials,,true
+DK0060079531.SW,DSV Panalpina A/S,XSWX,SIX,CH,DKK,Europe/Zurich,EQUITY,Industrials,,true
+DK0060094928.SW,Ørsted A/S,XSWX,SIX,CH,DKK,Europe/Zurich,EQUITY,Utilities,,true
+DK0060336014.SW,Novozymes A/S,XSWX,SIX,CH,DKK,Europe/Zurich,EQUITY,Materials,,true
+DSFIR.SW,DSM-Firmenich AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Materials,,true
+EMSN.SW,Ems-Chemie Holding AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Materials,,true
+FI0009014369.SW,Orion Oyj Class B,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Health Care,,true
+FI0009014575.SW,Metso Outotec Oyj,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Industrials,,true
+FR0000039299.SW,Bolloré SE,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Communication Services,,true
+FR0000052292.SW,Hermes International SCA,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Consumer Discretionary,,true
+FR0000120073.SW,L'Air Liquide S.A.,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Materials,,true
+FR0000120271.SW,TotalEnergies SE,XSWX,SIX,CH,EUR,Europe/Zurich,EQUITY,Energy,,true
+GOOGL.SW,Alphabet Inc.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Communication Services,,true
+JNJ.SW,Johnson & Johnson,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Health Care,,true
+LLY.SW,Eli Lilly and Company,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Health Care,,true
+MC.SW,"LVMH Moët Hennessy - Louis Vuitton, Société Européenne",XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Discretionary,,true
+NESN.SW,Nestlé S.A.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Staples,nestle|nespresso,true
+NOVN.SW,Novartis AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Pharmaceuticals,novartis,true
+NOVNEE.SW,Novartis AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Health Care,,true
+OR.SW,L'Oréal S.A.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Staples,,true
+ORCL.SW,Oracle Corporation,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Information Technology,,true
+PMI.SW,Philip Morris International Inc.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Staples,,true
+RO.SW,Roche Holding AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Health Care,,true
+ROG.SW,Roche Holding AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Pharmaceuticals,roche,true
+ROP.SW,Roche Holding AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Health Care,,true
+UBSG.SW,UBS Group AG,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Banking & Wealth Management,ubs,true
+WMT.SW,Walmart Inc.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Staples,,true
+000001.SZ,"Ping An Bank Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+000063.SZ,ZTE Corporation,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+000100.SZ,TCL Technology Group Corporation,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+000166.SZ,"Shenwan Hongyuan Group Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+000301.SZ,"Jiangsu Eastern Shenghong Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+000333.SZ,"Midea Group Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Discretionary,,true
+000338.SZ,Weichai Power Company Ltd.,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+000408.SZ,Zangge Holding Company Limited,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+000425.SZ,"XCMG Construction Machinery Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+000538.SZ,"Yunnan Baiyao Group Co.,Ltd",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Health Care,,true
+000568.SZ,"Luzhou Laojiao Co.,Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Staples,,true
+000617.SZ,CNPC Capital Company Limited,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+000630.SZ,"Tongling Nonferrous Metals Group Co.,Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+000651.SZ,"Gree Electric Appliances, Inc. of Zhuhai",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Discretionary,,true
+000657.SZ,"China Tungsten and Hightech Materials Co.,Ltd",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+000725.SZ,BOE Technology Group Company Limited,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+000776.SZ,"GF Securities Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+000792.SZ,"Qinghai Salt Lake Industry Co.,Ltd",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+000807.SZ,"Yunnan Aluminium Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+000858.SZ,"Wuliangye Yibin Co.,Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Staples,,true
+000895.SZ,"Henan Shuanghui Investment & Development Co.,Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Staples,,true
+000938.SZ,Unisplendour Corporation Limited,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+000958.SZ,"SPIC Industry-Finance Holdings Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Utilities,,true
+000977.SZ,"IEIT SYSTEMS Co., Ltd.Class A",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+000988.SZ,HGTECH Company Limited,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+001232.SZ,Shenzhen Jlc Technology Group Co. Lt,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+001248.SZ,China Resources New Energy Holdings Company Limited,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Utilities,,true
+001280.SZ,China Natl Uranium,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Energy,,true
+001309.SZ,"Shenzhen Techwinsemi Technology Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+001399.SZ,Hkc,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+001965.SZ,"China Merchants Expressway Network & Technology Holdings Co.,Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+001979.SZ,"China Merchants Shekou Industrial Zone Holdings Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Real Estate,,true
+002001.SZ,Zhejiang NHU Company Ltd.,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Health Care,,true
+002008.SZ,"Han's Laser Technology Industry Group Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+002027.SZ,"Focus Media Information Technology Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Communication Services,,true
+002028.SZ,"Sieyuan Electric Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+002050.SZ,"Zhejiang Sanhua Intelligent Controls Co.,Ltd",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+002080.SZ,"Sinoma Science & Technology Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+002142.SZ,"Bank of Ningbo Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+002156.SZ,"Tongfu Microelectronics Co.,Ltd",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+002179.SZ,"AVIC Jonhon Optronic Technology Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+002202.SZ,"Xinjiang Goldwind Science & Technology Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+002230.SZ,"iFLYTEK Co.,Ltd",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+002241.SZ,Goertek Inc.,XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+002281.SZ,"Accelink Technologies Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+002311.SZ,"Guangdong Haid Group Co., Limited",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Staples,,true
+002352.SZ,"S.F. Holding Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+002353.SZ,"Yantai Jereh Oilfield Services Group Co., Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Energy,,true
+002594.SZ,BYD Company Limited (Shenzhen),XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Automobile & EV,byd shenzhen,true
+300750.SZ,Contemporary Amperex Technology (CATL),XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Battery & EV,catl,true
+600000.SS,"Shanghai Pudong Development Bank Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+600010.SS,"Inner Mongolia Baotou Steel Union Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600011.SS,"Huaneng Power International, Inc.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Utilities,,true
+600015.SS,"Hua Xia Bank Co., Limited",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+600016.SS,"China Minsheng Banking Corp., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+600018.SS,"Shanghai International Port (Group) Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600019.SS,"Baoshan Iron & Steel Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600023.SS,"Zhejiang Zheneng Electric Power Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Utilities,,true
+600025.SS,Huaneng Lancang River Hydropower Inc.,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Utilities,,true
+600026.SS,"COSCO SHIPPING Energy Transportation Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600028.SS,China Petroleum & Chemical Corporation,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Energy,,true
+600029.SS,China Southern Airlines Company Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600030.SS,CITIC Securities Company Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+600031.SS,"Sany Heavy Industry Co., Ltd",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600036.SS,"China Merchants Bank Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+600039.SS,"Sichuan Road & Bridge Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600048.SS,"Poly Developments and Holdings Group Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Real Estate,,true
+600050.SS,China United Network Communications Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Communication Services,,true
+600089.SS,"TBEA Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600104.SS,SAIC Motor Corporation Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Discretionary,,true
+600111.SS,"China Northern Rare Earth (Group) High-Tech Co.,Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600115.SS,China Eastern Airlines Corporation Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600150.SS,China CSSC Holdings Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600160.SS,"Zhejiang Juhua Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600176.SS,"China Jushi Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600183.SS,"Shengyi Technology Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+600188.SS,Yankuang Energy Group Company Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Energy,,true
+600236.SS,"Guangxi Guiguan Electric PowerCo.,Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Utilities,,true
+600276.SS,"Jiangsu Hengrui Medicine Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Health Care,,true
+600309.SS,"Wanhua Chemical Group Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600346.SS,"Hengli Petrochemical Co.,Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600362.SS,Jiangxi Copper Company Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600406.SS,"NARI Technology Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600436.SS,"Zhangzhou Pientzehuang Pharmaceutical., Ltd",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Health Care,,true
+600482.SS,"China Shipbuilding Industry Group Power Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600487.SS,"Hengtong Optic-Electric Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+600489.SS,"Zhongjin Gold Corp., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600519.SS,Kweichow Moutai Co. Ltd.,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Consumer Beverages,moutai|kweichow moutai,true
+600522.SS,"Jiangsu Zhongtian Technology Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,true
+600547.SS,"Shandong Gold Mining Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600549.SS,"Xiamen Tungsten Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600584.SS,"JCET Group Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Information Technology,,true
+600585.SS,Anhui Conch Cement Company Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Materials,,true
+600941.SS,China Mobile Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Communication Services,,true
+601288.SS,Agricultural Bank of China Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+601318.SS,Ping An Insurance Group Co.,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Insurance & Financials,ping an,true
+601398.SS,Industrial & Commercial Bank of China Ltd.,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+601857.SS,"PetroChina Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Energy,,true
+601939.SS,China Construction Bank Corporation,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+601988.SS,Bank of China Limited,XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,true
+12DA.DE,Dell Technologies Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+1YD.DE,Broadcom Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+3V64.DE,Visa Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+4AB.DE,AbbVie Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Health Care,,true
+4I1.DE,Philip Morris International Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Staples,,true
+5UR.DE,RTX Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Industrials,,true
+6MK.DE,"Merck & Co., Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Health Care,,true
+7DZ.DE,Exxonmobil Holdings Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Energy,,true
+ABEA.DE,Alphabet Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Communication Services,,true
+ABEC.DE,Alphabet Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Communication Services,,true
+AEC1.DE,American Express Company,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+AHLA.DE,Alibaba Group Holding Limited,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Discretionary,,true
+ALV.DE,Allianz SE,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Insurance & Financials,allianz,true
+AMD.DE,"Advanced Micro Devices, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+AMG.DE,Amgen Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Health Care,,true
+AMZ.DE,"Amazon.com, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Discretionary,,true
+AP2.DE,"Applied Materials, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+APC.DE,Apple Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+ASME.DE,ASML Holding N.V.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+BMW.DE,Bayerische Motoren Werke AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Automobile,bmw,true
+BRYN.DE,Berkshire Hathaway Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+BSD2.DE,"Banco Santander, S.A.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+CAT1.DE,Caterpillar Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Industrials,,true
+CCC3.DE,Coca-Cola Company,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Staples,,true
+CHV.DE,Chevron Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Energy,,true
+CIS.DE,"Cisco Systems, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+CMC.DE,JPMorgan Chase & Co.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+CTO.DE,Costco Wholesale Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Staples,,true
+DTE.DE,Deutsche Telekom AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Telecommunications,deutsche telekom|t-mobile,true
+DWD.DE,Morgan Stanley,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+FB2A.DE,"Meta Platforms, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Communication Services,,true
+GIS.DE,"Gilead Sciences, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Health Care,,true
+GOS.DE,"The Goldman Sachs Group, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+HBC1.DE,HSBC Holdings Plc,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+HDI.DE,"Home Depot, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Discretionary,,true
+IBM.DE,International Business Machines Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+INL.DE,Intel Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+JNJ.DE,Johnson & Johnson,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Health Care,,true
+KLA.DE,KLA Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+LAR0.DE,Lam Research Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+LIN.DE,Linde plc,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Materials,,true
+LLY.DE,Eli Lilly and Company,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Health Care,,true
+LOR.DE,L'Oreal S.A.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Staples,,true
+M4I.DE,Mastercard Incorporated Class A,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+MBG.DE,Mercedes-Benz Group AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Automobile,mercedes|mercedes-benz|daimler,true
+MOH.DE,"LVMH Moët Hennessy - Louis Vuitton, Societe Europeenne",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Discretionary,,true
+MSF.DE,Microsoft Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+MTE.DE,"Micron Technology, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+NCB.DE,Bank of America Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+NFC.DE,"Netflix, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Communication Services,,true
+NVD.DE,NVIDIA Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+NWT.DE,Wells Fargo & Company,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Financials,,true
+ORC.DE,Oracle Corporation,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+PRG.DE,The Procter & Gamble Company,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Staples,,true
+PTX.DE,Palantir Technologies Inc. Class A,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+SAP.DE,SAP SE,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Enterprise Software,sap,true
+SIE.DE,Siemens AG,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Industrials & Automation,siemens,true
+TII.DE,Texas Instruments Incorporated,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,true
+TL0.DE,"Tesla, Inc.",XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Consumer Discretionary,,true
+TN8.DE,Thermo Fisher Scientific Inc.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Health Care,,true
+ALK-B.CO,ALK-Abelló A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+ALMB.CO,Alm. Brand A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Financials,,true
+ALSYDB.CO,Sydbank AS,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Financials,,true
+AMBU-B.CO,Ambu A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+BAVA.CO,Bavarian Nordic A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+BIAEJD.CO,BI Erhvervsejendomme A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Real Estate,,true
+CARL-A.CO,Carlsberg A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Consumer Staples,,true
+CARL-B.CO,Carlsberg A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Consumer Staples,,true
+COLO-B.CO,Coloplast A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+DANSKE.CO,Danske Bank A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Financials,,true
+DEMANT.CO,Demant A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+DSV.CO,DSV Panalpina A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Industrials,,true
+FLS.CO,FLSmidth & Co. A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Industrials,,true
+GMAB.CO,Genmab A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+GN.CO,GN Store Nord A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+HLUN-A.CO,H. Lundbeck A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+HLUN-B.CO,H. Lundbeck A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Health Care,,true
+ISS.CO,Iss A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Industrials,,true
+JYSK.CO,Jyske Bank A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Financials,,true
+KBHL.CO,Kobenhavns Lufthavne A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Industrials,,true
+MAERSK-A.CO,A.P. Moller - Maersk A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Industrials,,true
+MAERSK-B.CO,A.P. Moller - Maersk A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Industrials,,true
+NDA-DK.CO,Nordea Bank Abp,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Financials,,true
+NETC.CO,Netcompany Group A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Information Technology,,true
+NKT.CO,NKT A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Industrials,,true
+NOVO-B.CO,Novo Nordisk A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Pharmaceuticals,novo nordisk|ozempic|wegovy,true
+NSIS-B.CO,Novonesis Novozymes B,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Materials,,true
+ORSTED.CO,Ørsted A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Utilities,,true
+TRYG.CO,Tryg A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Financials,,true
+VWS.CO,Vestas Wind Systems A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Industrials,,true
+ACS.MC,"ACS, Actividades de Construccion y Servicios, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Industrials,,true
+ACX.MC,"Acerinox, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Materials,,true
+AENA.MC,"Aena S.M.E., S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Industrials,,true
+AIR.MC,Airbus SE,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Industrials,,true
+ALM.MC,"Almirall, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Health Care,,true
+AMS.MC,"Amadeus IT Group, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Information Technology,,true
+ANA.MC,"Acciona, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Industrials,,true
+ANE.MC,Corp ACCIONA Energias Renovables SA,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Utilities,,true
+APAM.MC,Aperam S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Materials,,true
+ART.MC,"Arteche Lantegi Elkartea, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Industrials,,true
+BBVA.MC,"Banco Bilbao Vizcaya Argentaria, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Financials,,true
+BKT.MC,"Bankinter, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Financials,,true
+CABK.MC,"CaixaBank, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Financials,,true
+CCEP.MC,Coca-Cola Europacific Partners PLC,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Consumer Staples,,true
+CLNX.MC,Cellnex Telecom S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Communication Services,,true
+ELE.MC,"Endesa, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Utilities,,true
+FER.MC,Ferrovial SE,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Industrials,,true
+IAG.MC,"International Consolidated Airlines Group, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Industrials,,true
+IBE.MC,Iberdrola S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Utilities & Renewables,iberdrola,true
+IDR.MC,"Indra Sistemas, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Information Technology,,true
+ITX.MC,Industria de Diseño Textil (Inditex),XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Apparel & Retail,inditex|zara,true
+MAP.MC,"Mapfre, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Financials,,true
+MTS.MC,ArcelorMittal,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Materials,,true
+NTGY.MC,"Naturgy Energy Group, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Utilities,,true
+PUIG.MC,Puig Brands SA,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Consumer Staples,,true
+REP.MC,Repsol S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Energy,,true
+SAB.MC,"Banco de Sabadell, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Financials,,true
+SAN.MC,Banco Santander S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Banking & Financials,santander|banco santander,true
+TEF.MC,"Telefonica, S.A.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Communication Services,,true
+XAMXL.MC,"America Movil, S.A.B. de C.V.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Communication Services,,true
+XBBDC.MC,Banco Bradesco S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Financials,,true
+XNOR.MC,"Grupo Financiero Banorte, S.A.B. de C.V.",XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Financials,,true
+XPBR.MC,Petroleo Brasileiro S.A. - Petrobras,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Energy,,true
+XPBRA.MC,Petroleo Brasileiro S.A. - Petrobras,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Energy,,true
+XVALO.MC,Vale S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Materials,,true
+ELISA.HE,Elisa Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Communication Services,,true
+ERIBR.HE,Telefonaktiebolaget LM Ericsson (publ),XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Information Technology,,true
+FORTUM.HE,Fortum Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Utilities,,true
+HIAB.HE,Hiab Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Industrials,,true
+HUH1V.HE,Huhtamäki Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,true
+KALMAR.HE,Kalmar Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Industrials,,true
+KCR.HE,Konecranes Plc,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Industrials,,true
+KEMIRA.HE,Kemira Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,true
+KESKOA.HE,Kesko Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Consumer Staples,,true
+KESKOB.HE,Kesko Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Consumer Staples,,true
+KNEBV.HE,KONE Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Industrial Machinery,kone,true
+LUMO.HE,Lumo Kodit Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Real Estate,,true
+MANTA.HE,Mandatum Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Financials,,true
+METSO.HE,Metso Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Industrials,,true
+NDA-FI.HE,Nordea Bank Abp,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Financials,,true
+NESTE.HE,Neste Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Energy,,true
+NOKIA.HE,Nokia Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Telecom Equipment,nokia,true
+ORNAV.HE,Orion Oyj Class B,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Health Care,,true
+ORNBV.HE,Orion Oyj Class B,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Health Care,,true
+OUT1V.HE,Outokumpu Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,true
+SAMPO.HE,Sampo Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Financials,,true
+SSABAH.HE,SSAB AB (publ),XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,true
+SSABBH.HE,SSAB AB (publ),XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,true
+STEAV.HE,Stora Enso Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,true
+STERV.HE,Stora Enso Oyj Class R,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,true
+TELIA1.HE,Telia Company AB (publ),XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Communication Services,,true
+TIETO.HE,TietoEVRY Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Information Technology,,true
+TYRES.HE,Nokian Renkaat Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Consumer Discretionary,,true
+UPM.HE,UPM-Kymmene Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,true
+WRT1V.HE,Wärtsilä Oyj Abp,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Industrials,,true
+AC.PA,Accor SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Discretionary,,true
+ACA.PA,Credit Agricole S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Financials,,true
+ADP.PA,Aeroports de Paris SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+AI.PA,L'Air Liquide S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Materials,,true
+AIR.PA,Airbus SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Aerospace & Defense,airbus,true
+AM.PA,Dassault Aviation SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+AMUN.PA,Amundi SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Financials,,true
+BIM.PA,bioMerieux S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Health Care,,true
+BN.PA,Danone S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Staples,,true
+BNP.PA,BNP Paribas,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Financials,,true
+BOL.PA,Bolloré SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Communication Services,,true
+BVI.PA,Bureau Veritas SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+CA.PA,Carrefour SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Staples,,true
+CAP.PA,Capgemini SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Information Technology,,true
+CDI.PA,Christian Dior SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Discretionary,,true
+CS.PA,AXA SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Financials,,true
+DG.PA,Vinci S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+DIM.PA,Sartorius Stedim Biotech,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Health Care,,true
+DSY.PA,Dassault Systemes SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Information Technology,,true
+EL.PA,EssilorLuxottica Societe anonyme,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Health Care,,true
+EN.PA,Bouygues SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+ENGI.PA,Engie S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Utilities,,true
+ENX.PA,Euronext N.V.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Financials,,true
+ERF.PA,Eurofins Scientific SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Health Care,,true
+FGR.PA,Eiffage SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+GET.PA,Getlink SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+GLE.PA,Société Générale S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Financials,,true
+HO.PA,Thales S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+IPN.PA,Ipsen S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Health Care,,true
+KER.PA,Kering SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Discretionary,,true
+LI.PA,Klépierre S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Real Estate,,true
+LR.PA,Legrand SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+MC.PA,LVMH Moët Hennessy Louis Vuitton,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Luxury & Consumer,lvmh|louis vuitton|moet,true
+ML.PA,Compagnie Generale des Etablissements Michelin Societe en commandite par actions,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Discretionary,,true
+OR.PA,L'Oréal S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Beauty,loreal|l'oreal,true
+ORA.PA,Orange S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Communication Services,,true
+PUB.PA,Publicis Groupe S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Communication Services,,true
+RI.PA,Pernod Ricard SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Staples,,true
+RMS.PA,Hermes International Societe en commandite par actions,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Discretionary,,true
+RXL.PA,Rexel S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+SAF.PA,Safran SA,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+SAN.PA,Sanofi,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Pharmaceuticals,sanofi,true
+SGO.PA,Compagnie de Saint-Gobain S.A.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+SGRO.PA,SEGRO Plc,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Real Estate,,true
+STLAP.PA,Stellantis N.V.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Consumer Discretionary,,true
+STMPA.PA,STMicroelectronics N.V.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Information Technology,,true
+SU.PA,Schneider Electric S.E.,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Industrials,,true
+TTE.PA,TotalEnergies SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Energy,totalenergies|total,true
+URW.PA,Unibail-Rodamco-Westfield SE,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Real Estate,,true
+VIE.PA,Veolia Environnement,XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Utilities,,true
+0A18.L,CGI Inc.,XLON,LSE,GB,CAD,Europe/London,EQUITY,Information Technology,,true
+0A1S.L,Dow Inc.,XLON,LSE,GB,EUR,Europe/London,EQUITY,Materials,,true
+0A3N.L,"CrowdStrike Holdings, Inc. Class A",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0A3O.L,"Datadog, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0A4A.L,Wayfair Inc.,XLON,LSE,GB,USD,Europe/London,EQUITY,Consumer Discretionary,,true
+0A4M.L,"DexCom, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Health Care,,true
+0A5S.L,Hensoldt AG,XLON,LSE,GB,EUR,Europe/London,EQUITY,Industrials,,true
+0A6X.L,Ambev S.A.,XLON,LSE,GB,USD,Europe/London,EQUITY,Consumer Staples,,true
+0A71.L,Antero Resources Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Energy,,true
+0A74.L,Kuaishou Technology,XLON,LSE,GB,HKD,Europe/London,EQUITY,Communication Services,,true
+0A79.L,Carvana Co.,XLON,LSE,GB,USD,Europe/London,EQUITY,Consumer Discretionary,,true
+0A7N.L,Keysight Technologies Inc,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0A7O.L,Strategy Inc,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0A7R.L,Palantir Technologies Inc. Class A,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0A7Y.L,Westinghouse Air Brake Technologies Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Industrials,,true
+0A8O.L,Vistra Corp.,XLON,LSE,GB,USD,Europe/London,EQUITY,Utilities,,true
+0A8Z.L,"MACOM Technology Solutions Holdings, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0ACJ.L,"Marvell Technology, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0AH3.L,Great-West Lifeco Inc.,XLON,LSE,GB,CAD,Europe/London,EQUITY,Financials,,true
+0AHJ.L,Hudbay Minerals Inc.,XLON,LSE,GB,CAD,Europe/London,EQUITY,Materials,,true
+0AI3.L,Carlsberg A/S,XLON,LSE,GB,DKK,Europe/London,EQUITY,Consumer Staples,,true
+0EDD.L,LyondellBasell Industries NV,XLON,LSE,GB,USD,Europe/London,EQUITY,Materials,,true
+0EDE.L,NXP Semiconductors N.V.,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0EV1.L,Carnival Corporation & plc,XLON,LSE,GB,USD,Europe/London,EQUITY,Consumer Discretionary,,true
+0F4O.L,Lotus Bakeries NV,XLON,LSE,GB,EUR,Europe/London,EQUITY,Consumer Staples,,true
+0GUX.L,Skandinaviska Enskilda Banken AB Class A,XLON,LSE,GB,SEK,Europe/London,EQUITY,Financials,,true
+0H68.L,Aflac Incorporated,XLON,LSE,GB,USD,Europe/London,EQUITY,Financials,,true
+0H6E.L,AGNC Investment Corp.,XLON,LSE,GB,USD,Europe/London,EQUITY,Financials,,true
+0H6G.L,The AES Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Utilities,,true
+0HAV.L,"Agilent Technologies, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Health Care,,true
+0HBH.L,"Air Products and Chemicals, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Materials,,true
+0HBQ.L,"Akamai Technologies, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0HC7.L,Albemarle Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Materials,,true
+0HCB.L,Alcoa Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Materials,,true
+0HCK.L,"Align Technology, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Health Care,,true
+0HHR.L,"Arista Networks, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0HN3.L,BHP Group,XLON,LSE,GB,USD,Europe/London,EQUITY,Materials,,true
+0I47.L,Costco Wholesale Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Consumer Staples,,true
+0JPO.L,KLA Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0JT5.L,Lam Research Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0KF5.L,"Palo Alto Networks, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0LEA.L,Tencent Holdings Limited,XLON,LSE,GB,USD,Europe/London,EQUITY,Communication Services,,true
+0Q16.L,Bank of America Corporation,XLON,LSE,GB,USD,Europe/London,EQUITY,Financials,,true
+0Q18.L,Caterpillar Inc.,XLON,LSE,GB,EUR,Europe/London,EQUITY,Industrials,,true
+0Q1F.L,JPMorgan Chase & Co.,XLON,LSE,GB,USD,Europe/London,EQUITY,Financials,,true
+0QAH.L,"Merck & Co., Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Health Care,,true
+0QKU.L,Royal Bank of Canada,XLON,LSE,GB,USD,Europe/London,EQUITY,Financials,,true
+0QQ6.L,Roche Holding AG,XLON,LSE,GB,CHF,Europe/London,EQUITY,Health Care,,true
+0QYU.L,Morgan Stanley,XLON,LSE,GB,USD,Europe/London,EQUITY,Financials,,true
+0QZO.L,Walt Disney Co,XLON,LSE,GB,USD,Europe/London,EQUITY,Communication Services,,true
+0R0H.L,Thermo Fisher Scientific Inc.,XLON,LSE,GB,USD,Europe/London,EQUITY,Health Care,,true
+0R15.L,SoftBank Group Corp.,XLON,LSE,GB,JPY,Europe/London,EQUITY,Communication Services,,true
+0R2H.L,Texas Instruments Incorporated,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0R2Z.L,Mastercard Incorporated,XLON,LSE,GB,USD,Europe/London,EQUITY,Financials,,true
+0VHA.L,Shopify Inc.,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+0YXG.L,Broadcom Inc.,XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+AZN.L,AstraZeneca PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Pharmaceuticals,astrazeneca,true
+BARC.L,Barclays PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,barclays,true
+BC94.L,"Samsung Electronics Co., Ltd. Sponsored GDR",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,true
+BHP.L,BHP Group,XLON,LSE,GB,GBP,Europe/London,EQUITY,Materials,,true
+BNC.L,"Banco Santander, S.A.",XLON,LSE,GB,GBP,Europe/London,EQUITY,Financials,,true
+BP.L,BP p.l.c.,XLON,LSE,GB,GBP,Europe/London,EQUITY,Energy,bp|british petroleum,true
+DGE.L,Diageo plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Consumer Beverages,diageo|guinness|johnnie walker,true
+GSK.L,GSK plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Pharmaceuticals,gsk|glaxosmithkline,true
+HSBA.L,HSBC Holdings plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,hsbc,true
+LLOY.L,Lloyds Banking Group plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Banking & Financials,lloyds,true
+RIO.L,Rio Tinto Group,XLON,LSE,GB,GBP,Europe/London,EQUITY,Metals & Mining,rio tinto,true
+SHEL.L,Shell plc,XLON,LSE,GB,GBP,Europe/London,EQUITY,Energy,shell|royal dutch shell,true
+TYT.L,Toyota Motor Corporation,XLON,LSE,GB,JPY,Europe/London,EQUITY,Consumer Discretionary,,true
+ULVR.L,Unilever PLC,XLON,LSE,GB,GBP,Europe/London,EQUITY,Consumer Staples,unilever uk,true
+0001.HK,CK Hutchison Holdings Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0002.HK,CLP Holdings Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Utilities,,true
+0003.HK,The Hong Kong and China Gas Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Utilities,,true
+0005.HK,HSBC Holdings plc,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,true
+0006.HK,Power Assets Holdings Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Utilities,,true
+0012.HK,Henderson Land Development Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Real Estate,,true
+0019.HK,Swire Pacific Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0027.HK,Galaxy Entertainment Group Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Discretionary,,true
+0066.HK,MTR Corporation Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0083.HK,Sino Land Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Real Estate,,true
+0087.HK,Swire Pacific Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0100.HK,MiniMax Group Inc,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+0168.HK,"Tsingtao Brewery Co., Ltd.",XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Staples,,true
+0175.HK,Geely Automobile Holdings Ltd.,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Discretionary,,true
+0267.HK,CITIC Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0288.HK,WH Group Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Staples,,true
+0293.HK,Cathay Pacific Airways Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0300.HK,MIDEA GROUP CO LTD-H,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Discretionary,,true
+0316.HK,Orient Overseas (International) Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0358.HK,Jiangxi Copper Company Limited Class H,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Materials,,true
+0386.HK,China Petroleum & Chemical Corporation,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Energy,,true
+0388.HK,Hong Kong Exchanges and Clearing Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,true
+0390.HK,China Railway Group Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0501.HK,"OmniVision Integrated Circuits Group, Inc.",XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+0625.HK,SHEIN Global Holdings Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Discretionary,,true
+0669.HK,Techtronic Industries Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0688.HK,China Overseas Land & Investment Ltd.,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Real Estate,,true
+0700.HK,Tencent Holdings Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Internet & Gaming,tencent|wechat,true
+0728.HK,China Telecom Corporation Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Communication Services,,true
+0753.HK,Air China Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+0762.HK,China Unicom (Hong Kong) Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Communication Services,,true
+0763.HK,ZTE Corporation,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+0788.HK,China Tower Corporation Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Communication Services,,true
+0823.HK,Link Real Estate Investment Trust,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Real Estate,,true
+0836.HK,China Resources Power Holdings Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Utilities,,true
+0857.HK,"PetroChina Co., Ltd.",XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Energy,,true
+0883.HK,CNOOC Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Energy,,true
+0902.HK,"Huaneng Power International, Inc. Class H",XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Utilities,,true
+0914.HK,Anhui Conch Cement Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Materials,,true
+0916.HK,China Longyuan Power Group Corporation Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Utilities,,true
+0939.HK,China Construction Bank Corporation,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,true
+0945.HK,Manulife Financial Corporation,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,true
+0981.HK,Semiconductor Manufacturing International Corporation,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+0992.HK,Lenovo Group Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+0998.HK,China CITIC Bank Corporation Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,true
+1024.HK,Kuaishou Technology,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Communication Services,,true
+1038.HK,CK Infrastructure Holdings Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Utilities,,true
+1088.HK,China Shenhua Energy Co. Ltd. Class H,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Energy,,true
+1211.HK,BYD Company Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Automobile & EV,byd,true
+1288.HK,Agricultural Bank of China Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,true
+1398.HK,Industrial and Commercial Bank of China Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,true
+3690.HK,Meituan,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Consumer Tech,meituan,true
+3750.HK,"Contemporary Amperex Technology Co., Limited",XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Industrials,,true
+3988.HK,Bank of China Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,true
+4332.HK,Amgen Inc.,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Health Care,,true
+4333.HK,"Cisco Systems, Inc.",XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+4335.HK,Intel Corporation,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+4336.HK,"Applied Materials, Inc.",XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+4338.HK,Microsoft Corporation,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Information Technology,,true
+9988.HK,Alibaba Group Holding Ltd.,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,E-Commerce & Cloud,alibaba|taobao|aliyun,true
+ADMR.JK,PT Alamtri Minerals Indonesia Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Energy,,true
+ADRO.JK,PT Alamtri Resources Indonesia Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Energy,,true
+AMMN.JK,PT Amman Mineral Internasional Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+AMRT.JK,PT Sumber Alfaria Trijaya Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Consumer Staples,,true
+ANTM.JK,PT Antam (Persero) Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+ASII.JK,PT Astra International Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Industrials,,true
+BBCA.JK,Bank Central Asia Tbk PT,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Banking & Financials,bca|bank central asia,true
+BBNI.JK,PT Bank Negara Indonesia (Persero) Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+BBRI.JK,PT Bank Rakyat Indonesia (Persero) Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+BDMN.JK,PT Bank Danamon Indonesia Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+BMRI.JK,PT Bank Mandiri (Persero) Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+BNGA.JK,PT Bank CIMB Niaga Tbk Class A,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+BNLI.JK,PT Bank Permata Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+BREN.JK,PT Barito Renewables Energy Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Utilities,,true
+BRIS.JK,PT Bank Syariah Indonesia Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+BRMS.JK,PT Bumi Resources Minerals Tbk Class A,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+BRPT.JK,PT Barito Pacific Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+BUMI.JK,PT Bumi Resources Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Energy,,true
+BYAN.JK,PT Bayan Resources Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Energy,,true
+CASA.JK,PT Capital Financial Indonesia Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+CPIN.JK,PT Charoen Pokphand Indonesia Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Consumer Staples,,true
+CUAN.JK,PT Petrindo Jaya Kreasi Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Energy,,true
+DCII.JK,PT DCI Indonesia Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Information Technology,,true
+DNET.JK,PT Indoritel Makmur Internasional Tbk.,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Communication Services,,true
+DSSA.JK,PT Dian Swastatika Sentosa Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+EMAS.JK,PT Merdeka Gold Resources Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+ENRG.JK,PT Energi Mega Persada Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Energy,,true
+EXCL.JK,PT XLSMART Telecom Sejahtera Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Communication Services,,true
+GEMS.JK,Golden Energy and Resources Limited,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Energy,,true
+HMSP.JK,PT Hanjaya Mandala Sampoerna Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Consumer Staples,,true
+ICBP.JK,PT Indofood CBP Sukses Makmur Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Consumer Staples,,true
+IMPC.JK,PT Impack Pratama Industri Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+INCO.JK,PT Vale Indonesia Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+INDF.JK,PT Indofood Sukses Makmur Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Consumer Staples,,true
+INKP.JK,PT Indah Kiat Pulp & Paper Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+ISAT.JK,PT Indosat Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Communication Services,,true
+MDKA.JK,PT Merdeka Copper Gold Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,true
+MEGA.JK,PT Bank Mega Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Financials,,true
+MLPT.JK,PT Multipolar Technology Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Information Technology,,true
+TLKM.JK,Telkom Indonesia Tbk PT,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Telecommunications,telkom indonesia,true
+A5G.IR,AIB Group plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Financials,,true
+BIRG.IR,Bank of Ireland Group plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Financials,,true
+C5H.IR,Cairn Homes plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Consumer Discretionary,,true
+DQ7A.IR,Donegal Investment Group plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Consumer Staples,,true
+EG7.IR,FBD Holdings plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Financials,,true
+GL9.IR,Glanbia plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Consumer Staples,,true
+GRP.IR,Greencoat Renewables PLC,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Utilities,,true
+GVR.IR,Glenveagh Properties PLC,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Consumer Discretionary,,true
+HMSO.IR,Hammerson plc,XDUB,EURONEXT,IE,GBP,Europe/Dublin,EQUITY,Real Estate,,true
+HSW.IR,Hostelworld Group plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Consumer Discretionary,,true
+IR5B.IR,Irish Continental Group Plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Industrials,,true
+IRES.IR,Irish Residential Properties REIT Plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Real Estate,,true
+KMR.IR,Kenmare Resources Ltd.,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Materials,,true
+KRX.IR,Kingspan Group plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Industrials,,true
+KRZ.IR,Kerry Group plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Consumer Staples,,true
+MIO.IR,Mincon Group plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Industrials,,true
+OIZ.IR,Origin Enterprises plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Materials,,true
+PTSB.IR,Permanent TSB Group Holdings plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Financials,,true
+RYA.IR,Ryanair Holdings plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Industrials,,true
+UPR.IR,Uniphar plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Health Care,,true
+ABB.BO,ABB India Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+ABCAPITAL.BO,Aditya Birla Capital Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+ADANIENSOL.BO,Adani Energy Solutions Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Utilities,,true
+ADANIENT.BO,Adani Enterprises Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+ADANIGREEN.BO,Adani Green Energy Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Utilities,,true
+ADANIPORTS.BO,Adani Ports and Special Economic Zone Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+ADANIPOWER.BO,Adani Power Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Utilities,,true
+ADANITRANS.BO,Adani Transmission Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Utilities,,true
+APOLLOHOSP.BO,Apollo Hospitals Enterprise Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Health Care,,true
+ASIANPAINT.BO,Asian Paints Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Materials,,true
+AUROPHARMA.BO,Aurobindo Pharma Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Health Care,,true
+AXISBANK.BO,Axis Bank Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+BAJAJ-AUTO.BO,Bajaj Auto Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Discretionary,,true
+BAJAJFINSV.BO,Bajaj Finserv Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+BAJAJHLDNG.BO,Bajaj Holdings & Investment Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+BAJFINANCE.BO,Bajaj Finance Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+BANKBARODA.BO,Bank of Baroda,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+BEL.BO,Bharat Electronics Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+BHARTIARTL.BO,Bharti Airtel Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+BHEL.BO,Bharat Heavy Electricals Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+BOSCHLTD.BO,Bosch Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Discretionary,,true
+BPCL.BO,Bharat Petroleum Corporation Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Energy,,true
+BRITANNIA.BO,Britannia Industries Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Staples,,true
+CANBK.BO,Canara Bank,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+CGPOWER.BO,CG Power and Industrial Solutions Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+CHOLAFIN.BO,Cholamandalam Investment and Finance Company Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+CIPLA.BO,Cipla Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Health Care,,true
+COALINDIA.BO,Coal India Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Energy,,true
+CUMMINSIND.BO,Cummins India Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+DIVISLAB.BO,Divi's Laboratories Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Health Care,,true
+DLF.BO,DLF Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Real Estate,,true
+DMART.BO,Avenue Supermarts Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Staples,,true
+DRREDDY.BO,Dr. Reddy's Laboratories Ltd,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Health Care,,true
+EICHERMOT.BO,Eicher Motors Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Discretionary,,true
+ETERNAL.BO,Eternal Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+GAIL.BO,GAIL (India) Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Utilities,,true
+GMRAIRPORT.BO,GMR Airports Ltd,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+GRASIM.BO,Grasim Industries Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Materials,,true
+RELIANCE.BO,Reliance Industries Ltd. (BSE),XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Energy & Conglomerate,reliance bse,true
+TCS.BO,Tata Consultancy Services (BSE),XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Information Technology,tcs bse,true
+ADANIGREEN.NS,Adani Green Energy Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Renewable Energy,adani green,true
+BIRLAMONEY.NS,Aditya Birla Money Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+BRNL.NS,Bharat Road Network Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+DEN.NS,DEN Networks Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+DMART.NS,Avenue Supermarts Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Retail,dmart|avenue supermarts,true
+DONEAR.NS,Donear Industries Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Discretionary,,true
+ENIL.NS,Entertainment Network (India) Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+FMNL.NS,Future Market Networks Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Real Estate,,true
+GRASIM.NS,Grasim Industries Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Materials & Cement,grasim,true
+HONAUT.NS,Honeywell Automation India Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+IDEA.NS,Vodafone Idea Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+INDIGO.NS,InterGlobe Aviation Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Aviation,indigo|interglobe,true
+MTNL.NS,Mahanagar Telephone Nigam Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+NDRAUTO.NS,NDR Auto Components Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Discretionary,,true
+NETWORK18.NS,Network18 Media & Investments Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+ONELIFECAP.NS,Onelife Capital Advisors Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+ONEPOINT.NS,One Point One Solutions Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Industrials,,true
+PETRONET.NS,Petronet LNG Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Energy,,true
+PIDILITIND.NS,Pidilite Industries Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Specialty Chemicals,pidilite|fevicol,true
+PIONEEREMB.NS,Pioneer Embroideries Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Discretionary,,true
+RAJTV.NS,Raj Television Network Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+SATIN.NS,Satin Creditcare Network Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Financials,,true
+SITINET.NS,SITI Networks Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+SUNTV.NS,Sun TV Network Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+TALBROAUTO.NS,Talbros Automotive Components Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Discretionary,,true
+TECHM.NS,Tech Mahindra Ltd.,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Information Technology,tech mahindra|techm,true
+TEJASNET.NS,Tejas Networks Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Information Technology,,true
+TVTODAY.NS,T.V. Today Network Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Communication Services,,true
+1AAPL.MI,Apple Inc.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Information Technology,,true
+1ABI.MI,Anheuser Busch Inbev SA NV,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Staples,,true
+1ACA.MI,Credit Agricole SA,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1ADS.MI,adidas AG,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Discretionary,,true
+1AIR.MI,Airbus SE,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Industrials,,true
+1ALV.MI,Allianz SE,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1AMD.MI,"Advanced Micro Devices, Inc.",XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Information Technology,,true
+1AMGN.MI,Amgen Inc.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Health Care,,true
+1AMZN.MI,"Amazon.com, Inc.",XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Discretionary,,true
+1ASML.MI,ASML Holding N.V.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Information Technology,,true
+1BBVA.MI,"Banco Bilbao Vizcaya Argentaria, S.A.",XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1BNP.MI,BNP Paribas,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1CBK.MI,Commerzbank AG,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1CFR.MI,Cie Financiere Richemont SA,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Discretionary,,true
+1DB1.MI,Deutsche Borse AG,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1DBK.MI,Deutsche Bank Aktiengesellschaft,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1DTE.MI,Deutsche Telekom AG,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Communication Services,,true
+1EL.MI,EssilorLuxottica Societe anonyme,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Health Care,,true
+1ENGI.MI,Engie S.A.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Utilities,,true
+1EOAN.MI,E.ON SE,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Utilities,,true
+1EVK.MI,Evonik Industries AG,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Materials,,true
+1FME.MI,Fresenius Medical Care AG,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Health Care,,true
+1GILD.MI,"Gilead Sciences, Inc.",XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Health Care,,true
+1GLE.MI,Societe Generale,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1GME.MI,GameStop Corp.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Discretionary,,true
+1INGA.MI,ING Groep N.V.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Financials,,true
+1INTC.MI,Intel Corporation,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Information Technology,,true
+1ITX.MI,"Industria de Diseno Textil, S.A.",XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Discretionary,,true
+1KER.MI,Kering SA,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Discretionary,,true
+1LHA.MI,Deutsche Lufthansa AG,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Industrials,,true
+1MC.MI,"LVMH Moët Hennessy - Louis Vuitton, Societe Europeenne",XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Discretionary,,true
+1MSFT.MI,Microsoft Corporation,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Information Technology,,true
+1NFLX.MI,"Netflix, Inc.",XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Communication Services,,true
+1NVDA.MI,NVIDIA Corporation,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Information Technology,,true
+1SAP.MI,SAP SE,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Information Technology,,true
+1SIE.MI,Siemens Aktiengesellschaft,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Industrials,,true
+1TSLA.MI,"Tesla, Inc.",XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Consumer Discretionary,,true
+ENEL.MI,Enel S.p.A.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Utilities & Energy,enel,true
+ISP.MI,Intesa Sanpaolo S.p.A.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Banking & Financials,intesa sanpaolo,true
+RACE.MI,Ferrari N.V. (Milan),XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Luxury Automobile,ferrari,true
+1605.T,Inpex Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Energy,,true
+1801.T,Taisei Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+1802.T,Obayashi Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+1812.T,Kajima Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+1925.T,"Daiwa House Industry Co.,Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Real Estate,,true
+1928.T,"Sekisui House, Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Discretionary,,true
+2502.T,Asahi Group Holdings Ltd,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Staples,,true
+2503.T,"Kirin Holdings Company, Limited",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Staples,,true
+2801.T,Kikkoman Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Staples,,true
+2802.T,"Ajinomoto Co., Inc.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Staples,,true
+285A.T,Kioxia Holdings Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+2914.T,Japan Tobacco Inc.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Staples,,true
+3382.T,"Seven & i Holdings Co.,Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Staples,,true
+3402.T,"Toray Industries, Inc.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+3407.T,Asahi Kasei Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+3659.T,"NEXON Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Communication Services,,true
+4004.T,Resonac Holdings Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+4062.T,Ibiden Co. Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+4063.T,Shin-Etsu Chemical,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+4091.T,Nippon Sanso Holdings Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+4188.T,Mitsubishi Chemical Group Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+4307.T,"Nomura Research Institute, Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+4452.T,Kao Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Staples,,true
+4502.T,Takeda Pharmaceutical Co. Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Health Care,,true
+4503.T,Astellas Pharma Inc.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Health Care,,true
+4507.T,"Shionogi & Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Health Care,,true
+4519.T,"Chugai Pharmaceutical Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Health Care,,true
+4543.T,Terumo Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Health Care,,true
+4568.T,"Daiichi Sankyo Company, Limited",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Health Care,,true
+4578.T,"Otsuka Holdings Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Health Care,,true
+4612.T,"Nippon Paint Holdings Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+4661.T,"Oriental Land Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Discretionary,,true
+4684.T,"OBIC Co.,Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+4689.T,LY Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Discretionary,,true
+4901.T,FUJIFILM Holdings Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+5016.T,JX Advanced Metals Corp,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+5019.T,"Idemitsu Kosan Co.,Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Energy,,true
+5020.T,"ENEOS Holdings, Inc.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Energy,,true
+5108.T,Bridgestone Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Discretionary,,true
+5333.T,"NGK Insulators, Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+5401.T,Nippon Steel Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+5713.T,"Sumitomo Metal Mining Co.,Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Materials,,true
+5801.T,"Furukawa Electric Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+5802.T,"Sumitomo Electric Industries,Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Discretionary,,true
+5803.T,Fujikura Ltd,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+5831.T,Shizuoka Financial Group Inc,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Financials,,true
+6098.T,"Recruit Holdings Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6146.T,DISCO Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6178.T,"JAPAN POST HOLDINGS Co.,Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Financials,,true
+6273.T,SMC Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6301.T,Komatsu Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6326.T,Kubota Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6361.T,Ebara Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6367.T,"Daikin Industries,Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6383.T,"Daifuku Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6479.T,MinebeaMitsumi Inc.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6501.T,"Hitachi, Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6503.T,Mitsubishi Electric Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6504.T,Fuji Electric,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6525.T,Kokusai Electric,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6594.T,Nidec Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6701.T,NEC Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6702.T,Fujitsu Limited,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6723.T,Renesas Electronics Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6752.T,Panasonic Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6758.T,Sony Group Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Electronics & Media,sony|playstation,true
+6762.T,TDK Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6857.T,Advantest Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6861.T,Keyence Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Automation & Sensors,keyence,true
+6902.T,DENSO Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Discretionary,,true
+6920.T,Lasertec Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6954.T,Fanuc Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,true
+6963.T,"ROHM Co., Ltd.",XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+6971.T,Kyocera Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Information Technology,,true
+7203.T,Toyota Motor Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Automobile,toyota,true
+7974.T,Nintendo Co. Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Gaming & Entertainment,nintendo|switch,true
+8035.T,Tokyo Electron Limited,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Semiconductor Equipment,tokyo electron|tel,true
+8306.T,Mitsubishi UFJ Financial Group,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Banking & Financials,mufg|mitsubishi ufj,true
+9983.T,Fast Retailing Co. Ltd.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Apparel & Retail,fast retailing|uniqlo,true
+9984.T,SoftBank Group Corp.,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Tech Investment,softbank,true
+000250.KQ,"Sam Chun Dang Pharm. Co., Ltd",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+003380.KQ,"Harim Holdings Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Consumer Staples,,true
+005290.KQ,"Dongjin Semichem Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+006730.KQ,"Seobu T&D Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+007390.KQ,"NatureCell Co.,Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Consumer Staples,,true
+009520.KQ,"POSCO M-TECH Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+010170.KQ,"Taihan Fiber Optics Co., Ltd",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Communication Services,,true
+028300.KQ,"HLB Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+036930.KQ,"JUSUNG ENGINEERING Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+039030.KQ,"EO Technics Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+058470.KQ,LEENO Industrial Inc.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+064760.KQ,"Tokai Carbon Korea Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+067310.KQ,HANA Micron Inc.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+080220.KQ,Jeju Semiconductor Corp.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+084370.KQ,"Eugene Technology Co.,Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+086520.KQ,"Ecopro Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+087010.KQ,"Peptron, Inc.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+091990.KQ,Celltrion Healthcare Co.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Biotechnology,celltrion healthcare,true
+095340.KQ,"ISC Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+095610.KQ,"TES Co., Ltd",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+101400.KQ,"N Citron, Inc.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+108490.KQ,"Robotis Co,.Ltd",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+141080.KQ,"LegoChem Biosciences, Inc.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+178320.KQ,"Seojin System Co.,Ltd",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+196170.KQ,ALTEOGEN Inc.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+214450.KQ,"PharmaResearch Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+222800.KQ,"SIMMTECH Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+240810.KQ,"Wonik IPS Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+247540.KQ,Ecopro BM Co. Ltd.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Battery Materials,ecopro bm,true
+277810.KQ,"Rainbow Robotics Co.,Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+298380.KQ,ABL Bio Inc.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+310210.KQ,"Voronoi, Inc.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+319660.KQ,PSK Inc.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+357780.KQ,"Soulbrain Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+403870.KQ,"HPSP Co., Ltd.",XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+000150.KS,Doosan Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+000157.KS,Doosan Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+000270.KS,Kia Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+000660.KS,SK hynix Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Semiconductors,sk hynix|hynix,true
+000810.KS,"Samsung Fire & Marine Insurance Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+000815.KS,"Samsung Fire & Marine Insurance Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+003550.KS,LG Corp.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+003555.KS,LG Corp.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+003670.KS,"Posco Future M Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+005380.KS,Hyundai Motor Company,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Automobile,hyundai,true
+005385.KS,Hyundai Motor Company,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+005387.KS,Hyundai Motor Company,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+005389.KS,Hyundai Motor Company,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+005490.KS,POSCO Holdings Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+005935.KS,"Samsung Electronics Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+006400.KS,"Samsung SDI Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+006405.KS,"Samsung SDI Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+006800.KS,Mirae Asset Securities Co. Ltd.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+006805.KS,Mirae Asset Securities Co. Ltd.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+00680K.KS,"Mirae Asset Securities Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+009150.KS,"Samsung Electro-Mechanics Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+009155.KS,"Samsung Electro-Mechanics Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+009540.KS,"Korea Shipbuilding & Offshore Engineering Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+010120.KS,"LS ELECTRIC Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+010130.KS,"Korea Zinc Company, Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+010140.KS,"Samsung Heavy Industries Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+010950.KS,S-Oil Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Energy,,true
+010955.KS,S-Oil Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Energy,,true
+011070.KS,"LG Innotek Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+011200.KS,"HMM Co.,Ltd",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+012330.KS,"Hyundai Mobis Co.,Ltd",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+012450.KS,"Hanwha Aerospace Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+015760.KS,Korea Electric Power Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Utilities,,true
+017670.KS,"SK Telecom Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Communication Services,,true
+018260.KS,"Samsung SDS Co.,Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+024110.KS,Industrial Bank of Korea,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+028260.KS,Samsung C&T Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+02826K.KS,Samsung C&T Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+032830.KS,"Samsung Life Insurance Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+033780.KS,KT&G Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Staples,,true
+034020.KS,"Doosan Heavy Industries & Construction Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+034730.KS,SK Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+03473K.KS,SK Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+035420.KS,NAVER Corporation,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Internet & Search,naver,true
+035720.KS,Kakao Corp.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Communication Services,,true
+042660.KS,"Hanwha Ocean Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+042700.KS,"HANMI Semiconductor Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,true
+051910.KS,"LG Chem, Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+051915.KS,"LG Chem, Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Materials,,true
+055550.KS,"Shinhan Financial Group Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+066570.KS,LG Electronics Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+066575.KS,LG Electronics Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Consumer Discretionary,,true
+068270.KS,"Celltrion, Inc.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Health Care,,true
+079550.KS,"LIG Nex1 Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+086280.KS,"Hyundai Glovis Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Industrials,,true
+086790.KS,Hana Financial Group Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+096770.KS,"SK Innovation Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Energy,,true
+096775.KS,"SK Innovation Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Energy,,true
+105560.KS,KB Financial Group Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+138040.KS,Meritz Financial Group Inc.,XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,true
+AAPL.MX,Apple Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+ABBV.MX,AbbVie Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Health Care,,true
+AMAT.MX,"Applied Materials, Inc.",XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+AMD.MX,"Advanced Micro Devices, Inc.",XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+AMGN.MX,Amgen Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Health Care,,true
+AMXB.MX,América Móvil S.A.B. de C.V.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Telecommunications,america movil,true
+AMZN.MX,"Amazon.com, Inc.",XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Consumer Discretionary,,true
+ASMLN.MX,ASML Holding N.V.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+AVGO.MX,Broadcom Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+AXP.MX,American Express Company,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Financials,,true
+BABAN.MX,Alibaba Group Holding Limited,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Consumer Discretionary,,true
+BAC.MX,Bank of America Corporation,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Financials,,true
+BHPN.MX,BHP Group,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Materials,,true
+BRKB.MX,Berkshire Hathaway Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Financials,,true
+C.MX,Citigroup Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Financials,,true
+CAT.MX,Caterpillar Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Industrials,,true
+COST.MX,Costco Wholesale Corporation,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Consumer Staples,,true
+CRWD.MX,"CrowdStrike Holdings, Inc. Class A",XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+CSCO.MX,"Cisco Systems, Inc.",XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+CVX.MX,Chevron Corporation,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Energy,,true
+DELLC.MX,Dell Technologies Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+DIS.MX,Walt Disney Company,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Communication Services,,true
+GILD.MX,"Gilead Sciences, Inc.",XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Health Care,,true
+GOOG.MX,Alphabet Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Communication Services,,true
+GOOGL.MX,Alphabet Inc.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Communication Services,,true
+GS.MX,"The Goldman Sachs Group, Inc.",XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Financials,,true
+HBCN.MX,HSBC Holdings Plc,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Financials,,true
+HD.MX,"Home Depot, Inc.",XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Consumer Discretionary,,true
+IBM.MX,International Business Machines Corporation,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Information Technology,,true
+WALMEX.MX,Wal-Mart de México S.A.B.,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Retail,walmex|walmart mexico,true
+0097.KL,ViTrox Corporation Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Information Technology,,true
+0128.KL,Frontken Corporation Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Information Technology,,true
+0166.KL,Inari Amertron Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Information Technology,,true
+1007.KL,Amcorp Properties Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Real Estate,,true
+1015.KL,AMMB Holdings Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Financials,,true
+1023.KL,CIMB Group Holdings Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Financials,,true
+1066.KL,RHB Bank Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Financials,,true
+1155.KL,Malayan Banking Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Financials,,true
+1295.KL,Public Bank Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Financials,,true
+1503.KL,GuocoLand (Malaysia) Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Global Equities,,true
+2216.KL,IJM Plantations Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Global Equities,,true
+4944.KL,Nylex (Malaysia) Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Materials,,true
+5082.KL,Annum Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Materials,,true
+5170.KL,Sarawak Cable Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Industrials,,true
+5175.KL,Ivory Properties Group Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Real Estate,,true
+5198.KL,ABM Fujiya Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Consumer Discretionary,,true
+5213.KL,Sentoria Group Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Global Equities,,true
+5225.KL,IHH Healthcare Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Health Care,,true
+5254.KL,Boustead Plantations Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Consumer Staples,,true
+5256.KL,Reach Energy Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Global Equities,,true
+5285.KL,SD Guthrie Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Consumer Staples,,true
+5347.KL,Tenaga Nasional Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Utilities,,true
+5622.KL,Pimpinan Ehsan Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Global Equities,,true
+5819.KL,Hong Leong Bank Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Financials,,true
+5835.KL,Dolomite Corporation Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Materials,,true
+5924.KL,MTD ACPI Engineering Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Industrials,,true
+6742.KL,YTL Power International Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Utilities,,true
+7073.KL,Seacera Group Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Global Equities,,true
+7182.KL,EKA Noodles Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Consumer Staples,,true
+7251.KL,Barakah Offshore Petroleum Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Energy,,true
+7253.KL,Handal Energy Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Industrials,,true
+8761.KL,Brem Holding Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Industrials,,true
+8869.KL,Press Metal Bhd,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Materials,,true
+9342.KL,ANZO Holdings Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Materials,,true
+9474.KL,Brahim's Holdings Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Global Equities,,true
+AALB.AS,Aalberts N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Industrials,,true
+ABN.AS,ABN AMRO Bank N.V. Depositary receipts,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+AD.AS,Koninklijke Ahold Delhaize N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Consumer Staples,,true
+ADYEN.AS,Adyen N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+AGN.AS,Aegon Ltd.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+AKZA.AS,Akzo Nobel N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Materials,,true
+ALLFG.AS,Allfunds Group plc,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+APAM.AS,Aperam S.A.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Materials,,true
+ARCAD.AS,Arcadis NV,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Industrials,,true
+ASM.AS,ASM International N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Information Technology,,true
+ASML.AS,ASML Holding N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Semiconductor Equipment,asml|euv,true
+ASRNL.AS,ASR Nederland N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+BAMNB.AS,Koninklijke BAM Groep NV,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Industrials,,true
+BESI.AS,BE Semiconductor Industries N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Information Technology,,true
+CCEP.AS,Coca-Cola Europacific Partners PLC,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Consumer Staples,,true
+CSG.AS,Csg N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Industrials,,true
+CVC.AS,CVC Capital Partners PLC,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+DSFIR.AS,DSM-Firmenich AG,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Materials,,true
+EXO.AS,Exor N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+FER.AS,Ferrovial SE,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Industrials,,true
+HAL.AS,HAL Trust,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+HEIA.AS,Heineken N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Consumer Staples,,true
+HEIO.AS,Heineken Holding N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Consumer Staples,,true
+INGA.AS,ING Groep N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+KPN.AS,Koninklijke KPN N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Communication Services,,true
+MICC.AS,The Magnum Ice Cream Company N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Consumer Staples,,true
+MT.AS,ArcelorMittal,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Materials,,true
+NN.AS,NN Group N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Financials,,true
+PHIA.AS,Koninklijke Philips N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Health Care,,true
+PRX.AS,Prosus N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Communication Services,,true
+REN.AS,RELX Plc,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Industrials,,true
+SHELL.AS,Shell plc,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Energy,,true
+UMG.AS,Universal Music Group NV,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Communication Services,,true
+UNA.AS,Unilever PLC,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Consumer Staples,,true
+WKL.AS,Wolters Kluwer N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Industrials,,true
+AFG.OL,AF Gruppen ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Industrials,,true
+AFGO.OL,AF Gruppen ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Industrials,,true
+AKER.OL,Aker ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+AKERO.OL,Aker AS,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Industrials,,true
+AKRBP.OL,Aker BP ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+AKRBPO.OL,Aker BP ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+AKSO.OL,Aker Solutions ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+AKSOO.OL,Aker Solutions ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+AUTO.OL,AutoStore,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Industrials,,true
+DNB.OL,DNB Bank ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Banking & Financials,dnb,true
+DNBO.OL,DNB ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Financials,,true
+EQNR.OL,Equinor ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,equinor,true
+EQNRO.OL,Equinor ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+FRO.OL,Frontline Plc,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+FROO.OL,Frontline Plc,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+GJF.OL,Gjensidige Forsikring ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Financials,,true
+GJFO.OL,Gjensidige Forsikring ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Financials,,true
+KOG.OL,Kongsberg Gruppen ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Industrials,,true
+KOGO.OL,Kongsberg Gruppen ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Industrials,,true
+MOWI.OL,Mowi ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Consumer Staples,,true
+MOWIO.OL,Mowi ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Consumer Staples,,true
+NHY.OL,Norsk Hydro ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Materials,,true
+NHYO.OL,Norsk Hydro ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Materials,,true
+SUBC.OL,Subsea 7 S.A.,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+SUBCO.OL,Subsea 7 S.A.,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+TEL.OL,Telenor ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Communication Services,,true
+TELO.OL,Telenor,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Communication Services,,true
+VAR.OL,Vår Energi AS,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Energy,,true
+YAR.OL,Yara International ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Materials,,true
+YARO.OL,Yara International ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Materials,,true
+AFI.NZ,Australian Foundation Investment Company Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Financials,,true
+AIA.NZ,Auckland International Airport Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Industrials,,true
+AIR.NZ,Air New Zealand Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Industrials,,true
+ANZ.NZ,ANZ Group Holdings Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Financials,,true
+ARG.NZ,Argosy Property Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Real Estate,,true
+ATM.NZ,The a2 Milk Company Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Consumer Staples,,true
+CEN.NZ,Contact Energy Ltd.,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Utilities,,true
+CNU.NZ,Chorus Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Communication Services,,true
+EBO.NZ,EBOS Group Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Health Care,,true
+FBU.NZ,Fletcher Building Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Materials,,true
+FCG.NZ,Fonterra Co-operative Group Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Consumer Staples,,true
+FCT.NZ,F&C Investment Trust PLC,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Financials,,true
+FPH.NZ,Fisher & Paykel Healthcare Corp. Ltd.,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Health Care,,true
+IFT.NZ,Infratil Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Utilities,,true
+MCY.NZ,Mercury NZ Ltd,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Utilities,,true
+MEL.NZ,Meridian Energy Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Utilities,,true
+MFT.NZ,Mainfreight Ltd.,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Industrials,,true
+POT.NZ,Port of Tauranga Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Industrials,,true
+SEK.NZ,Seeka Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Communication Services,,true
+SPK.NZ,Spark New Zealand Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Communication Services,,true
+TEM.NZ,Templeton Emerging Markets Investment Trust plc,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Financials,,true
+TLS.NZ,Telstra Group Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Communication Services,,true
+VCT.NZ,Vector Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Utilities,,true
+VNT.NZ,Ventia Services Group Limited,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Industrials,,true
+WBC.NZ,Westpac Banking Corporation,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Financials,,true
+ACP.WA,Asseco Poland S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Information Technology,,true
+ALE.WA,Allegro.eu S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Consumer Discretionary,,true
+ALR.WA,Alior Bank S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+ALV.WA,Allianz SE,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+ASB.WA,ASBISc Enterprises Plc,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Information Technology,,true
+ASML.WA,ASML Holding N.V.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Information Technology,,true
+BAY.WA,Bayer AG,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Health Care,,true
+BDX.WA,Budimex S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Industrials,,true
+BFT.WA,Benefit Systems,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Consumer Discretionary,,true
+BHW.WA,Bank Handlowy w Warszawie S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+BMW.WA,Bayerische Motoren Werke AG,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Consumer Discretionary,,true
+BNP.WA,BNP Paribas Bank Polska S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+CEZ.WA,"CEZ, a. s.",XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Utilities,,true
+EBP.WA,Erste Bank Polska S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+ING.WA,ING Bank Slaski S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+ITX.WA,"Industria de Diseño Textil, S.A.",XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Consumer Discretionary,,true
+JMT.WA,"Jerónimo Martins, SGPS, S.A.",XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Consumer Staples,,true
+KGH.WA,KGHM Polska Miedz S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Materials,,true
+LPP.WA,LPP S.A. Inhaber-Aktien ZY 2,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Consumer Discretionary,,true
+MBG.WA,Mercedes-Benz Group AG,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Consumer Discretionary,,true
+MBK.WA,mBank,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+MOL.WA,MOL Magyar Olaj- és Gázipari Nyilvánosan Muködo Részvénytársaság,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Energy,,true
+PEO.WA,Bank Polska Kasa Opieki S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+PKN.WA,Polski Koncern Naftowy ORLEN Spólka Akcyjna,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Energy,,true
+PKO.WA,Powszechna Kasa Oszczednosci Bank Polski Spólka Akcyjna,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+PZU.WA,Powszechny Zaklad Ubezpieczen S.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+RWE.WA,RWE Aktiengesellschaft,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Utilities,,true
+SAN.WA,"Banco Santander, S.A.",XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+UCG.WA,UniCredit S.p.A.,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Financials,,true
+VOW.WA,Volkswagen AG,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Consumer Discretionary,,true
+ALTR.LS,"Altri, SGPS, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Materials,,true
+BCP.LS,"Banco Comercial Portugues, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Financials,,true
+COR.LS,"Corticeira Amorim, S.G.P.S., S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Materials,,true
+CTT.LS,CTT - Correios de Portugal SA,XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Industrials,,true
+EDP.LS,"EDP - Energias de Portugal, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Utilities,,true
+EDPR.LS,"EDP Renovaveis, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Utilities,,true
+EGL.LS,Mota-Engil SGPS SA,XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Industrials,,true
+FCP.LS,"Futebol Clube do Porto - Futebol, S.A.D.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Consumer Discretionary,,true
+GALP.LS,"Galp Energia, SGPS, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Energy,,true
+GLINT.LS,"Glintt - Global Intelligent Technologies, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Information Technology,,true
+IBS.LS,"Ibersol, S.G.P.S., S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Consumer Discretionary,,true
+JMT.LS,"Jeronimo Martins, SGPS, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Consumer Staples,,true
+MAR.LS,"Martifer SGPS, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Industrials,,true
+MLFMV.LS,"Farminveste, S.G.P.S., S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Industrials,,true
+MRL.LS,Merlin Properties Socimi SA,XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Real Estate,,true
+NBA.LS,"Novabase S.G.P.S., S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Information Technology,,true
+NOS.LS,"Nos, S.g.p.s., S.a.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Communication Services,,true
+NVG.LS,Navigator Company SA,XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Materials,,true
+PHR.LS,"Pharol, SGPS S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Communication Services,,true
+RAM.LS,"Ramada Investimentos e Industria, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Materials,,true
+RENE.LS,Redes Energeticas Nacionais SA,XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Utilities,,true
+SCP.LS,"Sporting Clube de Portugal - Futebol, SAD",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Communication Services,,true
+SEM.LS,"Semapa - Sociedade de Investimento e Gestao, SGPS, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Materials,,true
+SNC.LS,"Sonaecom, S.G.P.S., S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Industrials,,true
+SON.LS,Sonae SGPS SA,XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Industrials,,true
+8TRA.ST,Traton SE,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+ABB.ST,ABB Ltd,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+ALFA.ST,Alfa Laval AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+ASSA-B.ST,ASSA ABLOY AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+ATCO-A.ST,Atlas Copco AB,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrial Machinery,atlas copco,true
+ATCO-B.ST,Atlas Copco AB,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+AZN.ST,AstraZeneca PLC,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Health Care,,true
+BOL.ST,Boliden AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Materials,,true
+EPI-A.ST,Epiroc AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+EPI-B.ST,Epiroc AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+EQT.ST,EQT AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+ERIC-A.ST,Telefonaktiebolaget LM Ericsson (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Information Technology,,true
+ERIC-B.ST,Telefonaktiebolaget LM Ericsson (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Information Technology,,true
+ESSITY-A.ST,Essity AB Class A,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Consumer Staples,,true
+ESSITY-B.ST,Essity AB Class B,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Consumer Staples,,true
+EVO.ST,Evolution Gaming Group AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Consumer Discretionary,,true
+HEXA-B.ST,Hexagon AB,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Information Technology,,true
+HM-B.ST,H & M Hennes & Mauritz AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Consumer Discretionary,,true
+INDU-A.ST,AB Industrivärden (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+INDU-C.ST,AB Industrivärden (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+INVE-A.ST,Investor AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+INVE-B.ST,Investor AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+LATO-B.ST,Investment AB Latour (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+LIFCO-B.ST,Lifco AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+LUG.ST,Lundin Gold Inc.,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Materials,,true
+LUMI.ST,Lundin Mining Corp.,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Materials,,true
+LUND-B.ST,L E Lundbergforetagen AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+NDA-SE.ST,Nordea Bank Abp,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+NOKIA-SEK.ST,Nokia Corp.,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Information Technology,,true
+SAAB-B.ST,Saab AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+SAND.ST,Sandvik AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+SEB-A.ST,Skandinaviska Enskilda Banken AB Class A,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+SEB-C.ST,Skandinaviska Enskilda Banken AB Class C,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+SHB-A.ST,Svenska Handelsbanken AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+SHB-B.ST,Svenska Handelsbanken AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Financials,,true
+SKA-B.ST,Skanska AB (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+SKF-A.ST,AB SKF (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+SKF-B.ST,AB SKF (publ),XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,true
+SOBI.ST,Swedish Orphan Biovitrum AB,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Health Care,,true
+VOLV-B.ST,AB Volvo,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Commercial Vehicles,volvo,true
+5E2.SI,Seatrium Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Energy,,true
+9CI.SI,CapitaLand Investment Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Real Estate,,true
+A17U.SI,Ascendas Real Estate Investment Trust,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Real Estate,,true
+A7RU.SI,Keppel Infrastructure Trust,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Utilities,,true
+AJBU.SI,Keppel DC REIT,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Real Estate,,true
+AWX.SI,AEM Holdings Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Information Technology,,true
+BN4.SI,Keppel Corporation Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Industrials,,true
+BS6.SI,"Yangzijiang Shipbuilding Holdings, Ltd.",XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Industrials,,true
+BUOU.SI,Frasers Logistics & Commercial Trust,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Real Estate,,true
+C07.SI,Jardine Cycle & Carriage Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Consumer Discretionary,,true
+C09.SI,City Developments Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Real Estate,,true
+C2PU.SI,Parkway Life Real Estate Investment Trust,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Real Estate,,true
+C38U.SI,CapitaLand Integrated Commercial Trust,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Real Estate,,true
+C52.SI,Comfortdelgro Corporation Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Industrials,,true
+C6L.SI,Singapore Airlines Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Industrials,,true
+C70.SI,City Developments Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Real Estate,,true
+CJLU.SI,NetLink NBN Trust,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Communication Services,,true
+D01.SI,DFI Retail Group Holdings Limited,XSES,SGX,SG,USD,Asia/Singapore,EQUITY,Consumer Staples,,true
+D05.SI,DBS Group Holdings Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Banking & Financials,dbs|dbs bank,true
+E5H.SI,Golden Agri-Resources Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Consumer Staples,,true
+EB5.SI,First Resources Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Consumer Staples,,true
+F34.SI,Wilmar International Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Consumer Staples,,true
+G07.SI,Great Eastern Holdings Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Financials,,true
+H78.SI,Hongkong Land Holdings Limited,XSES,SGX,SG,USD,Asia/Singapore,EQUITY,Real Estate,,true
+HBND.SI,Bank of China Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Financials,,true
+IBKD.SI,PT Bank Central Asia Tbk,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Financials,,true
+J36.SI,Jardine Matheson Holdings Limited,XSES,SGX,SG,USD,Asia/Singapore,EQUITY,Industrials,,true
+K6S.SI,Prudential plc,XSES,SGX,SG,USD,Asia/Singapore,EQUITY,Financials,,true
+O39.SI,Oversea-Chinese Banking Corp,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Banking & Financials,ocbc,true
+Q0F.SI,IHH Healthcare Berhad,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Health Care,,true
+S63.SI,Singapore Technologies Engineering Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Industrials,,true
+S68.SI,Singapore Exchange Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Financials,,true
+U11.SI,United Overseas Bank Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Financials,,true
+Z74.SI,Singapore Telecommunications Ltd,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Telecommunications,singtel,true
+Z77.SI,Singapore Telecommunications Limited,XSES,SGX,SG,SGD,Asia/Singapore,EQUITY,Communication Services,,true
+ADVANC-R.BK,Advanced Info Service Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Communication Services,,true
+ADVANC.BK,Advanced Info Service Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Communication Services,,true
+AOT-R.BK,Airports of Thailand Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Industrials,,true
+AOT.BK,Airports of Thailand Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Industrials,,true
+AWC-R.BK,Asset World Corp Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Real Estate,,true
+AWC.BK,Asset World Corp Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Consumer Discretionary,,true
+BANPU-R.BK,Banpu Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Materials,,true
+BANPU.BK,Banpu Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Materials,,true
+BAY-R.BK,Bank of Ayudhya Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+BAY.BK,Bank of Ayudhya Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+BBL-R.BK,Bangkok Bank Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+BBL.BK,Bangkok Bank Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+BCP-R.BK,Bangchak Corporation Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Energy,,true
+BCP.BK,Bangchak Corporation Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Energy,,true
+BDMS-R.BK,Bangkok Dusit Medical Services Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Health Care,,true
+BDMS.BK,Bangkok Dusit Medical Services Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Health Care,,true
+BEM-R.BK,Bangkok Expressway and Metro Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Industrials,,true
+CPALL-R.BK,CP ALL Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Consumer Staples,,true
+CPALL.BK,CP ALL Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Consumer Staples,,true
+DELTA-R.BK,Delta Electronics (Thailand) Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Industrials,,true
+DELTA.BK,Delta Electronics (Thailand) Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Industrials,,true
+GULF-R.BK,Gulf Energy Development Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Utilities,,true
+GULF.BK,Gulf Energy Development Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Utilities,,true
+KBANK-R.BK,Kasikornbank Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+KBANK.BK,Kasikornbank Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+KTB-R.BK,Krung Thai Bank Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+KTB.BK,Krung Thai Bank Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+PTT-R.BK,PTT Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Energy,,true
+PTT.BK,PTT Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Energy,,true
+PTTEP-R.BK,PTT Exploration and Production Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Energy,,true
+PTTEP.BK,PTT Exploration and Production Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Energy,,true
+SCB-R.BK,SCB X Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+SCB.BK,SCB X Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Financials,,true
+TRUE-R.BK,True Corporation Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Communication Services,,true
+TRUE.BK,True Corporation Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Communication Services,,true
+AEFES.IS,Anadolu Efes Biracilik ve Malt Sanayii Anonim Sirketi,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Consumer Staples,,true
+AKBNK.IS,Akbank T.A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+ASELS.IS,Aselsan Elektronik Sanayi ve Ticaret Anonim Sirketi,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Industrials,,true
+ASTOR.IS,Astor Enerji A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Industrials,,true
+BIMAS.IS,BIM Birlesik Magazalar A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Consumer Staples,,true
+CCOLA.IS,Coca-Cola Icecek Anonim Sirketi,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Consumer Staples,,true
+DOCO.IS,DO & CO Aktiengesellschaft,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Consumer Discretionary,,true
+DSTKF.IS,Destek Finans Faktoring AS,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+ENERY.IS,Enerya Enerji A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Utilities,,true
+ENJSA.IS,Enerjisa Enerji A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Utilities,,true
+ENKAI.IS,Enka Insaat ve Sanayi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Industrials,,true
+EREGL.IS,Eregli Demir ve Celik Fabrikalari T.A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Materials,,true
+FROTO.IS,Ford Otomotiv Sanayi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Consumer Discretionary,,true
+GARAN.IS,Turkiye Garanti Bankasi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+GUBRF.IS,Gubre Fabrikalari Turk Anonim Sirketi,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Materials,,true
+HALKB.IS,Turkiye Halk Bankasi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+INVES.IS,Investco Holding A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+ISBTR.IS,Turkiye Is Bankasi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+ISCTR.IS,Turkiye Is Bankasi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+ISDMR.IS,Iskenderun Demir ve Celik A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Materials,,true
+ISKUR.IS,Turkiye Is Bankasi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+KCHOL.IS,Koç Holding A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Industrials,,true
+KENT.IS,Kent Gida Maddeleri Sanayii ve Ticaret A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Consumer Staples,,true
+OYAKC.IS,OYAK Cimento Fabrikalari A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Materials,,true
+PKENT.IS,Petrokent Turizm A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Consumer Discretionary,,true
+RHEAG.IS,Rhea Girisim Sermayesi Yatirim Ortakligi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+SAHOL.IS,Haci Ömer Sabanci Holding A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,true
+SISE.IS,Turkiye Sise Ve Cam Fabrikalari A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Materials,,true
+TAVHL.IS,TAV Havalimanlari Holding A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Industrials,,true
+TCELL.IS,Turkcell Iletisim Hizmetleri A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Communication Services,,true
+THYAO.IS,Turk Hava Yollari Anonim Ortakligi,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Industrials,,true
+TOASO.IS,Tofas Turk Otomobil Fabrikasi A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Consumer Discretionary,,true
+TRALT.IS,Turk Altin Isletmeleri A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Materials,,true
+TTKOM.IS,Turk Telekomunikasyon Anonim Sirketi,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Communication Services,,true
+TUPRS.IS,Turkiye Petrol Rafinerileri A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Energy,,true
+1216.TW,Uni-President Enterprises Corp,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Consumer Staples,,true
+1301.TW,Formosa Plastics Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Materials,,true
+1303.TW,Nan Ya Plastics Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Materials,,true
+1326.TW,Formosa Chemicals & Fibre Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Materials,,true
+2059.TW,"King Slide Works Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2301.TW,Lite-On Technology Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2303.TW,United Microelectronics Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2308.TW,Delta Electronics,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2317.TW,Hon Hai Precision Industry (Foxconn),XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Electronics Manufacturing,foxconn|hon hai,true
+2327.TW,Yageo Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2330.TW,Taiwan Semiconductor Mfg. (TSMC),XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Semiconductors,tsmc|taiwan semiconductor,true
+2344.TW,Winbond Electronics Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2345.TW,Accton Technology Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2357.TW,ASUSTeK Computer Inc.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2360.TW,Chroma ATE Inc.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2368.TW,Gold Circuit Electronics Ltd.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2379.TW,Realtek Semiconductor Corp.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2382.TW,Quanta Computer Inc.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2383.TW,Elite Material,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2395.TW,"Advantech Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2408.TW,Nanya Technology Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2412.TW,"Chunghwa Telecom Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Communication Services,,true
+2449.TW,King Yuan Electronics,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2454.TW,MediaTek Inc.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+2603.TW,Evergreen Marine Corp Taiwan Ltd,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Industrials,,true
+2801.TW,"Chang Hwa Commercial Bank, Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2880.TW,"Hua Nan Financial Holdings Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2881.TW,"Fubon Financial Holding Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2881A.TW,"Fubon Financial Holding Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2882.TW,"Cathay Financial Holding Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2883.TW,KGI Financial Holding Co Ltd,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2884.TW,"E.SUN Financial Holding Company, Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2885.TW,Yuanta Financial Holding Co Ltd,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2886.TW,Mega Financial Holding Co Ltd,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2887.TW,"Taishin Financial Holding Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2887E.TW,"Taishin Financial Holding Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2890.TW,SinoPac Financial Holdings Company Limited,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2891.TW,"CTBC Financial Holding Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2891B.TW,"CTBC Financial Holding Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2891C.TW,"CTBC Financial Holding Co., Ltd.",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+2892.TW,First Financial Holding,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Financials,,true
+3008.TW,"LARGAN Precision Co.,Ltd",XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+3017.TW,Asia Vital Components,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+3034.TW,Novatek Microelectronics Corp.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+3037.TW,Unimicron Technology Corp.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+3045.TW,Taiwan Mobile Co Ltd,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Communication Services,,true
+3189.TW,Kinsus Interconnect Technology Corp.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+3231.TW,Wistron Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+3443.TW,Global Unichip Corp.,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+3481.TW,Innolux Corporation,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,true
+ABNB,"Airbnb, Inc. Class A",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+ACGL,Arch Capital Group Ltd.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+ADBE,Adobe Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Software & Creative,adobe|photoshop|acrobat,true
+ADI,"Analog Devices, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+ADP,"Automatic Data Processing, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+ADSK,"Autodesk, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+AEP,"American Electric Power Company, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Utilities,,true
+AFRM,"Affirm Holdings, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+AGNC,AGNC Investment Corp.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+AGNCM,AGNC Investment Corp.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+AGNCN,AGNC Investment Corp.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+AGNCO,AGNC Investment Corp.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+AGNCP,AGNC Investment Corp.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+AKAM,"Akamai Technologies, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+ALAB,Astera Labs Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+ALGN,"Align Technology, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+ALNY,"Alnylam Pharmaceuticals, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+AMAT,Applied Materials Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductor Equipment,applied materials,true
+AMGN,Amgen Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+ANT,Anthropic PBC,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+APA,APA Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Energy,,true
+APP,AppLovin Corp. Class A,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+ARCC,Ares Capital Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+ARGX,argenx SE,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+ARM,Arm Holdings plc,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+ARXS,Arxis Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+ASML,ASML Holding N.V.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+ASND,Ascendis Pharma A/S,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+ASTS,"AST SpaceMobile, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Communication Services,,true
+AXON,Axon Enterprise Inc,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+BBIO,"BridgeBio Pharma, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+BIDU,"Baidu, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Communication Services,,true
+BIIB,Biogen Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+BKNG,Booking Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Travel & Consumer,booking|priceline|kayak,true
+BKR,Baker Hughes Company Class A,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Energy,,true
+BMRN,BioMarin Pharmaceutical Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+BNTX,BioNTech SE,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+BPYPN,Brookfield Property Partners L.P.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Real Estate,,true
+BPYPO,Brookfield Property Partners L.P.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Real Estate,,true
+BPYPP,Brookfield Property Partners L.P.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Real Estate,,true
+BSP,Bending Spoons S.p.A.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+BSY,"Bentley Systems, Incorporated Class B",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+BTSG,BrightSpring Health Services Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+CART,Maplebear Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+CASY,"Casey's General Stores, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+CBRS,Cerebras Systems Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+CCEP,Coca-Cola Europacific Partners PLC,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+CDNS,"Cadence Design Systems, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+CDW,CDW Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+CEG,Constellation Energy Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Utilities,,true
+CG,The Carlyle Group Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+CHKP,Check Point Software Technologies Ltd.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+CHRW,"C.H. Robinson Worldwide, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+CHTR,"Charter Communications, Inc. Class A",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Communication Services,,true
+CHYM,Chime Financial Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+CINF,Cincinnati Financial Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+CMCSA,Comcast Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Communication Services,,true
+CME,CME Group Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+COKE,"Coca-Cola Consolidated, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+COO,"The Cooper Companies, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+COST,Costco Wholesale Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+CPRT,"Copart, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+CRDO,Credo Technology Group Holding Ltd,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+CRWD,CrowdStrike Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Cybersecurity,crowdstrike|falcon,true
+CRWV,CoreWeave Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+CSCO,"Cisco Systems, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+CSGP,"CoStar Group, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Real Estate,,true
+CSX,CSX Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+CTAS,Cintas Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+CTSH,Cognizant Technology Solutions Corporation Class A,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+DASH,"DoorDash, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Communication Services,,true
+DDOG,"Datadog, Inc. Class A",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+DLTR,"Dollar Tree, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+DOCU,"DocuSign, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+DPZ,"Domino's Pizza, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+DXCM,"DexCom, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+EBAY,eBay Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+ECHO,EchoStar Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+ENSG,"The Ensign Group, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+ENTG,"Entegris, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+EQIX,"Equinix, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Real Estate,,true
+ERIC,Telefonaktiebolaget LM Ericsson (publ),XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+ERIE,Erie Indemnity Company,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+ESLT,Elbit Systems Ltd,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+EVRG,"Evergy, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Utilities,,true
+EWBC,"East West Bancorp, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+EXC,Exelon Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Utilities,,true
+EXE,Expand Energy Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Energy,,true
+EXEL,"Exelixis, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+EXPE,"Expedia Group, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+FANG,"Diamondback Energy, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Energy,,true
+FAST,Fastenal Company,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+FCNCA,"First Citizens BancShares, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,true
+FER,Ferrovial SE,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+GILD,"Gilead Sciences, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,true
+GOOG,Alphabet Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Communication Services,,true
+HON,Honeywell International Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,honeywell,true
+INTU,Intuit Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Fintech & Software,intuit|turbotax|quickbooks,true
+LIN,Linde plc,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Materials,,true
+LRCX,Lam Research Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductor Equipment,lam research,true
+MU,Micron Technology Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,micron|dram|hbm,true
+PANW,Palo Alto Networks Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Cybersecurity,palo alto|cybersecurity,true
+PEP,PepsiCo Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer Beverages & Snacks,pepsi|pepsico|frito-lay,true
+PYPL,PayPal Holdings Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Fintech & Payments,paypal|venmo,true
+QCOM,Qualcomm Incorporated,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,qualcomm|snapdragon,true
+SBUX,Starbucks Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Consumer & Dining,starbucks,true
+SKHY,SK hynix Inc.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+SNDK,Sandisk Corporation,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Information Technology,,true
+SPCX,Space Exploration Technologies Corp.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Industrials,,true
+TXN,Texas Instruments Incorporated,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Semiconductors,texas instruments|ti,true
+A,"Agilent Technologies, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+ABBV,AbbVie Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,abbvie|humira,true
+ABEV,Ambev S.A.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+ABT,Abbott Laboratories,XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+ACM,Aecom,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+ACN,Accenture Plc Class A,XNYS,NYSE,US,USD,America/New_York,EQUITY,Information Technology,,true
+ADM,Archer-Daniels-Midland Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+AEE,Ameren Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Utilities,,true
+AEG,Aegon Ltd.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+AEM,Agnico Eagle Mines Limited,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+AER,AerCap Holdings N.V.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+AES,The AES Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Utilities,,true
+AFG,"American Financial Group, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+AFL,Aflac Incorporated,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+AGI,Alamos Gold Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+AHR,American Healthcare REIT Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Real Estate,,true
+AIG,"American International Group, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+AIT,"Applied Industrial Technologies, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+AIZ,"Assurant, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+AJG,Arthur J. Gallagher & Co.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+ALC,Alcon AG,XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+ALL,The Allstate Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+ALLE,Allegion plc,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+ALLY,Ally Financial Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+ALSN,"Allison Transmission Holdings, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+AMCR,Amcor plc,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+AME,"AMETEK, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+AMH,American Homes 4 Rent,XNYS,NYSE,US,USD,America/New_York,EQUITY,Real Estate,,true
+AMP,"Ameriprise Financial, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+AMRZ,Amrize AG,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+AMT,American Tower Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Real Estate,,true
+AMX,"America Movil, S.A.B. de C.V.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Communication Services,,true
+ANET,"Arista Networks, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Information Technology,,true
+AON,Aon Plc Class A,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+APD,"Air Products and Chemicals, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+APG,APi Group Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+APH,Amphenol Corporation Class A,XNYS,NYSE,US,USD,America/New_York,EQUITY,Information Technology,,true
+APO,"Apollo Global Management, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+AR,Antero Resources Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy,,true
+ARES,Ares Management Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+ARMK,Aramark,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+AS,Amer Sports Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+ASX,"ASE Technology Holding Co., Ltd.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Information Technology,,true
+ATI,ATI Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+ATO,Atmos Energy Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Utilities,,true
+AU,AngloGold Ashanti Limited,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+AVTR,"Avantor, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+AVY,Avery Dennison Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+AWK,"American Water Works Company, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Utilities,,true
+AXP,American Express Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+AZN,AstraZeneca PLC,XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+AZO,"AutoZone, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+B,Barrick Mining Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+BA,The Boeing Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Aerospace & Defense,boeing,true
+BABA,Alibaba Group Holding Limited,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+BAC,Bank of America Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,bank of america|bofa,true
+BALL,Ball Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Materials,,true
+BAM,Brookfield Asset Management Ltd.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+BAP,Credicorp Ltd.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+BAX,Baxter International Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+BBD,Banco Bradesco S.A.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+BBDO,Banco Bradesco S.A.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+BBVA,"Banco Bilbao Vizcaya Argentaria, S.A.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+BBY,"Best Buy Co., Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+BCE,BCE Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Communication Services,,true
+BCH,Banco de Chile,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+BCS,Barclays PLC,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+BDX,"Becton, Dickinson and Company",XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+BE,Bloom Energy Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+BEKE,KE Holdings Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Real Estate,,true
+BEN,"Franklin Resources, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+BLK,BlackRock Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Asset Management,blackrock|ishares|aladdin,true
+BRK-A,Berkshire Hathaway Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+C,Citigroup Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,citi|citigroup,true
+CAT,Caterpillar Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,caterpillar,true
+COP,ConocoPhillips,XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy,conocophillips,true
+CVX,Chevron Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy,,true
+GE,GE Aerospace,XNYS,NYSE,US,USD,America/New_York,EQUITY,Aerospace & Defense,general electric|ge aerospace,true
+GEV,GE Vernova Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+GS,"The Goldman Sachs Group, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+HD,"Home Depot, Inc.",XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+HSBC,HSBC Holdings Plc,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+IBM,International Business Machines Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Information Technology,,true
+JNJ,Johnson & Johnson,XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+KO,Coca-Cola Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+MA,Mastercard Incorporated Class A,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+MCD,McDonald's Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer & Dining,mcdonalds|mcdonald's,true
+MRK,Merck & Co. Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,merck,true
+MS,Morgan Stanley,XNYS,NYSE,US,USD,America/New_York,EQUITY,Investment Banking,morgan stanley,true
+MUFG,"Mitsubishi UFJ Financial Group, Inc. Sponsored ADR",XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+NKE,NIKE Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Apparel & Consumer,nike|jordan,true
+NOW,ServiceNow Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Enterprise Software,servicenow,true
+NVS,Novartis AG,XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+ORCL,Oracle Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Enterprise Software,oracle|larry ellison|oci,true
+PFE,Pfizer Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Pharmaceuticals,pfizer,true
+PG,Procter & Gamble Co.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Staples,procter gamble|p&g,true
+PM,Philip Morris International Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Staples,,true
+RTX,RTX Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,true
+RY,Royal Bank of Canada,XNYS,NYSE,US,USD,America/New_York,EQUITY,Financials,,true
+SAP,SAP SE,XNYS,NYSE,US,USD,America/New_York,EQUITY,Information Technology,,true
+SHEL,Shell plc,XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy,,true
+SHOP,Shopify Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,E-Commerce Software,shopify,true
+SLB,SLB (Schlumberger),XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy Services,slb|schlumberger,true
+SNOW,Snowflake Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Cloud Data,snowflake,true
+TM,Toyota Motor Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Consumer Discretionary,,true
+TMO,Thermo Fisher Scientific Inc.,XNYS,NYSE,US,USD,America/New_York,EQUITY,Health Care,,true
+TSM,Taiwan Semiconductor Manufacturing Company Limited,XNYS,NYSE,US,USD,America/New_York,EQUITY,Information Technology,,true
+UNH,UnitedHealth Group Incorporated,XNYS,NYSE,US,USD,America/New_York,EQUITY,Healthcare,unitedhealth|optum,true
+WFC,Wells Fargo & Company,XNYS,NYSE,US,USD,America/New_York,EQUITY,Banking & Financials,wells fargo,true
+XOM,Exxon Mobil Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Energy,,true
+ABG.JO,Absa Group Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Financials,,true
+AGL.JO,Anglo American plc,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+ANG.JO,AngloGold Ashanti Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+ANH.JO,Anheuser Busch Inbev SA NV,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Consumer Staples,,true
+APN.JO,Aspen Pharmacare Holdings Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Health Care,,true
+BHG.JO,BHP Group,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+BID.JO,Bid Corporation Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Consumer Staples,,true
+BOX.JO,Boxer Retail Ltd.,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Consumer Staples,,true
+BTI.JO,British American Tobacco p.l.c.,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Consumer Staples,,true
+BVT.JO,The Bidvest Group Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Industrials,,true
+CFR.JO,Compagnie Financiere Richemont SA,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Consumer Discretionary,,true
+CLS.JO,Clicks Group Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Consumer Staples,,true
+CPI.JO,Capitec Bank Holdings Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Financials,,true
+CPIP.JO,Capitec Bank Holdings Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Financials,,true
+DRD.JO,DRDGOLD Ltd.,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+DSBP.JO,Discovery Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Financials,,true
+DSY.JO,Discovery Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Financials,,true
+EXX.JO,Exxaro Resources Ltd.,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Energy,,true
+FSR.JO,FirstRand Limited,XJSE,JSE,ZA,ZAR,Africa/Johannesburg,EQUITY,Banking & Financials,firstrand|fnb,true
+GFI.JO,Gold Fields Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+GLN.JO,Glencore plc,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+GRT.JO,Growthpoint Properties Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Real Estate,,true
+HAR.JO,Harmony Gold Mining Co. Ltd. Sponsored ADR,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+HMN.JO,Hammerson plc,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Real Estate,,true
+IMP.JO,Impala Platinum Holdings Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+INL.JO,Investec plc,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Financials,,true
+MTN.JO,MTN Group Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Communication Services,,true
+NPN.JO,Naspers Limited,XJSE,JSE,ZA,ZAR,Africa/Johannesburg,EQUITY,Consumer Internet,naspers,true
+PRX.JO,Prosus N.V.,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Communication Services,,true
+S32.JO,South32 Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+SBK.JO,Standard Bank Group Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Financials,,true
+SBPP.JO,Standard Bank Group Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Financials,,true
+SHP.JO,Shoprite Holdings Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Consumer Staples,,true
+VAL.JO,Valterra Platinum,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,true
+VOD.JO,Vodacom Group Limited,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Communication Services,,true
+ANET.VI,"Arista Networks, Inc.",XWBO,VIE,AT,EUR,Europe/Vienna,EQUITY,Information Technology,,false
+ANZPD.AX,Australia and New Zealand Banking Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,false
+ANZPE.AX,Australia and New Zealand Banking Group Limited,XASX,ASX,AU,AUD,Australia/Sydney,EQUITY,Financials,,false
+CHTEX.BR,Chevron Corporation,XBRU,EURONEXT,BE,USD,Europe/Brussels,EQUITY,Energy,,false
+A1BM34.SA,"Abiomed, Inc.",BVMF,B3,BR,BRL,America/Sao_Paulo,EQUITY,Health Care,,false
+ALA-PA.TO,AltaGas Ltd.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Utilities,,false
+ALA-PB.TO,AltaGas Ltd.,XTSE,TSX,CA,CAD,America/Toronto,EQUITY,Utilities,,false
+NESNE.SW,Nestle S.A.,XSWX,SIX,CH,CHF,Europe/Zurich,EQUITY,Consumer Staples,,false
+002013.SZ,"AVIC Electromechanical Systems Co.,Ltd.",XSHE,SZSE,CN,CNY,Asia/Shanghai,EQUITY,Industrials,,false
+600837.SS,"Haitong Securities Co., Ltd.",XSHG,SSE,CN,CNY,Asia/Shanghai,EQUITY,Financials,,false
+ASMF.DE,ASML Holding N.V.,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Information Technology,,false
+BIL.DE,BHP Group,XETR,XETRA,DE,EUR,Europe/Berlin,EQUITY,Materials,,false
+CHR.CO,Chr. Hansen Holding A/S,XCSE,NASDAQ NORDIC,DK,DKK,Europe/Copenhagen,EQUITY,Materials,,false
+CLN-D.MC,Cellnex Telecom S.A.,XMAD,BME,ES,EUR,Europe/Madrid,EQUITY,Communication Services,,false
+AM1.HE,Ahlstrom-Munksjo Oyj,XHEL,NASDAQ NORDIC,FI,EUR,Europe/Helsinki,EQUITY,Materials,,false
+MRK.PA,"Merck & Co., Inc.",XPAR,EURONEXT,FR,EUR,Europe/Paris,EQUITY,Health Care,,false
+0A7W.L,Vedanta Limited,XLON,LSE,GB,USD,Europe/London,EQUITY,Materials,,false
+0UBI.L,"Marvell Technology, Inc.",XLON,LSE,GB,USD,Europe/London,EQUITY,Information Technology,,false
+0011.HK,Hang Seng Bank Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Financials,,false
+0708.HK,China Evergrande New Energy Vehicle Group Limited,XHKG,HKEX,HK,HKD,Asia/Hong_Kong,EQUITY,Health Care,,false
+BEBS.JK,PT Berkah Beton Sadaya Tbk,XIDX,IDX,ID,IDR,Asia/Jakarta,EQUITY,Materials,,false
+CRG.IR,CRH plc,XDUB,EURONEXT,IE,EUR,Europe/Dublin,EQUITY,Materials,,false
+TATAMOTORS.BO,Tata Motors Limited,XBOM,BSE,IN,INR,Asia/Kolkata,EQUITY,Consumer Discretionary,,false
+GSPL.NS,Gujarat State Petronet Limited,XNSE,NSE,IN,INR,Asia/Kolkata,EQUITY,Utilities,,false
+AAPL.MI,Apple Inc.,XMIL,MIL,IT,EUR,Europe/Rome,EQUITY,Information Technology,,false
+6201.T,Toyota Industries Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Consumer Discretionary,,false
+6502.T,Toshiba Corporation,XTKS,TSE,JP,JPY,Asia/Tokyo,EQUITY,Industrials,,false
+022100.KQ,Posco Dx Company Ltd.,XKOS,KOSDAQ,KR,KRW,Asia/Seoul,EQUITY,Information Technology,,false
+000060.KS,"Meritz Fire & Marine Insurance Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,false
+008560.KS,"Meritz Securities Co., Ltd.",XKRX,KRX,KR,KRW,Asia/Seoul,EQUITY,Financials,,false
+ROGN.MX,Roche Holding AG,XMEX,BMV,MX,MXN,America/Mexico_City,EQUITY,Health Care,,false
+1368.KL,UEM Edgenta Berhad,XKLS,MYX,MY,MYR,Asia/Kuala_Lumpur,EQUITY,Industrials,,false
+DSM.AS,Koninklijke DSM N.V.,XAMS,EURONEXT,NL,EUR,Europe/Amsterdam,EQUITY,Materials,,false
+ADE.OL,Adevinta ASA,XOSL,OSLO,NO,NOK,Europe/Oslo,EQUITY,Communication Services,,false
+WBC010.NZ,Westpac Banking Corporation,XNZE,NZX,NZ,NZD,Pacific/Auckland,EQUITY,Financials,,false
+BDZ.WA,ECB Spolka Akcyjna,XWAR,WSE,PL,PLN,Europe/Warsaw,EQUITY,Utilities,,false
+BTRVB.LS,"GamaLife - Companhia de Seguros de Vida, S.A.",XLIS,EURONEXT,PT,EUR,Europe/Lisbon,EQUITY,Financials,,false
+ABB2L-260NDS.ST,ABB Ltd,XSTO,NASDAQ NORDIC,SE,SEK,Europe/Stockholm,EQUITY,Industrials,,false
+K3OD.SI,"PetroChina Co., Ltd.",XSES,SGX,SG,USD,Asia/Singapore,EQUITY,Energy,,false
+INTUCH-R.BK,Intouch Holdings Public Company Limited,XBKK,SET,TH,THB,Asia/Bangkok,EQUITY,Communication Services,,false
+QNBFB.IS,QNB Finansbank A.S.,XIST,BIST,TR,TRY,Europe/Istanbul,EQUITY,Financials,,false
+3702A.TW,WPG Holdings Limited,XTAI,TWSE,TW,TWD,Asia/Taipei,EQUITY,Information Technology,,false
+ABMD,"Abiomed, Inc.",XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Health Care,,false
+ACGLP,Arch Capital Group Ltd.,XNAS,NASDAQ,US,USD,America/New_York,EQUITY,Financials,,false
+ABB,ABB Ltd,XNYS,NYSE,US,USD,America/New_York,EQUITY,Industrials,,false
+PCGU,PG&E Corporation,XNYS,NYSE,US,USD,America/New_York,EQUITY,Utilities,,false
+BHP.JO,BHP Group,XJSE,JSE,ZA,ZAC,Africa/Johannesburg,EQUITY,Materials,,false

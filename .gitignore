@@ -9,3 +9,4 @@ coverage/
 audit-output/
 data/*
 !data/alphaquant_store.example.json
+.cache/

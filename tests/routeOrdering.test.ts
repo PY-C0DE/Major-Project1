@@ -76,7 +76,11 @@ describe('Real Express app route ordering', () => {
     try {
       const tickerRes = await request(app).get('/api/sentiment/RELIANCE.NS');
       assert.equal(tickerRes.status, 200);
-      assert.ok(['finbert', 'lexicon', 'mixed'].includes(tickerRes.body.sentimentSource));
+      assert.ok(
+        ['finbert', 'lexicon', 'multilingual-transformer', 'multilingual-lexicon', 'unsupported_language', 'mixed'].includes(
+          tickerRes.body.sentimentSource
+        )
+      );
     } finally {
       if (prevDisable === undefined) delete process.env.DISABLE_FINBERT;
       else process.env.DISABLE_FINBERT = prevDisable;

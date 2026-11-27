@@ -549,15 +549,24 @@ export const RealTimeNewsPulse: React.FC<Props> = ({
                         className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${
                           item.sentimentSource === 'finbert'
                             ? 'bg-cyan-50 dark:bg-cyan-950/80 text-cyan-700 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800'
+                            : item.sentimentSource === 'multilingual-transformer'
+                            ? 'bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800'
                             : item.sentimentSource === 'multilingual-lexicon'
                             ? 'bg-violet-50 dark:bg-violet-950/80 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-800'
+                            : item.sentimentSource === 'unsupported_language'
+                            ? 'bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'
                         }`}
+                        title={item.modelId ? `Model: ${item.modelId}${item.modelVersion ? ` (${item.modelVersion})` : ''}` : undefined}
                       >
                         {item.sentimentSource === 'finbert'
                           ? 'FINBERT'
+                          : item.sentimentSource === 'multilingual-transformer'
+                          ? `MULTILINGUAL TRANSFORMER${item.language ? ` (${item.language.toUpperCase()})` : ''}`
                           : item.sentimentSource === 'multilingual-lexicon'
-                          ? `MULTILINGUAL${item.language ? ` (${item.language.toUpperCase()})` : ''}`
+                          ? `MULTILINGUAL LEXICON${item.language ? ` (${item.language.toUpperCase()})` : ''}`
+                          : item.sentimentSource === 'unsupported_language'
+                          ? `UNSUPPORTED LANG${item.language ? ` (${item.language.toUpperCase()})` : ''}`
                           : 'LEXICON'}
                       </span>
                     </div>

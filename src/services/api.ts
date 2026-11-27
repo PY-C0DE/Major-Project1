@@ -249,16 +249,24 @@ export const api = {
     return parseApiResponse<Record<string, unknown>>(res, 'Failed to export account data');
   },
 
-  async deleteAccount(confirmText: 'DELETE MY ACCOUNT'): Promise<{
+  async deleteAccount(payload: {
+    confirmText: 'DELETE MY ACCOUNT';
+    currentPassword?: string;
+    firebaseIdToken?: string;
+  }): Promise<{
     success: boolean;
+    revokedSessions?: boolean;
     message: string;
   }> {
     const res = await fetch(`${API_BASE}/account`, {
       method: 'DELETE',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ confirmText })
+      body: JSON.stringify(payload)
     });
-    return parseApiResponse<{ success: boolean; message: string }>(res, 'Failed to delete user account');
+    return parseApiResponse<{ success: boolean; revokedSessions?: boolean; message: string }>(
+      res,
+      'Failed to delete user account'
+    );
   },
 
   // Stocks & History

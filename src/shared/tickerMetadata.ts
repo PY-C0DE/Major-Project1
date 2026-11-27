@@ -72,37 +72,171 @@ export const EXCHANGE_MIC_MAP: Record<string, ExchangeMicInfo> = {
   BMV: { mic: 'XMEX', code: 'BMV', country: 'MX', currency: 'MXN', timezone: 'America/Mexico_City' },
   XMEX: { mic: 'XMEX', code: 'BMV', country: 'MX', currency: 'MXN', timezone: 'America/Mexico_City' },
   IDX: { mic: 'XIDX', code: 'IDX', country: 'ID', currency: 'IDR', timezone: 'Asia/Jakarta' },
-  XIDX: { mic: 'XIDX', code: 'IDX', country: 'ID', currency: 'IDR', timezone: 'Asia/Jakarta' }
+  XIDX: { mic: 'XIDX', code: 'IDX', country: 'ID', currency: 'IDR', timezone: 'Asia/Jakarta' },
+  WSE: { mic: 'XWAR', code: 'WSE', country: 'PL', currency: 'PLN', timezone: 'Europe/Warsaw' },
+  XWAR: { mic: 'XWAR', code: 'WSE', country: 'PL', currency: 'PLN', timezone: 'Europe/Warsaw' },
+  XLIS: { mic: 'XLIS', code: 'EURONEXT', country: 'PT', currency: 'EUR', timezone: 'Europe/Lisbon' },
+  XDUB: { mic: 'XDUB', code: 'EURONEXT', country: 'IE', currency: 'EUR', timezone: 'Europe/Dublin' },
+  VIE: { mic: 'XWBO', code: 'VIE', country: 'AT', currency: 'EUR', timezone: 'Europe/Vienna' },
+  XWBO: { mic: 'XWBO', code: 'VIE', country: 'AT', currency: 'EUR', timezone: 'Europe/Vienna' },
+  BIST: { mic: 'XIST', code: 'BIST', country: 'TR', currency: 'TRY', timezone: 'Europe/Istanbul' },
+  XIST: { mic: 'XIST', code: 'BIST', country: 'TR', currency: 'TRY', timezone: 'Europe/Istanbul' },
+  NZX: { mic: 'XNZE', code: 'NZX', country: 'NZ', currency: 'NZD', timezone: 'Pacific/Auckland' },
+  XNZE: { mic: 'XNZE', code: 'NZX', country: 'NZ', currency: 'NZD', timezone: 'Pacific/Auckland' },
+  MYX: { mic: 'XKLS', code: 'MYX', country: 'MY', currency: 'MYR', timezone: 'Asia/Kuala_Lumpur' },
+  XKLS: { mic: 'XKLS', code: 'MYX', country: 'MY', currency: 'MYR', timezone: 'Asia/Kuala_Lumpur' },
+  SET: { mic: 'XBKK', code: 'SET', country: 'TH', currency: 'THB', timezone: 'Asia/Bangkok' },
+  XBKK: { mic: 'XBKK', code: 'SET', country: 'TH', currency: 'THB', timezone: 'Asia/Bangkok' }
 };
 
-export function resolveExchangeMicInfo(symbol: string, exchangeHint?: string, currencyHint?: string): ExchangeMicInfo {
-  const upperSymbol = symbol.trim().toUpperCase();
+const SUFFIX_TO_MIC: Record<string, string> = {
+  '.NS': 'XNSE',
+  '.BO': 'XBOM',
+  '.L': 'XLON',
+  '.DE': 'XETR',
+  '.PA': 'XPAR',
+  '.AS': 'XAMS',
+  '.BR': 'XBRU',
+  '.LS': 'XLIS',
+  '.IR': 'XDUB',
+  '.VI': 'XWBO',
+  '.WA': 'XWAR',
+  '.IS': 'XIST',
+  '.SW': 'XSWX',
+  '.MC': 'XMAD',
+  '.MI': 'XMIL',
+  '.CO': 'XCSE',
+  '.ST': 'XSTO',
+  '.HE': 'XHEL',
+  '.OL': 'XOSL',
+  '.T': 'XTKS',
+  '.HK': 'XHKG',
+  '.KS': 'XKRX',
+  '.KQ': 'XKOS',
+  '.TW': 'XTAI',
+  '.SS': 'XSHG',
+  '.SZ': 'XSHE',
+  '.TO': 'XTSE',
+  '.AX': 'XASX',
+  '.NZ': 'XNZE',
+  '.SI': 'XSES',
+  '.KL': 'XKLS',
+  '.BK': 'XBKK',
+  '.SA': 'BVMF',
+  '.JO': 'XJSE',
+  '.MX': 'XMEX',
+  '.JK': 'XIDX'
+};
 
-  // Suffix overrides for multi-country Euronext / Nordic / global exchanges
-  if (upperSymbol.endsWith('.AS')) {
-    return EXCHANGE_MIC_MAP.XAMS;
-  }
-  if (upperSymbol.endsWith('.BR')) {
-    return EXCHANGE_MIC_MAP.XBRU;
-  }
-  if (upperSymbol.endsWith('.CO')) {
-    return EXCHANGE_MIC_MAP.XCSE;
-  }
-  if (upperSymbol.endsWith('.HE')) {
-    return EXCHANGE_MIC_MAP.XHEL;
+const YAHOO_EXCHANGE_CODE_TO_MIC: Record<string, string> = {
+  NMS: 'XNAS',
+  NGM: 'XNAS',
+  NCM: 'XNAS',
+  NAS: 'XNAS',
+  NYQ: 'XNYS',
+  ASE: 'XNYS',
+  PCX: 'XNYS',
+  AMEX: 'XNYS',
+  ARCA: 'XNYS',
+  NSI: 'XNSE',
+  BOM: 'XBOM',
+  LON: 'XLON',
+  GER: 'XETR',
+  FRA: 'XETR',
+  PAR: 'XPAR',
+  AMS: 'XAMS',
+  BRU: 'XBRU',
+  LIS: 'XLIS',
+  ISE: 'XDUB',
+  VIE: 'XWBO',
+  WSE: 'XWAR',
+  EBS: 'XSWX',
+  JPX: 'XTKS',
+  TYO: 'XTKS',
+  HKG: 'XHKG',
+  KSC: 'XKRX',
+  KOE: 'XKOS',
+  TAI: 'XTAI',
+  TWO: 'XTAI',
+  SHH: 'XSHG',
+  SHZ: 'XSHE',
+  TOR: 'XTSE',
+  ASX: 'XASX',
+  SES: 'XSES',
+  SAO: 'BVMF',
+  MCE: 'XMAD',
+  MIL: 'XMIL',
+  CPH: 'XCSE',
+  STO: 'XSTO',
+  HEL: 'XHEL',
+  OSL: 'XOSL',
+  JNB: 'XJSE',
+  MEX: 'XMEX',
+  JKT: 'XIDX',
+  IST: 'XIST',
+  NZE: 'XNZE',
+  KLS: 'XKLS',
+  SET: 'XBKK'
+};
+
+export function tryResolveExchangeMicInfo(
+  symbol: string,
+  exchangeHint?: string,
+  currencyHint?: string
+): ExchangeMicInfo | null {
+  const upperSymbol = symbol.trim().toUpperCase();
+  const dotIdx = upperSymbol.lastIndexOf('.');
+  if (dotIdx > 0) {
+    const suffix = upperSymbol.slice(dotIdx);
+    const mappedMic = SUFFIX_TO_MIC[suffix];
+    if (mappedMic && EXCHANGE_MIC_MAP[mappedMic]) {
+      const info = EXCHANGE_MIC_MAP[mappedMic];
+      return currencyHint?.trim() ? { ...info, currency: currencyHint.trim().toUpperCase() } : info;
+    }
+    // Unrecognized exchange suffix (e.g., FOO.ZZ) — do NOT silently fall back to XNAS
+    if (!exchangeHint) {
+      return null;
+    }
   }
 
   const hintKey = exchangeHint?.trim().toUpperCase();
-  if (hintKey && EXCHANGE_MIC_MAP[hintKey]) {
-    const info = EXCHANGE_MIC_MAP[hintKey];
-    if (currencyHint && currencyHint.trim()) {
-      return { ...info, currency: currencyHint.trim().toUpperCase() };
+  if (hintKey) {
+    const resolvedKey = YAHOO_EXCHANGE_CODE_TO_MIC[hintKey] || hintKey;
+    if (EXCHANGE_MIC_MAP[resolvedKey]) {
+      const info = EXCHANGE_MIC_MAP[resolvedKey];
+      return currencyHint?.trim() ? { ...info, currency: currencyHint.trim().toUpperCase() } : info;
     }
-    return info;
+    // Explicit unknown exchange hint must not silently fall back to XNAS
+    return null;
   }
 
+  const symbolKey = YAHOO_EXCHANGE_CODE_TO_MIC[upperSymbol] || upperSymbol;
+  if (EXCHANGE_MIC_MAP[symbolKey]) {
+    const info = EXCHANGE_MIC_MAP[symbolKey];
+    return currencyHint?.trim() ? { ...info, currency: currencyHint.trim().toUpperCase() } : info;
+  }
+
+  // If caller passed a 4-char MIC code starting with X or B that isn't recognized, do not guess XNAS
+  if (/^[XB][A-Z]{3}$/.test(upperSymbol) && !TICKER_CATALOG.some((t) => t.ticker.toUpperCase() === upperSymbol)) {
+    return null;
+  }
+
+  // Known catalog or clean US equity ticker (no dot suffix, no unrecognized exchange hint)
   const inferredCode = inferExchangeFromTicker(upperSymbol).toUpperCase();
-  const baseInfo = EXCHANGE_MIC_MAP[inferredCode] || EXCHANGE_MIC_MAP.XNAS;
+  const baseInfo = EXCHANGE_MIC_MAP[inferredCode];
+  if (!baseInfo) return null;
+  return {
+    ...baseInfo,
+    currency: currencyHint?.trim().toUpperCase() || inferCurrencyFromTicker(upperSymbol) || baseInfo.currency
+  };
+}
+
+export function resolveExchangeMicInfo(symbol: string, exchangeHint?: string, currencyHint?: string): ExchangeMicInfo {
+  const known = tryResolveExchangeMicInfo(symbol, exchangeHint, currencyHint);
+  if (known) return known;
+
+  const upperSymbol = symbol.trim().toUpperCase();
+  const baseInfo = EXCHANGE_MIC_MAP.XNAS;
   return {
     ...baseInfo,
     currency: currencyHint?.trim().toUpperCase() || inferCurrencyFromTicker(upperSymbol) || baseInfo.currency
@@ -157,3 +291,82 @@ export function inferTickerMetadata(symbol: string, exchangeHint?: string, curre
     active: true
   };
 }
+
+export function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      fields.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  fields.push(current.trim());
+  return fields;
+}
+
+export function parseTickerMasterCsv(csvContent: string): TickerMasterItem[] {
+  const lines = csvContent
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith('#'));
+
+  if (lines.length <= 1) return [];
+  const header = parseCsvLine(lines[0]).map((h) => h.trim());
+  const colIndex = new Map<string, number>();
+  header.forEach((col, idx) => colIndex.set(col, idx));
+
+  const items: TickerMasterItem[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCsvLine(lines[i]);
+    const get = (key: string) => {
+      const idx = colIndex.get(key);
+      return idx !== undefined ? (cols[idx] || '').trim() : '';
+    };
+
+    const symbol = get('symbol').toUpperCase();
+    const name = get('name');
+    if (!symbol || !name) continue;
+
+    const aliasesRaw = get('aliases');
+    const aliases = aliasesRaw
+      ? aliasesRaw
+          .split('|')
+          .map((a) => a.trim())
+          .filter(Boolean)
+      : [];
+
+    const micFallback = resolveExchangeMicInfo(symbol, get('exchange') || undefined, get('currency') || undefined);
+    items.push({
+      symbol,
+      name,
+      exchange: get('exchange') || micFallback.mic,
+      exchangeCode: get('exchangeCode') || micFallback.code,
+      country: get('country') || micFallback.country,
+      currency: get('currency') || micFallback.currency,
+      timezone: get('timezone') || micFallback.timezone,
+      assetType: get('assetType') || 'EQUITY',
+      sector: get('sector') || 'Global Equities',
+      pe: null,
+      marketCap: null,
+      basePrice: null,
+      aliases,
+      active: get('active').toLowerCase() !== 'false'
+    });
+  }
+
+  return items;
+}
+

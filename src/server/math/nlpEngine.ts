@@ -109,7 +109,11 @@ function summarizeModelId(items: Array<{ modelId?: string; sentimentSource?: Sen
     items.map((i) => {
       if (i.modelId) return i.modelId;
       if (i.sentimentSource === 'finbert') return 'Xenova/finbert';
+      if (i.sentimentSource === 'multilingual-transformer') {
+        return 'Xenova/distilbert-base-multilingual-cased-sentiments-student';
+      }
       if (i.sentimentSource === 'multilingual-lexicon') return 'multilingual-lexicon-v1';
+      if (i.sentimentSource === 'unsupported_language') return 'unsupported';
       return 'keyword-lexicon-fallback';
     })
   );
@@ -118,12 +122,27 @@ function summarizeModelId(items: Array<{ modelId?: string; sentimentSource?: Sen
   return Array.from(models).sort().join('+');
 }
 
+function summarizeModelVersion(items: Array<{ modelVersion?: string; sentimentSource?: SentimentSource }>): string {
+  const versions = new Set(
+    items.map((i) => {
+      if (i.modelVersion) return i.modelVersion;
+      if (i.sentimentSource === 'finbert') return 'onnx-prosusai-finbert-v1';
+      if (i.sentimentSource === 'multilingual-transformer') return 'onnx-lxyuan-mbert-v1';
+      if (i.sentimentSource === 'unsupported_language') return 'n/a';
+      return 'v1';
+    })
+  );
+  if (versions.size === 0) return 'v1';
+  if (versions.size === 1) return Array.from(versions)[0];
+  return Array.from(versions).sort().join('+');
+}
+
 /**
- * Aggregates ONLY real live news items (`isLive === true`) into per-(ticker, YYYY-MM-DD)
- * credibility-weighted daily sentiment records aligned to the ticker's exchange-local trading calendar.
- * Articles published after exchange close, on weekends, or on exchange holidays advance to the next
- * open trading session so causal sentiment aligns without same-day return lookahead.
- * Zero-article days are omitted (never 0-filled).
+ * Aggregates ONLY real live news items (`isLive === true` and supported language) into
+ * per-(ticker, YYYY-MM-DD) credibility-weighted daily sentiment records aligned to the
+ * ticker's exchange-local trading calendar.
+ * Unsupported languages (`sentimentSource === 'unsupported_language'`) and zero-article
+ * days are excluded (never 0-filled).
  */
 export function buildDailySentimentRecordsFromLiveArticles(
   ticker: string,
@@ -137,6 +156,7 @@ export function buildDailySentimentRecordsFromLiveArticles(
 
   for (const item of liveItems) {
     if (!item.isLive || !item.publishedAt) continue;
+    if (item.sentimentSource === 'unsupported_language') continue;
     const parsed = new Date(item.publishedAt);
     if (isNaN(parsed.getTime())) continue;
     const isoDate = useExchangeCalendar
@@ -161,6 +181,7 @@ export function buildDailySentimentRecordsFromLiveArticles(
       sentimentSource: summarizeSourceKind(articles),
       language: summarizeLanguage(articles),
       modelId: summarizeModelId(articles),
+      modelVersion: summarizeModelVersion(articles),
       updatedAt: nowIso
     });
   }
@@ -233,7 +254,8 @@ export function getNewsForTicker(ticker: string, companyName: string): NewsItem[
       fetchedAt: new Date(now).toISOString(),
       sentimentSource: 'lexicon',
       language: 'en',
-      modelId: 'keyword-lexicon-fallback'
+      modelId: 'keyword-lexicon-fallback',
+      modelVersion: 'v1'
     };
   });
 }
@@ -248,6 +270,7 @@ export interface HybridNewsResult {
   sentimentSource: SentimentSource | 'mixed';
   language?: string;
   modelId?: string;
+  modelVersion?: string;
   topLiveHeadline?: string;
   topLiveSource?: string;
 }
@@ -291,7 +314,8 @@ export async function scoreRawLiveArticles(
       fetchedAt,
       sentimentSource: tone.sentimentSource,
       language: tone.language,
-      modelId: tone.modelId
+      modelId: tone.modelId,
+      modelVersion: tone.modelVersion
     };
   });
 }
@@ -338,7 +362,7 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
     console.error(`Live news fetch failed for ${ticker}, using baseline mechanism:`, err);
   }
 
-    if (!rawLive || rawLive.length === 0) {
+  if (!rawLive || rawLive.length === 0) {
     return {
       news: baselineNews,
       liveCount: 0,
@@ -349,6 +373,7 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
       sentimentSource: 'lexicon',
       language: 'en',
       modelId: 'keyword-lexicon-fallback',
+      modelVersion: 'v1',
       topLiveHeadline: undefined,
       topLiveSource: undefined
     };
@@ -356,19 +381,22 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
 
   const liveNewsItems = await scoreRawLiveArticles(ticker, rawLive);
 
-  // Task 2: Append daily per-ticker aggregate from live articles ONLY (never baseline templates)
+  // Task 2: Append daily per-ticker aggregate from live articles ONLY (excluding unsupported_language)
   const dailyRecords = buildDailySentimentRecordsFromLiveArticles(ticker, liveNewsItems);
   if (dailyRecords.length > 0) {
     await db.upsertDailySentiment(dailyRecords);
   }
 
-  const liveScore = computeCredibilityWeightedMeanScore(liveNewsItems);
+  const supportedLiveItems = liveNewsItems.filter((i) => i.sentimentSource !== 'unsupported_language');
+  const liveScore =
+    supportedLiveItems.length > 0
+      ? computeCredibilityWeightedMeanScore(supportedLiveItems)
+      : baselineScore;
 
-  // Blended hybrid score: 70% live real-time sentiment + 30% baseline template sentiment (or 50/50 if fewer than 3 live items)
-  const liveWeight = liveNewsItems.length >= 3 ? 0.70 : liveNewsItems.length > 0 ? 0.50 : 0.0;
+  // Blended hybrid score: 70% live real-time sentiment + 30% baseline template sentiment (or 50/50 if fewer than 3 supported live items)
+  const liveWeight = supportedLiveItems.length >= 3 ? 0.70 : supportedLiveItems.length > 0 ? 0.50 : 0.0;
   const blendedScore = Number((liveWeight * liveScore + (1 - liveWeight) * baselineScore).toFixed(3));
 
-  // Merge live items with foundational baseline items (top 2 baseline items appended for fundamental context)
   const combinedNews = [...liveNewsItems, ...baselineNews.slice(0, 2)];
 
   return {
@@ -381,6 +409,7 @@ export async function getHybridNewsForTicker(ticker: string, companyName: string
     sentimentSource: summarizeSourceKind(liveNewsItems),
     language: summarizeLanguage(liveNewsItems),
     modelId: summarizeModelId(liveNewsItems),
+    modelVersion: summarizeModelVersion(liveNewsItems),
     topLiveHeadline: liveNewsItems[0]?.headline,
     topLiveSource: liveNewsItems[0]?.source
   };

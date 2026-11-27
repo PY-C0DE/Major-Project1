@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import {
   AlertRule,
   DailySentimentRecord,
@@ -34,6 +34,13 @@ export interface AuthTokenRecord {
   usedAt?: string | null;
 }
 
+export interface ExportedAuthTokenMetadata {
+  id: string;
+  purpose: AuthTokenPurpose;
+  expiresAt: string;
+  usedAt?: string | null;
+}
+
 export interface UserDataExport {
   exportedAt: string;
   user: UserProfile;
@@ -41,6 +48,7 @@ export interface UserDataExport {
   watchlist: string[];
   alerts: AlertRule[];
   predictionHistory: StoredPrediction[];
+  authTokens: ExportedAuthTokenMetadata[];
 }
 
 export interface UserAccount extends UserProfile {
@@ -176,6 +184,7 @@ export const defaultUser: UserAccount = {
   name: 'Alex Morgan, CFA',
   email: 'alex.morgan@alphaquant.ai',
   emailVerified: true,
+  tokenVersion: 1,
   createdAt: '2026-01-15T09:00:00.000Z',
   passwordHash: '$2b$10$6RaciIhx/9S4Iq8gYWq5A.1T6UV2ZAU.bCwvO/UBx06i1PzpM91kq', // bcrypt hash for 'demo1234'
   isDemoUser: true,
@@ -738,13 +747,25 @@ export class InMemoryRepository implements DatabaseRepository {
     const user = await this.getUserById(userId);
     if (!user) return null;
     const { passwordHash: _pw, uid: _uid, ...safeProfile } = user;
+    const authTokens: ExportedAuthTokenMetadata[] = [];
+    for (const token of this.authTokens.values()) {
+      if (token.userId === userId) {
+        authTokens.push({
+          id: token.id,
+          purpose: token.purpose,
+          expiresAt: token.expiresAt,
+          usedAt: token.usedAt ?? null
+        });
+      }
+    }
     return {
       exportedAt: new Date().toISOString(),
       user: safeProfile,
       portfolio: (await this.getPortfolio(userId)).map((h) => ({ ...h })),
       watchlist: [...(await this.getWatchlist(userId))],
       alerts: (await this.getAlerts(userId)).map((a) => ({ ...a })),
-      predictionHistory: (await this.getPredictionHistory(userId)).map((p) => ({ ...p }))
+      predictionHistory: (await this.getPredictionHistory(userId)).map((p) => ({ ...p })),
+      authTokens
     };
   }
 
@@ -789,7 +810,12 @@ export class InMemoryRepository implements DatabaseRepository {
   }
 
   async updateUserPassword(userId: string, passwordHash: string): Promise<UserAccount | null> {
-    return this.updateUser(userId, { passwordHash });
+    const existing = await this.getUserById(userId);
+    if (!existing) return null;
+    return this.updateUser(userId, {
+      passwordHash,
+      tokenVersion: (existing.tokenVersion ?? 1) + 1
+    });
   }
 
   async getPortfolio(userId: string): Promise<PortfolioHolding[]> {
@@ -922,7 +948,8 @@ export class InMemoryRepository implements DatabaseRepository {
         !isValidIsoDate(rawRec.date) ||
         !Number.isFinite(rawRec.credibilityWeightedNetScore) ||
         !Number.isFinite(rawRec.articleCount) ||
-        rawRec.articleCount <= 0
+        rawRec.articleCount <= 0 ||
+        rawRec.sentimentSource === 'unsupported_language'
       ) {
         skippedInvalid++;
         continue;
@@ -937,10 +964,19 @@ export class InMemoryRepository implements DatabaseRepository {
       const defaultModelForSrc =
         rawRec.sentimentSource === 'finbert'
           ? 'Xenova/finbert'
-          : rawRec.sentimentSource === 'multilingual-lexicon'
-            ? 'multilingual-lexicon-v1'
-            : 'keyword-lexicon-fallback';
+          : rawRec.sentimentSource === 'multilingual-transformer'
+            ? 'Xenova/distilbert-base-multilingual-cased-sentiments-student'
+            : rawRec.sentimentSource === 'multilingual-lexicon'
+              ? 'multilingual-lexicon-v1'
+              : 'keyword-lexicon-fallback';
+      const defaultVerForSrc =
+        rawRec.sentimentSource === 'finbert'
+          ? 'onnx-prosusai-finbert-v1'
+          : rawRec.sentimentSource === 'multilingual-transformer'
+            ? 'onnx-lxyuan-mbert-v1'
+            : 'v1';
       const normalizedModelId = (rawRec.modelId || defaultModelForSrc).trim();
+      const normalizedModelVersion = (rawRec.modelVersion || defaultVerForSrc).trim();
 
       if (existing) {
         if (rawRec.date < todayDate) {
@@ -952,7 +988,8 @@ export class InMemoryRepository implements DatabaseRepository {
           Math.abs(existing.credibilityWeightedNetScore - normalizedScore) < 1e-6 &&
           existing.sentimentSource === rawRec.sentimentSource &&
           (existing.language || 'en') === normalizedLang &&
-          (existing.modelId || defaultModelForSrc) === normalizedModelId
+          (existing.modelId || defaultModelForSrc) === normalizedModelId &&
+          (existing.modelVersion || defaultVerForSrc) === normalizedModelVersion
         ) {
           continue;
         }
@@ -961,7 +998,8 @@ export class InMemoryRepository implements DatabaseRepository {
           ticker: tickerUpper,
           credibilityWeightedNetScore: normalizedScore,
           language: normalizedLang,
-          modelId: normalizedModelId
+          modelId: normalizedModelId,
+          modelVersion: normalizedModelVersion
         });
         updatedToday++;
         changed = true;
@@ -971,7 +1009,8 @@ export class InMemoryRepository implements DatabaseRepository {
           ticker: tickerUpper,
           credibilityWeightedNetScore: normalizedScore,
           language: normalizedLang,
-          modelId: normalizedModelId
+          modelId: normalizedModelId,
+          modelVersion: normalizedModelVersion
         });
         inserted++;
         changed = true;
@@ -1290,6 +1329,7 @@ export class PostgresRepository implements DatabaseRepository {
       uid: row.uid ?? null,
       email: row.email,
       emailVerified: Boolean(row.emailVerified),
+      tokenVersion: row.tokenVersion ?? 1,
       name: row.name,
       passwordHash: row.passwordHash,
       createdAt: row.createdAt,
@@ -1503,6 +1543,7 @@ export class PostgresRepository implements DatabaseRepository {
           uid: user.uid ?? null,
           email: user.email.trim().toLowerCase(),
           emailVerified: Boolean(user.emailVerified),
+          tokenVersion: user.tokenVersion ?? 1,
           name: user.name,
           passwordHash: user.passwordHash,
           createdAt: user.createdAt,
@@ -1544,6 +1585,7 @@ export class PostgresRepository implements DatabaseRepository {
       if (updates.name !== undefined) updatePatch.name = updates.name;
       if (updates.email !== undefined) updatePatch.email = updates.email.trim().toLowerCase();
       if (updates.emailVerified !== undefined) updatePatch.emailVerified = updates.emailVerified;
+      if (updates.tokenVersion !== undefined) updatePatch.tokenVersion = updates.tokenVersion;
       if (updates.uid !== undefined) updatePatch.uid = updates.uid;
       if (updates.passwordHash !== undefined) updatePatch.passwordHash = updates.passwordHash;
       if (updates.avatarUrl !== undefined) updatePatch.avatarUrl = updates.avatarUrl;
@@ -1573,11 +1615,19 @@ export class PostgresRepository implements DatabaseRepository {
   async deleteUser(userId: string): Promise<boolean> {
     await this.ensureSeeded();
     try {
-      const deleted = await this.db
-        .delete(usersTable)
-        .where(eq(usersTable.id, userId))
-        .returning({ id: usersTable.id });
-      return deleted.length > 0;
+      const deletedCount = await this.db.transaction(async (tx) => {
+        await tx.delete(authTokensTable).where(eq(authTokensTable.userId, userId));
+        await tx.delete(portfoliosTable).where(eq(portfoliosTable.userId, userId));
+        await tx.delete(watchlistsTable).where(eq(watchlistsTable.userId, userId));
+        await tx.delete(alertsTable).where(eq(alertsTable.userId, userId));
+        await tx.delete(predictionHistoryTable).where(eq(predictionHistoryTable.userId, userId));
+        const deleted = await tx
+          .delete(usersTable)
+          .where(eq(usersTable.id, userId))
+          .returning({ id: usersTable.id });
+        return deleted.length;
+      });
+      return deletedCount > 0;
     } catch (err) {
       throw new Error(`Database error deleting user ${userId}`, { cause: err });
     }
@@ -1586,11 +1636,20 @@ export class PostgresRepository implements DatabaseRepository {
   async exportUserData(userId: string): Promise<UserDataExport | null> {
     const user = await this.getUserById(userId);
     if (!user) return null;
-    const [portfolio, watchlist, alerts, predictionHistory] = await Promise.all([
+    const [portfolio, watchlist, alerts, predictionHistory, tokenRows] = await Promise.all([
       this.getPortfolio(userId),
       this.getWatchlist(userId),
       this.getAlerts(userId),
-      this.getPredictionHistory(userId)
+      this.getPredictionHistory(userId),
+      this.db
+        .select({
+          id: authTokensTable.id,
+          purpose: authTokensTable.purpose,
+          expiresAt: authTokensTable.expiresAt,
+          usedAt: authTokensTable.usedAt
+        })
+        .from(authTokensTable)
+        .where(eq(authTokensTable.userId, userId))
     ]);
     const { passwordHash: _pw, uid: _uid, ...safeProfile } = user;
     return {
@@ -1599,7 +1658,13 @@ export class PostgresRepository implements DatabaseRepository {
       portfolio,
       watchlist,
       alerts,
-      predictionHistory
+      predictionHistory,
+      authTokens: tokenRows.map((t) => ({
+        id: t.id,
+        purpose: t.purpose as AuthTokenPurpose,
+        expiresAt: t.expiresAt,
+        usedAt: t.usedAt ?? null
+      }))
     };
   }
 
@@ -1684,7 +1749,12 @@ export class PostgresRepository implements DatabaseRepository {
   }
 
   async updateUserPassword(userId: string, passwordHash: string): Promise<UserAccount | null> {
-    return this.updateUser(userId, { passwordHash });
+    const existing = await this.getUserById(userId);
+    if (!existing) return null;
+    return this.updateUser(userId, {
+      passwordHash,
+      tokenVersion: (existing.tokenVersion ?? 1) + 1
+    });
   }
 
   async getPortfolio(userId: string): Promise<PortfolioHolding[]> {
@@ -1969,7 +2039,8 @@ export class PostgresRepository implements DatabaseRepository {
         !isValidIsoDate(rawRec.date) ||
         !Number.isFinite(rawRec.credibilityWeightedNetScore) ||
         !Number.isFinite(rawRec.articleCount) ||
-        rawRec.articleCount <= 0
+        rawRec.articleCount <= 0 ||
+        rawRec.sentimentSource === 'unsupported_language'
       ) {
         skippedInvalid++;
         continue;
@@ -2006,10 +2077,19 @@ export class PostgresRepository implements DatabaseRepository {
         const defaultModelForSrc =
           rec.sentimentSource === 'finbert'
             ? 'Xenova/finbert'
-            : rec.sentimentSource === 'multilingual-lexicon'
-              ? 'multilingual-lexicon-v1'
-              : 'keyword-lexicon-fallback';
+            : rec.sentimentSource === 'multilingual-transformer'
+              ? 'Xenova/distilbert-base-multilingual-cased-sentiments-student'
+              : rec.sentimentSource === 'multilingual-lexicon'
+                ? 'multilingual-lexicon-v1'
+                : 'keyword-lexicon-fallback';
+        const defaultVerForSrc =
+          rec.sentimentSource === 'finbert'
+            ? 'onnx-prosusai-finbert-v1'
+            : rec.sentimentSource === 'multilingual-transformer'
+              ? 'onnx-lxyuan-mbert-v1'
+              : 'v1';
         const normalizedModelId = (rec.modelId || defaultModelForSrc).trim();
+        const normalizedModelVersion = (rec.modelVersion || defaultVerForSrc).trim();
 
         if (existing) {
           if (rec.date < todayDate) {
@@ -2021,7 +2101,8 @@ export class PostgresRepository implements DatabaseRepository {
             Math.abs(existing.credibilityWeightedNetScore - rec.credibilityWeightedNetScore) < 1e-6 &&
             existing.sentimentSource === rec.sentimentSource &&
             existing.language === normalizedLang &&
-            existing.modelId === normalizedModelId
+            existing.modelId === normalizedModelId &&
+            existing.modelVersion === normalizedModelVersion
           ) {
             continue;
           }
@@ -2035,6 +2116,7 @@ export class PostgresRepository implements DatabaseRepository {
               sentimentSource: rec.sentimentSource,
               language: normalizedLang,
               modelId: normalizedModelId,
+              modelVersion: normalizedModelVersion,
               updatedAt: rec.updatedAt
             })
             .onConflictDoUpdate({
@@ -2045,6 +2127,7 @@ export class PostgresRepository implements DatabaseRepository {
                 sentimentSource: rec.sentimentSource,
                 language: normalizedLang,
                 modelId: normalizedModelId,
+                modelVersion: normalizedModelVersion,
                 updatedAt: rec.updatedAt
               }
             });
@@ -2055,6 +2138,7 @@ export class PostgresRepository implements DatabaseRepository {
             sentimentSource: rec.sentimentSource,
             language: normalizedLang,
             modelId: normalizedModelId,
+            modelVersion: normalizedModelVersion,
             updatedAt: rec.updatedAt
           });
           updatedToday++;
@@ -2069,6 +2153,7 @@ export class PostgresRepository implements DatabaseRepository {
               sentimentSource: rec.sentimentSource,
               language: normalizedLang,
               modelId: normalizedModelId,
+              modelVersion: normalizedModelVersion,
               updatedAt: rec.updatedAt
             })
             .onConflictDoNothing();
@@ -2081,6 +2166,7 @@ export class PostgresRepository implements DatabaseRepository {
             sentimentSource: rec.sentimentSource,
             language: normalizedLang,
             modelId: normalizedModelId,
+            modelVersion: normalizedModelVersion,
             updatedAt: rec.updatedAt
           });
           inserted++;
@@ -2103,7 +2189,7 @@ export class PostgresRepository implements DatabaseRepository {
         .where(eq(dailySentimentTable.ticker, target))
         .orderBy(asc(dailySentimentTable.date));
       return rows
-        .filter((r) => r.articleCount > 0)
+        .filter((r) => r.articleCount > 0 && r.sentimentSource !== 'unsupported_language')
         .map((r) => ({
           ticker: r.ticker,
           date: r.date,
@@ -2112,6 +2198,7 @@ export class PostgresRepository implements DatabaseRepository {
           sentimentSource: r.sentimentSource as DailySentimentRecord['sentimentSource'],
           language: r.language,
           modelId: r.modelId,
+          modelVersion: r.modelVersion,
           updatedAt: r.updatedAt
         }));
     } catch (err) {
@@ -2127,7 +2214,7 @@ export class PostgresRepository implements DatabaseRepository {
         .from(dailySentimentTable)
         .orderBy(asc(dailySentimentTable.date), asc(dailySentimentTable.ticker));
       return rows
-        .filter((r) => r.articleCount > 0)
+        .filter((r) => r.articleCount > 0 && r.sentimentSource !== 'unsupported_language')
         .map((r) => ({
           ticker: r.ticker,
           date: r.date,
@@ -2136,6 +2223,7 @@ export class PostgresRepository implements DatabaseRepository {
           sentimentSource: r.sentimentSource as DailySentimentRecord['sentimentSource'],
           language: r.language,
           modelId: r.modelId,
+          modelVersion: r.modelVersion,
           updatedAt: r.updatedAt
         }));
     } catch (err) {
@@ -2155,12 +2243,119 @@ export class PostgresRepository implements DatabaseRepository {
   async searchTickers(params: TickerSearchParams): Promise<TickerSearchResponse> {
     await this.ensureSeeded();
     try {
-      const rows = await this.db
-        .select()
+      const activeOnly = params.activeOnly !== false;
+      const countryFilter = params.country?.trim().toUpperCase();
+      const exchangeFilter = params.exchange?.trim().toUpperCase();
+      const qRaw = params.q?.trim() || '';
+      const qUpper = qRaw.toUpperCase();
+
+      const baseWhere = activeOnly ? eq(tickerMasterTable.active, true) : undefined;
+      const facetRows = await this.db
+        .selectDistinct({
+          country: tickerMasterTable.country,
+          exchange: tickerMasterTable.exchange,
+          exchangeCode: tickerMasterTable.exchangeCode
+        })
         .from(tickerMasterTable)
-        .orderBy(asc(tickerMasterTable.symbol));
-      const allItems = rows.map((r) => this.mapTickerRow(r));
-      return buildSearchResponseFromItems(allItems, params);
+        .where(baseWhere);
+
+      const countrySet = new Set<string>();
+      const exchangeMap = new Map<string, { mic: string; code: string; country: string }>();
+      for (const f of facetRows) {
+        if (f.country) countrySet.add(f.country);
+        if (f.exchange) {
+          const key = `${f.exchange}::${f.country}`;
+          if (!exchangeMap.has(key)) {
+            exchangeMap.set(key, {
+              mic: f.exchange,
+              code: f.exchangeCode || f.exchange,
+              country: f.country
+            });
+          }
+        }
+      }
+
+      const conditions = [];
+      if (activeOnly) conditions.push(eq(tickerMasterTable.active, true));
+      if (countryFilter && countryFilter !== 'ALL') {
+        conditions.push(eq(sql`upper(${tickerMasterTable.country})`, countryFilter));
+      }
+      if (exchangeFilter && exchangeFilter !== 'ALL') {
+        conditions.push(
+          or(
+            eq(sql`upper(${tickerMasterTable.exchange})`, exchangeFilter),
+            eq(sql`upper(${tickerMasterTable.exchangeCode})`, exchangeFilter)
+          )!
+        );
+      }
+      if (qRaw) {
+        const subPattern = `%${qRaw}%`;
+        conditions.push(
+          or(
+            ilike(tickerMasterTable.symbol, subPattern),
+            ilike(tickerMasterTable.name, subPattern),
+            sql`${tickerMasterTable.aliases}::text ILIKE ${subPattern}`
+          )!
+        );
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const [{ count }] = await this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tickerMasterTable)
+        .where(whereClause);
+
+      const total = Number(count || 0);
+      const limit = Math.min(200, Math.max(1, Number(params.limit) || 24));
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+      const page = Math.min(totalPages, Math.max(1, Number(params.page) || 1));
+      const offset = (page - 1) * limit;
+
+      let rows;
+      if (qRaw) {
+        const prefixPattern = `${qUpper}%`;
+        const subPattern = `%${qUpper}%`;
+        const scoreExpr = sql<number>`(
+          CASE
+            WHEN upper(${tickerMasterTable.symbol}) = ${qUpper} THEN 1000
+            WHEN upper(split_part(${tickerMasterTable.symbol}, '.', 1)) = ${qUpper} THEN 920
+            WHEN upper(${tickerMasterTable.symbol}) LIKE ${prefixPattern} THEN 850
+            WHEN upper(${tickerMasterTable.name}) LIKE ${prefixPattern} THEN 750
+            WHEN upper(${tickerMasterTable.symbol}) LIKE ${subPattern} THEN 600
+            WHEN upper(${tickerMasterTable.name}) LIKE ${subPattern} THEN 450
+            ELSE 300
+          END
+        )`;
+        rows = await this.db
+          .select()
+          .from(tickerMasterTable)
+          .where(whereClause)
+          .orderBy(desc(scoreExpr), asc(tickerMasterTable.symbol))
+          .limit(limit)
+          .offset(offset);
+      } else {
+        rows = await this.db
+          .select()
+          .from(tickerMasterTable)
+          .where(whereClause)
+          .orderBy(asc(tickerMasterTable.symbol))
+          .limit(limit)
+          .offset(offset);
+      }
+
+      return {
+        items: rows.map((r) => this.mapTickerRow(r)),
+        total,
+        page,
+        limit,
+        totalPages,
+        filters: {
+          countries: Array.from(countrySet).sort(),
+          exchanges: Array.from(exchangeMap.values()).sort((a, b) =>
+            a.mic === b.mic ? a.country.localeCompare(b.country) : a.mic.localeCompare(b.mic)
+          )
+        }
+      };
     } catch (err) {
       throw new Error('Database error searching ticker_master', { cause: err });
     }
@@ -2188,10 +2383,10 @@ export class PostgresRepository implements DatabaseRepository {
     const nseDirect = await this.getTickerBySymbol(`${q}.NS`);
     if (nseDirect) return nseDirect;
 
-    const all = await this.getAllTickers(true);
+    const candidates = await this.searchTickers({ q: query.trim(), limit: 25, page: 1, activeOnly: true });
     const qLower = query.trim().toLowerCase();
     let best: { item: TickerMasterItem; score: number } | null = null;
-    for (const item of all) {
+    for (const item of candidates.items) {
       const score = rankTickerItem(item, qLower);
       if (score > 0 && (!best || score > best.score)) {
         best = { item, score };
@@ -2202,53 +2397,63 @@ export class PostgresRepository implements DatabaseRepository {
 
   async upsertTickers(items: TickerMasterItem[]): Promise<{ upserted: number }> {
     await this.ensureSeeded();
-    if (items.length === 0) return { upserted: 0 };
+    const cleaned = new Map<string, TickerMasterItem>();
+    for (const item of items) {
+      if (!item?.symbol) continue;
+      const symbol = item.symbol.trim().toUpperCase();
+      cleaned.set(symbol, { ...item, symbol });
+    }
+    const entries = Array.from(cleaned.values());
+    if (entries.length === 0) return { upserted: 0 };
     try {
-      let count = 0;
-      for (const item of items) {
-        if (!item.symbol) continue;
-        const symbol = item.symbol.trim().toUpperCase();
-        await this.db
-          .insert(tickerMasterTable)
-          .values({
-            symbol,
-            name: item.name,
-            exchange: item.exchange,
-            exchangeCode: item.exchangeCode,
-            country: item.country,
-            currency: item.currency,
-            timezone: item.timezone,
-            assetType: item.assetType || 'EQUITY',
-            sector: item.sector || 'Global Equities',
-            pe: item.pe ?? null,
-            marketCap: item.marketCap ?? null,
-            basePrice: item.basePrice ?? null,
-            aliases: item.aliases || [],
-            active: item.active !== false,
-            updatedAt: new Date()
-          })
-          .onConflictDoUpdate({
-            target: tickerMasterTable.symbol,
-            set: {
-              name: item.name,
-              exchange: item.exchange,
-              exchangeCode: item.exchangeCode,
-              country: item.country,
-              currency: item.currency,
-              timezone: item.timezone,
-              assetType: item.assetType || 'EQUITY',
-              sector: item.sector || 'Global Equities',
-              pe: item.pe ?? null,
-              marketCap: item.marketCap ?? null,
-              basePrice: item.basePrice ?? null,
-              aliases: item.aliases || [],
-              active: item.active !== false,
-              updatedAt: new Date()
-            }
-          });
-        count++;
-      }
-      return { upserted: count };
+      const BATCH_SIZE = 200;
+      const now = new Date();
+      await this.db.transaction(async (tx) => {
+        for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+          const chunk = entries.slice(i, i + BATCH_SIZE);
+          await tx
+            .insert(tickerMasterTable)
+            .values(
+              chunk.map((item) => ({
+                symbol: item.symbol,
+                name: item.name,
+                exchange: item.exchange,
+                exchangeCode: item.exchangeCode,
+                country: item.country,
+                currency: item.currency,
+                timezone: item.timezone,
+                assetType: item.assetType || 'EQUITY',
+                sector: item.sector || 'Global Equities',
+                pe: item.pe ?? null,
+                marketCap: item.marketCap ?? null,
+                basePrice: item.basePrice ?? null,
+                aliases: item.aliases || [],
+                active: item.active !== false,
+                updatedAt: now
+              }))
+            )
+            .onConflictDoUpdate({
+              target: tickerMasterTable.symbol,
+              set: {
+                name: sql`excluded.name`,
+                exchange: sql`excluded.exchange`,
+                exchangeCode: sql`excluded.exchange_code`,
+                country: sql`excluded.country`,
+                currency: sql`excluded.currency`,
+                timezone: sql`excluded.timezone`,
+                assetType: sql`excluded.asset_type`,
+                sector: sql`excluded.sector`,
+                pe: sql`excluded.pe`,
+                marketCap: sql`excluded.market_cap`,
+                basePrice: sql`excluded.base_price`,
+                aliases: sql`excluded.aliases`,
+                active: sql`excluded.active`,
+                updatedAt: sql`excluded.updated_at`
+              }
+            });
+        }
+      });
+      return { upserted: entries.length };
     } catch (err) {
       throw new Error('Database error upserting ticker_master entries', { cause: err });
     }

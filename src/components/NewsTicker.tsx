@@ -640,9 +640,13 @@ export const NewsTicker: React.FC<Props> = ({ onSelectTicker, onNavigate }) => {
                 <span className="text-slate-500 dark:text-slate-400">
                   {selectedHeadline.sentimentSource === 'finbert'
                     ? 'FinBERT Transformer Distribution'
-                    : selectedHeadline.sentimentSource === 'multilingual-lexicon'
-                      ? `Multilingual Lexicon (${(selectedHeadline.language || 'und').toUpperCase()})`
-                      : 'Keyword Lexicon Fallback Distribution'}
+                    : selectedHeadline.sentimentSource === 'multilingual-transformer'
+                      ? `Multilingual Transformer (${(selectedHeadline.language || 'und').toUpperCase()})`
+                      : selectedHeadline.sentimentSource === 'multilingual-lexicon'
+                        ? `Multilingual Lexicon Fallback (${(selectedHeadline.language || 'und').toUpperCase()})`
+                        : selectedHeadline.sentimentSource === 'unsupported_language'
+                          ? `Unsupported Language (${(selectedHeadline.language || 'und').toUpperCase()})`
+                          : 'Keyword Lexicon Fallback Distribution'}
                 </span>
                 <span className="text-slate-700 dark:text-slate-300 font-bold">
                   {Math.round((selectedHeadline.confidence || 0.9) * 100)}% Confidence

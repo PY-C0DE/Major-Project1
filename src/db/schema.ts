@@ -19,6 +19,7 @@ export const users = pgTable('users', {
   emailVerified: boolean('email_verified').default(false).notNull(),
   name: text('name').notNull(),
   passwordHash: text('password_hash').notNull(),
+  tokenVersion: integer('token_version').default(1).notNull(),
   createdAt: text('created_at').notNull(),
   isDemoUser: boolean('is_demo_user').default(false).notNull(),
   avatarUrl: text('avatar_url'),
@@ -133,6 +134,7 @@ export const dailySentiment = pgTable(
     sentimentSource: text('sentiment_source').notNull(),
     language: text('language').default('en').notNull(),
     modelId: text('model_id').default('keyword-lexicon-fallback').notNull(),
+    modelVersion: text('model_version').default('1.0.0').notNull(),
     updatedAt: text('updated_at').notNull()
   },
   (table) => [
@@ -163,7 +165,10 @@ export const tickerMaster = pgTable(
   (table) => [
     index('ticker_master_country_idx').on(table.country),
     index('ticker_master_exchange_idx').on(table.exchange),
-    index('ticker_master_active_idx').on(table.active)
+    index('ticker_master_exchange_code_idx').on(table.exchangeCode),
+    index('ticker_master_name_idx').on(table.name),
+    index('ticker_master_active_idx').on(table.active),
+    index('ticker_master_active_country_exchange_idx').on(table.active, table.country, table.exchange)
   ]
 );
 

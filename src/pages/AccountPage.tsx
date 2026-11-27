@@ -47,6 +47,7 @@ import { api } from '../services/api';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { AvatarModal } from '../components/AvatarModal';
 import { SYSTEM_AVATARS } from '../assets/avatars';
+import { auth } from '../lib/firebase';
 import avatarImg from '../assets/images/avatar_lead_quant_1791318574843.jpg';
 
 interface AccountPageProps {
@@ -109,6 +110,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onNavigateLegal }) => 
   const [confirmingVerification, setConfirmingVerification] = useState(false);
   const [exportingData, setExportingData] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteCurrentPassword, setDeleteCurrentPassword] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
@@ -275,9 +277,19 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onNavigateLegal }) => 
       showError('Please type "DELETE MY ACCOUNT" exactly to confirm permanent deletion.');
       return;
     }
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser && !deleteCurrentPassword) {
+      showError('Please enter your current password to verify your identity before deleting your account.');
+      return;
+    }
     try {
       setDeletingAccount(true);
-      await api.deleteAccount(deleteConfirmText);
+      const firebaseIdToken = firebaseUser ? await firebaseUser.getIdToken(true) : undefined;
+      await api.deleteAccount({
+        confirmText: deleteConfirmText,
+        currentPassword: deleteCurrentPassword || undefined,
+        firebaseIdToken
+      });
       logout();
     } catch (err: any) {
       showError(err?.message || 'Failed to delete account.');
@@ -1323,9 +1335,19 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onNavigateLegal }) => 
                 Permanently Delete Account (irreversible)
               </label>
               <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                Type <span className="font-mono font-bold text-rose-600 dark:text-rose-400">DELETE MY ACCOUNT</span> below to erase your account, portfolios, watchlists, alerts, and forecast history from the database.
+                Re-authenticate with your current password (or active Google session) and type <span className="font-mono font-bold text-rose-600 dark:text-rose-400">DELETE MY ACCOUNT</span> below to permanently erase your account, portfolios, watchlists, alerts, forecast history, and verification tokens.
               </p>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 text-xs">
+                {!auth.currentUser && (
+                  <input
+                    type="password"
+                    value={deleteCurrentPassword}
+                    onChange={(e) => setDeleteCurrentPassword(e.target.value)}
+                    placeholder="Current password"
+                    autoComplete="current-password"
+                    className="sm:w-48 bg-white dark:bg-slate-950 border border-rose-300 dark:border-rose-900 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-rose-500"
+                  />
+                )}
                 <input
                   type="text"
                   value={deleteConfirmText}
@@ -1335,7 +1357,11 @@ export const AccountPage: React.FC<AccountPageProps> = ({ onNavigateLegal }) => 
                 />
                 <button
                   type="submit"
-                  disabled={deletingAccount || deleteConfirmText !== 'DELETE MY ACCOUNT'}
+                  disabled={
+                    deletingAccount ||
+                    deleteConfirmText !== 'DELETE MY ACCOUNT' ||
+                    (!auth.currentUser && !deleteCurrentPassword)
+                  }
                   className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold transition-colors cursor-pointer disabled:opacity-40 flex items-center justify-center gap-1.5"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

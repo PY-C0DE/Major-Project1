@@ -1,0 +1,80 @@
+name: AlphaQuant AI CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  verify:
+    name: Lint, Test, Build & Security Audit
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: alphaquant
+          POSTGRES_PASSWORD: alphaquant_ci_password
+          POSTGRES_DB: alphaquant_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U alphaquant -d alphaquant_ci"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies (legacy peer deps for drizzle-kit/vite esbuild optional peer)
+        run: npm ci --legacy-peer-deps
+
+      - name: TypeScript typecheck
+        run: npm run lint
+
+      - name: Run unit, integration, calendar, multilingual & security tests
+        env:
+          NODE_ENV: test
+          DISABLE_FINBERT: 'true'
+        run: npm test
+
+      - name: Verify PostgreSQL Drizzle schema push & ticker seed
+        env:
+          SQL_HOST: 127.0.0.1
+          SQL_PORT: '5432'
+          SQL_USER: alphaquant
+          SQL_PASSWORD: alphaquant_ci_password
+          SQL_DB_NAME: alphaquant_ci
+          SQL_SSL: 'false'
+        run: |
+          npx drizzle-kit push --config=src/db/drizzle.config.ts
+          npm run db:import-tickers
+
+      - name: Build production frontend bundle
+        run: npm run build
+
+      - name: Dependency vulnerability check (high+)
+        # Keep non-fatal ONLY for upstream transitive advisories requiring breaking major changes
+        # (firebase/@grpc/grpc-js, @xenova/transformers/sharp/protobufjs, yahoo-finance2/zod).
+        continue-on-error: true
+        run: npm audit --audit-level=high

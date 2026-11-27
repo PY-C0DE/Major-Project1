@@ -35,9 +35,10 @@ $$\hat{C}(X_{n+1}) = [\hat{y}_{n+1} - \hat{q}_{1-\alpha}, \; \hat{y}_{n+1} + \ha
 - **Rule-Based Classification**: Classifies sessions using rolling 20-day return trend vs. 10/30-day realized volatility thresholds into Bullish/Bearish Low-Volatility and High-Volatility regimes.
 - **Empirical Transition Matrix & Persistence**: Tracks observed historical state transitions $P(S_t = j \mid S_{t-1} = i)$ and persistence durations, surfaced via header `RegimeIndicator` badges and regime visualizers.
 
-### USP 3 — FinBERT Transformer Sentiment, Lexicon Fallback & Daily Lag/Ablation (`finbertSentiment.ts`, `nlpEngine.ts`, `lagAnalysis.ts`)
-- **Language Detection & English-Only FinBERT Guard (`languageDetection.ts`, `finbertSentiment.ts`)**: Classifies headline/summary language before inference (`en`, `ko`, `ja`, `zh`, `hi`, `de`, `fr`, `es`, `pt`, `it`, `nl`, `sv`, `no`, `da`, `fi`, `id`, `ru`, `ar`). Non-English text NEVER enters English FinBERT (`Xenova/finbert`); instead it routes through `analyzeMultilingualLexiconSentiment` (`sentimentSource: "multilingual-lexicon"`, `modelId: "multilingual-lexicon-v1"`), while English text runs `Xenova/finbert` lazily with SHA-256 `(title, publisher, lang)` caching and automatic keyword lexicon fallback (`sentimentSource: "lexicon"`).
-- **Publisher-Credibility Weighting & Daily Store (`db.ts`)**: Weights articles by publisher credibility and persists daily non-zero per-ticker aggregates (`date`, `credibilityWeightedNetScore`, `articleCount`, `sentimentSource`, `language`, `modelId`) without overwriting past dates or zero-filling missing days.
+### USP 3 — Multilingual Transformer Sentiment, Language Detection & Causal Lag/Ablation (`languageDetection.ts`, `finbertSentiment.ts`, `nlpEngine.ts`, `lagAnalysis.ts`)
+- **Maintained Language Detection (`languageDetection.ts`)**: Uses `franc-min@^6.2.0` as the primary detector (0.48% error rate on 840 held-out financial headlines across 7 languages in `docs/sentiment-validation.md`) with Unicode script & short-headline heuristic fallback.
+- **English FinBERT & Multilingual ONNX Transformer (`finbertSentiment.ts`)**: Routes English (`en`) strictly to `Xenova/finbert` (`onnx-prosusai-finbert-v1`), and 11 supported non-English languages (`ar, de, es, fr, ja, zh, hi, id, it, ms, pt`) to **`Xenova/distilbert-base-multilingual-cased-sentiments-student`** (`onnx-lxyuan-mbert-v1`) via `@xenova/transformers` with SHA-256 `(text, publisher, lang)` caching and explicit keyword/lexicon fallbacks (`keyword-lexicon-fallback`, `multilingual-lexicon-v1`). Languages outside model coverage (e.g. `ko, ru, nl, sv, no, da, fi`) are marked `sentimentSource: "unsupported_language"` and excluded from daily aggregates.
+- **Publisher-Credibility Weighting & Daily Store (`db.ts`)**: Persists daily non-zero per-ticker aggregates (`date`, `credibilityWeightedNetScore`, `articleCount`, `sentimentSource`, `language`, `modelId`, `modelVersion`) without overwriting past dates or zero-filling missing days, alongside validation benchmarks (`scripts/validateSentiment.ts`, `docs/sentiment-validation.md`).
 - **Sentiment-Price Lag Analysis & Causal Ablation**: Evaluates Pearson & Spearman cross-correlations across `k = -5..+5` with seeded date-block/date-clustered bootstrap 95% CIs and Benjamini-Hochberg / Bonferroni corrections (`lagAnalysis.ts`), alongside a paired walk-forward ablation comparing the 24-factor price-only ensemble against a strictly causal (`date < predictionDate`) 28-factor price + sentiment variant (`evaluation.ts`).
 
 ### USP 4 — Two-Sample KS Drift Test (`driftDetector.ts`)
@@ -51,9 +52,9 @@ $$D_{n,m} = \sup_x |F_{1,n}(x) - F_{2,m}(x)|$$
 
 ## 3. Global Markets, Currency & Localization Capabilities
 
-### A. Multi-Exchange Coverage & Real-Time Market Open/Closed Status (`marketStatus.ts`, `MarketStatusBadge.tsx`)
-Supports global equities across **NSE / BSE (India)**, **NASDAQ / NYSE (US)**, **KRX / KOSDAQ (South Korea)**, **TSE (Japan)**, **LSE (UK)**, **XETRA / EURONEXT (Europe)**, **HKEX (Hong Kong)**, **SSE / SZSE (China)**, **TWSE (Taiwan)**, **TSX (Canada)**, **ASX (Australia)**, and **SGX (Singapore)**.
-- Every stock header, dashboard card, watchlist row, market card, and search result displays a live **Market Open / Closed Badge** (with Pre-Market, Post-Market, or Lunch Break context computed in the exchange's native IANA timezone and Yahoo trading period metadata).
+### A. Multi-Exchange Coverage, Official Calendars & Market Status (`exchangeCalendar.ts`, `marketStatus.ts`, `MarketStatusBadge.tsx`)
+Covers **1,812 global equities** (1,765 active + 47 delisted across **38 exchanges** and **34 countries**, seeded from the 62-ticker core catalog + MIT `JerBouma/FinanceDatabase` via `scripts/syncGlobalTickers.ts`), including **NSE / BSE (India)**, **NASDAQ / NYSE (US)**, **KRX / KOSDAQ (South Korea)**, **TSE (Japan)**, **LSE (UK)**, **XETRA / EURONEXT / SIX / Nordic / BME (Europe)**, **HKEX (Hong Kong)**, **SSE / SZSE (China)**, **TWSE (Taiwan)**, **TSX (Canada)**, **ASX / NZX (Oceania)**, **SGX / BURSA / SET / IDX (SE Asia)**, **B3 / BMV (LatAm)**, and **JSE (South Africa)**.
+- Exchange holidays and **half-day early closes (`earlyCloses`)** are loaded from `scripts/seeds/exchange_calendars.json` (exported via `scripts/syncExchangeCalendars.ts` from `exchange_calendars@4.13.3`, `pandas_market_calendars@5.7.0`, and `date-holidays@3.39.2` fallback for tentative 2027 Asian holidays). Every stock header, watchlist row, market card, and search result renders a live **Market Open / Early Close / Closed** badge—or explicit **Calendar Unknown (`calendar_unknown`)** when holiday coverage is missing, never silently falling back to weekdays only.
 
 ### B. Native Currency Formatting & Dynamic Live FX Tooltip (`currency.ts`, `fxService.ts`, `ConvertedPrice.tsx`)
 - Prices render strictly in their asset's native trading currency (`₩` KRW for `.KS/.KQ`, `₹` INR for `.NS/.BO`, `$` USD, `€` EUR, `£` GBP, `¥` JPY/CNY, `HK$`, `A$`, `C$`, `S$`, `CHF`, `NT$`, `R$`).
@@ -204,10 +205,10 @@ GET    /api/jobs/:id                      # Retrieve job status, attempt count, 
 ## 6. Technology Stack
 
 - **Frontend**: React 19, TypeScript, Tailwind CSS v4, Vite 8, `motion` (Framer Motion v12), Recharts 3, D3.js 7, Lucide Icons, Firebase Web SDK.
-- **Backend & Persistence**: Node.js + Express (`server.ts`), **PostgreSQL + Drizzle ORM** (`src/db/schema.ts`, migrations in `drizzle/`), `pg`, `tsx`, and `yahoo-finance2`. Uses a pluggable `DatabaseRepository` interface (`PostgresRepository` in production/Postgres-configured environments; `InMemoryRepository` for isolated unit/HTTP tests).
-- **Quantitative & NLP Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Regime Filtering, Cosine KNN Analogs, Split-Conformal Prediction Intervals (90% default coverage), Two-Sample KS Drift Test, Rule-Based Trend/Volatility Regime Classifier, `@xenova/transformers` FinBERT sentiment (`Xenova/finbert`) with keyword lexicon fallback, Sentiment-Price Lag Analysis (`lagAnalysis.ts`), Black-Scholes Greeks, and Markowitz MVO.
+- **Backend & Persistence**: Node.js + Express (`server.ts`), **PostgreSQL + Drizzle ORM** (`src/db/schema.ts`, migrations & composite `ticker_master` indexes in `drizzle/`), `pg`, `tsx`, and `yahoo-finance2`. Uses a pluggable `DatabaseRepository` interface (`PostgresRepository` in production/Postgres-configured environments; `InMemoryRepository` for isolated unit/HTTP tests).
+- **Quantitative & NLP Engines**: Pure TypeScript implementations of 24-factor Z-scored Ridge Regression, Depth-2 Huber GBDT, Adaptive Kalman Regime Filtering, Cosine KNN Analogs, Split-Conformal Prediction Intervals (90% default coverage), Two-Sample KS Drift Test, Rule-Based Trend/Volatility Regime Classifier, `franc-min` language detection, `@xenova/transformers` English FinBERT (`Xenova/finbert`) + Multilingual DistilBERT (`Xenova/distilbert-base-multilingual-cased-sentiments-student`) with labelled lexicon fallbacks (`docs/sentiment-validation.md`), Sentiment-Price Lag Analysis (`lagAnalysis.ts`), Black-Scholes Greeks, and Markowitz MVO.
 - **Multi-Currency Safety**: Every price, conformal bound, portfolio holding, prediction history record, and evaluation carries its ISO 4217 currency code. Cross-currency aggregates set `currency = 'MIXED'` and omit unit-incompatible raw `MAE`/`RMSE`/`ΔMAE` averages (`null`) while keeping scale-free metrics (`Price Accuracy`, `MAPE`, `MAE/RMSE Skill`, `Directional Accuracy`).
-- **Security, Hardening & Session**: `helmet` security headers, explicit CORS origin allowlist (`CORS_ALLOWED_ORIGINS`), `express-rate-limit` tiered throttling, `zod` schema validation (`src/server/middleware/validation.ts`), structured JSON logging with `X-Request-Id` (`src/server/middleware/logger.ts`), durable `BullMQ` + `ioredis` job queue with exponential retries and dev-only in-process fallback (`src/server/jobs/jobQueue.ts`), `nodemailer` / Resend transactional mail delivery (`src/server/services/mailService.ts`), `bcryptjs` password hashing, single-use expiring `auth_tokens`, stateless JWT auth, and Firebase Admin verification. Exchange holiday calendars use `date-holidays` paired with official exchange closure rules (`exchangeCalendar.ts`, failing loudly via `MissingExchangeHolidayDataError` outside verified years; retrieved `2026-11-24`, documented in `CHANGELOG.md`).
+- **Security, Hardening & Production Operations**: `helmet` headers, explicit CORS origin allowlist (`CORS_ALLOWED_ORIGINS`), `express-rate-limit` tiered throttling, `zod` schema validation (`src/server/middleware/validation.ts`), structured JSON logging with `X-Request-Id` (`src/server/middleware/logger.ts`), durable `BullMQ` + `ioredis` job queue (`audit`, `backfill`, `refit`, `ticker_refresh` with exponential retries and failed-job replay), `nodemailer` / Resend transactional mail delivery (`src/server/services/mailService.ts`), `bcryptjs` password hashing, re-authenticated `DELETE /api/account` purge & `GET /api/account/export`, single-use expiring `auth_tokens`, stateless JWT auth with `token_version` revocation, and Firebase Admin verification. Verified CI/CD (`.github/workflows/ci.yml`), security suite (`tests/security.test.ts`), load benchmarks (`docs/load-test-report.md`), and operations runbook (`docs/production-readiness.md`).
 
 ---
 
@@ -256,7 +257,7 @@ Schema migrations are checked into `drizzle/`. With PostgreSQL running and `SQL_
 # Push/apply Drizzle schema (users, portfolios, watchlists, alerts, prediction_history, daily_sentiment, ticker_master)
 npx drizzle-kit push --config=src/db/drizzle.config.ts
 
-# Seed ticker_master from the 62-equity catalog + extended global CSV (30 exchanges)
+# Seed ticker_master from the 62-equity catalog + extended FinanceDatabase CSV (1,812 rows across 38 exchanges / 34 countries)
 npm run db:import-tickers
 
 # One-off idempotent migration from a legacy data/alphaquant_store.json snapshot into PostgreSQL
@@ -269,15 +270,20 @@ npm run dev
 ```
 Open **http://localhost:3000** in your browser. Express API routes and Vite frontend run together on port `3000`.
 
-### 5. Verify Build, Types, Sentiment Backfill, Audit & Automated Tests
+### 5. Verify Build, Security Tests, Load Benchmark, Audits & Maintenance Scripts
 ```bash
-npm run lint                  # Run TypeScript type checks (tsc --noEmit)
-npm test                      # Run all unit & real-app HTTP tests (tests/*.test.ts)
-npm run backfill:sentiment    # Backfill idempotent daily FinBERT/lexicon sentiment store from news feeds
-npm run audit                 # Generate reproducible audit-output/audit.json & audit.csv (62-ticker catalog)
-npm run audit -- --universe   # Audit all active equities in ticker_master with country/exchange breakdowns & skipped list
-npm run build                 # Build production frontend bundle to dist/
-npm start                     # Start full-stack server via tsx server.ts
+npm install --legacy-peer-deps                     # Install with legacy-peer-deps (drizzle-kit vs vite optional esbuild peer)
+npm run lint                                       # Run TypeScript type checks (tsc --noEmit)
+npm test                                           # Run all unit, HTTP, security, calendar & sentiment tests (tests/*.test.ts)
+npx tsx scripts/syncExchangeCalendars.ts           # Re-export verified holiday & early-close JSON from exchange_calendars/pmc/date-holidays
+npx tsx scripts/syncGlobalTickers.ts               # Refresh scripts/seeds/global_tickers.csv from FinanceDatabase (MIT)
+npx tsx scripts/validateSentiment.ts               # Benchmark FinBERT + multilingual ONNX sentiment & franc-min -> docs/sentiment-validation.md
+npx tsx scripts/loadTest.ts --write-report         # Run autocannon HTTP concurrency benchmark -> docs/load-test-report.md
+npm run backfill:sentiment                         # Backfill idempotent daily FinBERT/multilingual sentiment store from news feeds
+npm run audit                                      # Generate reproducible audit-output/audit.json & audit.csv (62-ticker catalog)
+npm run audit -- --universe                        # Audit all active equities in ticker_master with country/exchange breakdowns & skipped list
+npm run build                                      # Build production frontend bundle to dist/
+npm start                                          # Start full-stack server via tsx server.ts
 ```
 
 ### 6. Docker & Docker Compose Deployment (with PostgreSQL)

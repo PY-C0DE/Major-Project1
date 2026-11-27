@@ -961,11 +961,19 @@ export const TWELVE_DATA_EXCHANGE_BY_MIC: Record<string, string> = {
   XOSL: 'OSL',
   XJSE: 'JSE',
   XMEX: 'BMV',
-  XIDX: 'IDX'
+  XIDX: 'IDX',
+  XWAR: 'GPW',
+  XLIS: 'BVL',
+  XDUB: 'ISE',
+  XWBO: 'VIE',
+  XIST: 'BIST',
+  XNZE: 'NZX',
+  XKLS: 'BURSA',
+  XBKK: 'SET'
 };
 
 const YAHOO_EXCHANGE_SUFFIX_RE =
-  /\.(NS|BO|L|DE|PA|AS|BR|SW|CO|ST|OL|HE|MC|MI|T|HK|KS|KQ|TW|TO|AX|SI|SA|SS|SZ|JO|MX|JK)$/i;
+  /\.(NS|BO|L|DE|PA|AS|BR|LS|IR|VI|WA|IS|SW|CO|ST|OL|HE|MC|MI|T|HK|KS|KQ|TW|TO|AX|NZ|SI|KL|BK|SA|SS|SZ|JO|MX|JK)$/i;
 
 export function mapTickerToTwelveDataSymbol(ticker: string, exchangeHint?: string): string {
   const upper = ticker.trim().toUpperCase();

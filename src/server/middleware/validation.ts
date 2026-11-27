@@ -174,7 +174,7 @@ export const brokerOrderSchema = z.object({
 });
 
 export const createBackgroundJobSchema = z.object({
-  type: z.enum(['audit', 'backfill', 'refit']),
+  type: z.enum(['audit', 'backfill', 'refit', 'ticker_refresh']),
   ticker: z.string().trim().min(1).max(40).optional(),
   tickers: z.array(z.string().trim().min(1).max(40)).max(100).optional(),
   maxArticles: z.coerce.number().int().min(1).max(50).optional()
@@ -214,5 +214,7 @@ export const resetPasswordSchema = z.object({
 export const deleteAccountSchema = z.object({
   confirmText: z.literal('DELETE MY ACCOUNT', {
     message: 'Type "DELETE MY ACCOUNT" exactly to confirm permanent deletion.'
-  })
+  }),
+  currentPassword: z.string().min(1).max(128).optional(),
+  firebaseIdToken: z.string().min(10).optional()
 });

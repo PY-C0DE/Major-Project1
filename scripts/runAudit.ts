@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TICKER_CATALOG } from '../src/shared/tickerCatalog';
@@ -54,7 +55,21 @@ async function main() {
     );
   }
 
-  const evaluation = await runAggregateModelEvaluation(getHistoricalDataWithSource, targetCatalog, {
+  let universeDone = 0;
+  const fetcher = useUniverse
+    ? async (ticker: string, days?: number) => {
+        try {
+          return await getHistoricalDataWithSource(ticker, days);
+        } finally {
+          universeDone++;
+          if (universeDone % 50 === 0 || universeDone === targetCatalog.length) {
+            console.log(`[Audit CLI] --universe fetch progress: ${universeDone}/${targetCatalog.length} tickers`);
+          }
+        }
+      }
+    : getHistoricalDataWithSource;
+
+  const evaluation = await runAggregateModelEvaluation(fetcher, targetCatalog, {
     sentimentByTicker,
     ...(useUniverse
       ? {

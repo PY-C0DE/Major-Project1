@@ -9,6 +9,8 @@
  *   (unless `ALLOW_IN_PROCESS_JOB_QUEUE=true` is explicitly set).
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import crypto from 'node:crypto';
 import { Queue, Worker, type Job as BullJob } from 'bullmq';
 import Redis from 'ioredis';
@@ -16,9 +18,11 @@ import {
   BackgroundJobQueueStats,
   BackgroundJobRecord,
   BackgroundJobStatus,
-  BackgroundJobType
+  BackgroundJobType,
+  TickerMasterItem
 } from '../../types';
 import { TICKER_CATALOG } from '../../shared/tickerCatalog';
+import { getSeededCatalogTickers, parseTickerMasterCsv } from '../../shared/tickerMetadata';
 import {
   runAggregateModelEvaluation,
   buildModelAuditPayload,
@@ -163,6 +167,75 @@ async function defaultRefitHandler(payload: Record<string, unknown>, ctx: JobExe
   };
 }
 
+async function defaultTickerRefreshHandler(
+  payload: Record<string, unknown>,
+  ctx: JobExecutionContext
+): Promise<unknown> {
+  const defaultCsvRel = 'scripts/seeds/global_tickers.csv';
+  const rawCsvPath =
+    typeof payload.csvPath === 'string' && payload.csvPath.trim()
+      ? payload.csvPath.trim()
+      : defaultCsvRel;
+  const resolvedCsvPath = path.isAbsolute(rawCsvPath)
+    ? rawCsvPath
+    : path.resolve(process.cwd(), rawCsvPath);
+  const projectRoot = path.resolve(process.cwd());
+  if (
+    typeof payload.csvPath === 'string' &&
+    resolvedCsvPath !== projectRoot &&
+    !resolvedCsvPath.startsWith(projectRoot + path.sep)
+  ) {
+    throw new Error('csvPath must resolve inside the workspace directory.');
+  }
+
+  ctx.updateProgress(0, 3, 'Loading core catalog tickers');
+  const requestedSet =
+    Array.isArray(payload.tickers) && payload.tickers.length > 0
+      ? new Set(payload.tickers.map((t) => String(t).trim().toUpperCase()).filter(Boolean))
+      : typeof payload.ticker === 'string' && payload.ticker.trim() && payload.ticker.trim().toUpperCase() !== 'ALL'
+        ? new Set([payload.ticker.trim().toUpperCase()])
+        : null;
+
+  const catalogItems = getSeededCatalogTickers();
+  const mergedMap = new Map<string, TickerMasterItem>();
+  for (const item of catalogItems) {
+    if (!requestedSet || requestedSet.has(item.symbol.toUpperCase())) {
+      mergedMap.set(item.symbol.toUpperCase(), item);
+    }
+  }
+
+  ctx.updateProgress(1, 3, `Reading global ticker seed from ${path.relative(projectRoot, resolvedCsvPath)}`);
+  let csvLoaded = false;
+  if (fs.existsSync(resolvedCsvPath)) {
+    const csvContent = fs.readFileSync(resolvedCsvPath, 'utf8');
+    const csvItems = parseTickerMasterCsv(csvContent);
+    for (const item of csvItems) {
+      const key = item.symbol.toUpperCase();
+      if (requestedSet && !requestedSet.has(key)) continue;
+      if (!mergedMap.has(key)) {
+        mergedMap.set(key, item);
+      }
+    }
+    csvLoaded = true;
+  }
+
+  const itemsToUpsert = Array.from(mergedMap.values());
+  const { upserted } = itemsToUpsert.length > 0 ? await db.upsertTickers(itemsToUpsert) : { upserted: 0 };
+  const allTickers = await db.getAllTickers(false);
+  const activeCount = allTickers.filter((t) => t.active).length;
+  const inactiveCount = allTickers.length - activeCount;
+
+  ctx.updateProgress(3, 3, `Upserted ${upserted} ticker_master record(s) (${activeCount} active, ${inactiveCount} delisted/inactive)`);
+  return {
+    upserted,
+    csvLoaded,
+    csvPath: path.relative(projectRoot, resolvedCsvPath),
+    totalTickers: allTickers.length,
+    activeTickers: activeCount,
+    inactiveTickers: inactiveCount
+  };
+}
+
 export interface BackgroundJobQueueOptions {
   concurrency?: number;
   maxHistory?: number;
@@ -214,7 +287,8 @@ export class BackgroundJobQueue implements JobQueueDriver {
     this.handlers = {
       audit: options.handlers?.audit ?? defaultAuditHandler,
       backfill: options.handlers?.backfill ?? defaultBackfillHandler,
-      refit: options.handlers?.refit ?? defaultRefitHandler
+      refit: options.handlers?.refit ?? defaultRefitHandler,
+      ticker_refresh: options.handlers?.ticker_refresh ?? defaultTickerRefreshHandler
     };
 
     if (options.warnOnFallback) {
@@ -519,7 +593,8 @@ export class BullMQJobQueue implements JobQueueDriver {
     this.handlers = {
       audit: options.handlers?.audit ?? defaultAuditHandler,
       backfill: options.handlers?.backfill ?? defaultBackfillHandler,
-      refit: options.handlers?.refit ?? defaultRefitHandler
+      refit: options.handlers?.refit ?? defaultRefitHandler,
+      ticker_refresh: options.handlers?.ticker_refresh ?? defaultTickerRefreshHandler
     };
 
     this.queueConnection = new Redis(options.redisUrl, { maxRetriesPerRequest: null });

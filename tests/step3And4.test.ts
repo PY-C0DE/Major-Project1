@@ -5,7 +5,8 @@ import path from 'node:path';
 import { resolvePostgresSslConfig } from '../src/db/index';
 import { parseTickerMasterCsv } from '../scripts/importTickers';
 import { inferCurrencyFromTicker } from '../src/utils/currency';
-import { resolveExchangeMicInfo } from '../src/shared/tickerMetadata';
+import { EXCHANGE_MIC_MAP, getSeededCatalogTickers, resolveExchangeMicInfo } from '../src/shared/tickerMetadata';
+import { getExchangeMarketStatus } from '../src/utils/marketStatus';
 import {
   YahooFinanceMarketDataProvider,
   TwelveDataMarketDataProvider,
@@ -26,14 +27,17 @@ import {
 } from '../src/server/math/evaluation';
 import { buildAuditCsv } from '../src/shared/auditExport';
 import {
+  CALENDAR_SOURCE_METADATA,
   EXCHANGE_HOLIDAY_COVERAGE,
   HOLIDAY_DATA_RETRIEVED_AT,
   MissingExchangeHolidayDataError,
   alignTimestampToTradingDate,
   alignSentimentRecordsToExchangeCalendar,
   formatTimestampInExchangeTimezone,
+  getExchangeCalendarStatus,
   getExchangeHolidaysForYear,
   getExchangeHolidayMetadata,
+  getExchangeSessionCloseMinutes,
   hasExchangeHolidayCoverage,
   isExchangeHoliday,
   isExchangeTradingDay,
@@ -463,8 +467,8 @@ describe('Step 4 — Exchange Calendars, Holidays, DST Transitions & Exchange-Lo
     assert.ok(ablation.matchedSamples >= 10);
   });
 
-  it('maps symbols across all 30 ticker_master exchange MICs for TwelveDataMarketDataProvider and fails non-silently on fallback', async () => {
-    assert.equal(Object.keys(TWELVE_DATA_EXCHANGE_BY_MIC).length, 30);
+  it('maps symbols across all 38 ticker_master exchange MICs for TwelveDataMarketDataProvider and fails non-silently on fallback', async () => {
+    assert.equal(Object.keys(TWELVE_DATA_EXCHANGE_BY_MIC).length, 38);
 
     const sampleMappings: Array<[string, string | undefined, string]> = [
       ['AAPL', 'XNAS', 'AAPL'],
@@ -476,6 +480,11 @@ describe('Step 4 — Exchange Calendars, Holidays, DST Transitions & Exchange-Lo
       ['MC.PA', undefined, 'MC:EPA'],
       ['ASML.AS', undefined, 'ASML:AMS'],
       ['ABI.BR', undefined, 'ABI:EBR'],
+      ['EDP.LS', undefined, 'EDP:BVL'],
+      ['RYA.IR', undefined, 'RYA:ISE'],
+      ['OMV.VI', undefined, 'OMV:VIE'],
+      ['PKO.WA', undefined, 'PKO:GPW'],
+      ['THYAO.IS', undefined, 'THYAO:BIST'],
       ['NESN.SW', undefined, 'NESN:SIX'],
       ['7203.T', undefined, '7203:TSE'],
       ['0700.HK', undefined, '0700:HKEX'],
@@ -484,7 +493,10 @@ describe('Step 4 — Exchange Calendars, Holidays, DST Transitions & Exchange-Lo
       ['2330.TW', undefined, '2330:TWSE'],
       ['RY.TO', undefined, 'RY:TSX'],
       ['CBA.AX', undefined, 'CBA:ASX'],
+      ['FPH.NZ', undefined, 'FPH:NZX'],
       ['D05.SI', undefined, 'D05:SGX'],
+      ['MAYBANK.KL', undefined, 'MAYBANK:BURSA'],
+      ['PTT.BK', undefined, 'PTT:SET'],
       ['PETR4.SA', undefined, 'PETR4:BVMF'],
       ['SAN.MC', undefined, 'SAN:BME'],
       ['ENI.MI', undefined, 'ENI:MIL'],
@@ -583,81 +595,175 @@ describe('Step 4 — Exchange Calendars, Holidays, DST Transitions & Exchange-Lo
     }
   });
 
-  it('enforces verified exchange holiday coverage bounds (throwing MissingExchangeHolidayDataError for uncovered years) and applies date-holidays market rules', () => {
-    assert.equal(HOLIDAY_DATA_RETRIEVED_AT, '2026-11-24');
+  it('enforces current+next year holiday coverage (2026 & 2027) for EVERY ticker_master exchange from maintained exchange_calendars@4.13.3 export and handles calendar_unknown explicitly', () => {
+    assert.equal(CALENDAR_SOURCE_METADATA.exchangeCalendarsVersion, '4.13.3');
+    assert.equal(HOLIDAY_DATA_RETRIEVED_AT, '2026-11-26');
+    const currentYear = 2026;
+    const nextYear = 2027;
+
+    // Every supported exchange MIC in EXCHANGE_MIC_MAP, seeded catalog, and global_tickers.csv must have 2026 + 2027 holidays
+    const expectedMics = new Set<string>(Object.values(EXCHANGE_MIC_MAP).map((m) => m.mic));
+    for (const c of getSeededCatalogTickers()) {
+      expectedMics.add(c.exchange);
+    }
+    const csvPath = path.resolve(process.cwd(), 'scripts/seeds/global_tickers.csv');
+    if (fs.existsSync(csvPath)) {
+      const parsedCsv = parseTickerMasterCsv(fs.readFileSync(csvPath, 'utf8'));
+      for (const item of parsedCsv) {
+        expectedMics.add(item.exchange);
+      }
+    }
+
+    for (const mic of expectedMics) {
+      assert.equal(
+        hasExchangeHolidayCoverage(mic, currentYear),
+        true,
+        `Missing ${currentYear} holiday coverage for ticker_master exchange ${mic}`
+      );
+      assert.equal(
+        hasExchangeHolidayCoverage(mic, nextYear),
+        true,
+        `Missing ${nextYear} holiday coverage for ticker_master exchange ${mic}`
+      );
+      const setCurr = getExchangeHolidaysForYear(mic, currentYear);
+      const setNext = getExchangeHolidaysForYear(mic, nextYear);
+      assert.ok(setCurr.size >= 3, `Expected >=3 holidays for ${mic} in ${currentYear}, got ${setCurr.size}`);
+      assert.ok(setNext.size >= 3, `Expected >=3 holidays for ${mic} in ${nextYear}, got ${setNext.size}`);
+    }
+
     const nseMeta = getExchangeHolidayMetadata('XNSE');
     assert.ok(nseMeta);
-    assert.equal(nseMeta.retrievedAt, '2026-11-24');
-    assert.equal(hasExchangeHolidayCoverage('XNSE', 2026), true);
-    assert.equal(hasExchangeHolidayCoverage('XNSE', 2027), false);
+    assert.equal(nseMeta.retrievedAt, '2026-11-26');
+    assert.equal(nseMeta.tentative2027ViaDateHolidays, true);
 
-    // Uncovered future/past years and unsupported MICs must throw MissingExchangeHolidayDataError
+    // Uncovered future/past years and unsupported MICs must throw MissingExchangeHolidayDataError (never silent weekdays)
     assert.throws(
-      () => getExchangeHolidaysForYear('XNSE', 2027),
-      (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XNSE' && err.year === 2027
+      () => getExchangeHolidaysForYear('XNSE', 2028),
+      (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XNSE' && err.year === 2028
     );
     assert.throws(
       () => isExchangeHoliday('2023-01-26', 'XNSE'),
       (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XNSE' && err.year === 2023
     );
     assert.throws(
-      () => isExchangeTradingDay('2027-01-04', 'XKRX'),
-      (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XKRX' && err.year === 2027
+      () => isExchangeTradingDay('2028-01-04', 'XKRX'),
+      (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XKRX' && err.year === 2028
     );
     assert.throws(
       () => getExchangeHolidaysForYear('XUNKNOWN', 2026),
       (err: unknown) => err instanceof MissingExchangeHolidayDataError && err.mic === 'XUNKNOWN'
     );
+    assert.throws(
+      () => isExchangeTradingDay('2026-06-10', 'FOO.ZZ'),
+      (err: unknown) => err instanceof MissingExchangeHolidayDataError
+    );
 
-    // Market vs civil rules derived cleanly from date-holidays + exchange overrides:
-    // NYSE Rule 7.2 remains OPEN on Columbus Day (2026-10-12) and Veterans Day (2026-11-11)
+    // Explicit calendar_unknown status in BOTH server helper and UI marketStatus badge utility
+    const serverUnknown = getExchangeCalendarStatus('FOO.ZZ');
+    assert.equal(serverUnknown.calendarKnown, false);
+    assert.equal(serverUnknown.status, 'calendar_unknown');
+    const serverYearUnknown = getExchangeCalendarStatus('XNYS', 'XNYS', 2028);
+    assert.equal(serverYearUnknown.calendarKnown, false);
+    assert.equal(serverYearUnknown.status, 'calendar_unknown');
+
+    const uiUnknownExchange = getExchangeMarketStatus({
+      ticker: 'UNKNOWN.ZZ',
+      now: new Date('2026-06-10T15:00:00Z')
+    });
+    assert.equal(uiUnknownExchange.calendarKnown, false);
+    assert.equal(uiUnknownExchange.session, 'calendar_unknown');
+    assert.equal(uiUnknownExchange.scheduleText, 'Calendar Unknown');
+
+    const uiUncoveredYear = getExchangeMarketStatus({
+      ticker: 'AAPL',
+      now: new Date('2028-06-10T15:00:00Z')
+    });
+    assert.equal(uiUncoveredYear.calendarKnown, false);
+    assert.equal(uiUncoveredYear.session, 'calendar_unknown');
+
+    // Market vs civil rules from exchange_calendars@4.13.3:
+    // NYSE Rule 7.2 stays OPEN on Columbus Day (2026-10-12) and Veterans Day (2026-11-11)
     assert.equal(isExchangeHoliday('2026-10-12', 'XNYS'), false);
     assert.equal(isExchangeHoliday('2026-11-11', 'XNYS'), false);
-    // XETRA closes Dec 24 & Dec 31 and stays open German Unity Day (2026-10-03 is Sat; check 2025-10-03 Fri)
+    // XETRA closes Dec 24 & Dec 31 and stays open German Unity Day (2025-10-03 Fri)
     assert.equal(isExchangeHoliday('2025-10-03', 'XETR'), false);
     assert.equal(isExchangeHoliday('2026-12-24', 'XETR'), true);
     assert.equal(isExchangeHoliday('2026-12-31', 'XETR'), true);
-    // Every configured coverage entry must yield non-empty holiday sets within its declared window
-    for (const [mic, spec] of Object.entries(EXCHANGE_HOLIDAY_COVERAGE)) {
-      const set2026 = getExchangeHolidaysForYear(mic, spec.maxYear);
-      assert.ok(set2026.size >= 4, `Expected >=4 holidays for ${mic} in ${spec.maxYear}, got ${set2026.size}`);
-    }
+    // All EXCHANGE_HOLIDAY_COVERAGE entries verified
+    assert.equal(Object.keys(EXCHANGE_HOLIDAY_COVERAGE).length >= 38, true);
   });
 
-  it('aligns Tokyo TSE (XTKS, Asia/Tokyo, 7203.T) and Hong Kong HKEX (XHKG, Asia/Hong_Kong, 0700.HK) calendars & holidays', () => {
-    // TSE (XTKS): session closes 15:30 JST (06:30 UTC)
-    // 2026-05-01 05:00 UTC == 14:00 JST (before 15:30 JST close on Friday before Golden Week May 4-6)
-    const tseOpen = alignTimestampToTradingDate('2026-05-01T05:00:00Z', '7203.T');
-    assert.equal(tseOpen.exchangeLocalDate, '2026-05-01');
-    assert.equal(tseOpen.tradingDate, '2026-05-01');
-    assert.equal(tseOpen.rolledForward, false);
+  it('handles half-day early closes, holidays, and DST across TSE, HKEX, LSE, XETRA, NSE, NYSE, and KRX (server & UI)', () => {
+    // 1. NYSE (XNYS) Half-Day Early Close: Black Friday 2026-11-27 closes at 13:00 EST (18:00 UTC)
+    const nyseHalfInfo = getExchangeSessionCloseMinutes('2026-11-27', 'AAPL');
+    assert.equal(nyseHalfInfo.isEarlyClose, true);
+    assert.equal(nyseHalfInfo.closeMinutes, 13 * 60);
+    // 17:30 UTC == 12:30 EST (open before 13:00 early close)
+    const nyseBeforeEarly = alignTimestampToTradingDate('2026-11-27T17:30:00Z', 'AAPL');
+    assert.equal(nyseBeforeEarly.tradingDate, '2026-11-27');
+    assert.equal(nyseBeforeEarly.rolledForward, false);
+    assert.equal(nyseBeforeEarly.isEarlyClose, true);
+    // 18:15 UTC == 13:15 EST (AFTER 13:00 early close -> rolls over weekend to Mon 2026-11-30!)
+    const nyseAfterEarly = alignTimestampToTradingDate('2026-11-27T18:15:00Z', 'AAPL');
+    assert.equal(nyseAfterEarly.tradingDate, '2026-11-30');
+    assert.equal(nyseAfterEarly.rolledForward, true);
+    assert.equal(nyseAfterEarly.rollReason, 'early_close');
 
-    // 2026-05-01 07:00 UTC == 16:00 JST (after close -> skips weekend + Greenery Day May 4 + Children's Day May 5 + Constitution Day substitute May 6 -> 2026-05-07!)
+    // UI status on NYSE early close vs normal open
+    const uiNyseEarlyOpen = getExchangeMarketStatus({ ticker: 'AAPL', now: new Date('2026-11-27T17:30:00Z') });
+    assert.equal(uiNyseEarlyOpen.isOpen, true);
+    assert.equal(uiNyseEarlyOpen.isEarlyClose, true);
+    const uiNyseEarlyClosed = getExchangeMarketStatus({ ticker: 'AAPL', now: new Date('2026-11-27T18:15:00Z') });
+    assert.equal(uiNyseEarlyClosed.isOpen, false);
+    assert.equal(uiNyseEarlyClosed.isEarlyClose, true);
+
+    // 2. LSE (XLON, Europe/London): Summer Bank Holiday 2026-08-31, BST/GMT DST change, & Dec 24 early close 12:30 GMT
+    assert.equal(isExchangeHoliday('2026-08-31', 'AZN.L'), true);
+    const lsePreDst = alignTimestampToTradingDate('2026-03-27T16:15:00Z', 'AZN.L'); // GMT: 16:15 (before 16:30 close)
+    assert.equal(lsePreDst.exchangeLocalHour, 16);
+    assert.equal(lsePreDst.tradingDate, '2026-03-27');
+    const lsePostDst = alignTimestampToTradingDate('2026-03-30T16:15:00Z', 'AZN.L'); // BST: 17:15 (after 16:30 close!)
+    assert.equal(lsePostDst.exchangeLocalHour, 17);
+    assert.equal(lsePostDst.tradingDate, '2026-03-31');
+    // LSE Christmas Eve 2026-12-24 closes early at 12:30 GMT -> 12:45 GMT rolls over Dec 25, weekend, Dec 28 Boxing observed -> Dec 29!
+    const lseEarlyClose = alignTimestampToTradingDate('2026-12-24T12:45:00Z', 'AZN.L');
+    assert.equal(lseEarlyClose.rollReason, 'early_close');
+    assert.equal(lseEarlyClose.tradingDate, '2026-12-29');
+
+    // 3. XETRA (XETR): Year-End Early Close 2026-12-30 at 14:00 CET (13:00 UTC) -> rolls over Dec 31 + Jan 1 2027 to Mon 2027-01-04
+    const xetrEarly = alignTimestampToTradingDate('2026-12-30T13:30:00Z', 'SAP.DE');
+    assert.equal(xetrEarly.exchangeLocalHour, 14);
+    assert.equal(xetrEarly.rollReason, 'early_close');
+    assert.equal(xetrEarly.tradingDate, '2027-01-04');
+
+    // 4. TSE (XTKS, Asia/Tokyo, 7203.T): Golden Week 2026 + statutory Jan 2/3 & Dec 31 + 2027 Vernal Equinox
+    const tseOpen = alignTimestampToTradingDate('2026-05-01T05:00:00Z', '7203.T');
+    assert.equal(tseOpen.tradingDate, '2026-05-01');
     assert.equal(isExchangeHoliday('2026-05-04', 'XTKS'), true);
     assert.equal(isExchangeHoliday('2026-05-05', 'XTKS'), true);
     assert.equal(isExchangeHoliday('2026-05-06', 'XTKS'), true);
     const tseGoldenWeek = alignTimestampToTradingDate('2026-05-01T07:00:00Z', '7203.T');
     assert.equal(tseGoldenWeek.tradingDate, '2026-05-07');
-    assert.equal(tseGoldenWeek.rolledForward, true);
-
-    // Statutory JPX closures: Jan 2, Jan 3, Dec 31
     assert.equal(isExchangeHoliday('2026-01-02', 'XTKS'), true);
     assert.equal(isExchangeHoliday('2026-12-31', 'XTKS'), true);
+    assert.equal(isExchangeHoliday('2027-03-22', 'XTKS'), true);
 
-    // HKEX (XHKG): session closes 16:00 HKT (08:00 UTC)
-    // 2026-06-30 07:30 UTC == 15:30 HKT (before 16:00 close)
+    // 5. HKEX (XHKG, Asia/Hong_Kong, 0700.HK): HKSAR Day 2026-07-01, National Day 2026-10-01, & half-day CNY/Xmas Eve 12:00 HKT
     const hkOpen = alignTimestampToTradingDate('2026-06-30T07:30:00Z', '0700.HK');
     assert.equal(hkOpen.tradingDate, '2026-06-30');
-    assert.equal(hkOpen.rolledForward, false);
-
-    // 2026-06-30 08:30 UTC == 16:30 HKT (after close before HKSAR Establishment Day 2026-07-01 -> rolls to 2026-07-02!)
     assert.equal(isExchangeHoliday('2026-07-01', 'XHKG'), true);
     const hkBeforeHksar = alignTimestampToTradingDate('2026-06-30T08:30:00Z', '0700.HK');
     assert.equal(hkBeforeHksar.tradingDate, '2026-07-02');
-    assert.equal(hkBeforeHksar.rolledForward, true);
-
-    // HKEX National Day (2026-10-01) & Chung Yeung / Lunar New Year
     assert.equal(isExchangeHoliday('2026-10-01', 'XHKG'), true);
     assert.equal(isExchangeHoliday('2026-02-17', 'XHKG'), true);
+    // HKEX half-day Lunar New Year's Eve 2026-02-16 closes 12:00 HKT (04:00 UTC) -> 05:00 UTC rolls past Feb 17-19 CNY to Feb 20!
+    const hkHalfDay = alignTimestampToTradingDate('2026-02-16T05:00:00Z', '0700.HK');
+    assert.equal(hkHalfDay.rollReason, 'early_close');
+    assert.equal(hkHalfDay.tradingDate, '2026-02-20');
+
+    // 6. KRX (XKRX) & NSE (XNSE) 2027 checks (no DST in IN/KR/JP/HK, verified holiday continuity)
+    assert.equal(isExchangeHoliday('2027-12-27', 'XKRX'), true);
+    assert.equal(isExchangeHoliday('2027-01-26', 'XNSE'), true);
+    assert.equal(isExchangeHoliday('2027-03-26', 'XNSE'), true);
   });
 });

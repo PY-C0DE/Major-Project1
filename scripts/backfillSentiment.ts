@@ -13,6 +13,7 @@
  *   npx tsx scripts/backfillSentiment.ts
  */
 
+import 'dotenv/config';
 import { TICKER_CATALOG } from '../src/shared/tickerCatalog';
 import { collectAndPersistLiveSentimentForTicker } from '../src/server/math/nlpEngine';
 import { db } from '../src/server/store/db';

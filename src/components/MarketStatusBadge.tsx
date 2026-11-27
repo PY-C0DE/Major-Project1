@@ -1,7 +1,7 @@
 /**
  * Exchange Market Status Indicator
- * Displays whether the market for a given equity is currently Open or Closed
- * per its respective domestic exchange hours & timezone, updating live.
+ * Displays whether the market for a given equity is currently Open, Closed (including holidays
+ * and early closes), or explicitly Calendar Unknown when verified holiday coverage is absent.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -46,15 +46,50 @@ export const MarketStatusBadge: React.FC<MarketStatusBadgeProps> = ({
     now,
   });
 
+  if (!status.calendarKnown || status.session === 'calendar_unknown') {
+    const unknownText = compact
+      ? t('stock.calendar_unknown_short', 'Cal Unknown')
+      : t('stock.calendar_unknown', 'Calendar Unknown');
+    const tooltip = `${status.exchangeLabel}: ${unknownText} — No verified exchange holiday calendar for this exchange or year.`;
+
+    if (compact) {
+      return (
+        <span
+          title={tooltip}
+          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[10px] font-semibold shrink-0 border bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/70 ${className}`}
+        >
+          <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-amber-500" />
+          <span>{unknownText}</span>
+        </span>
+      );
+    }
+
+    return (
+      <span
+        title={tooltip}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-mono text-[11px] font-bold border shrink-0 bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800/60 ${className}`}
+      >
+        <span className="inline-flex rounded-full h-2 w-2 bg-amber-500 shrink-0" />
+        <span>
+          {showExchange ? `${status.exchangeLabel} · ` : ''}
+          {unknownText}
+        </span>
+      </span>
+    );
+  }
+
   const openText = compact ? t('stock.open_short', 'Open') : t('stock.market_open', 'Market Open');
   const closedText = compact ? t('stock.closed_short', 'Closed') : t('stock.market_closed', 'Market Closed');
 
-  const extendedSuffix =
-    !status.isOpen && !compact && status.session === 'pre'
-      ? ` · ${t('stock.pre_market', 'Pre-Market')}`
-      : !status.isOpen && !compact && status.session === 'post'
-      ? ` · ${t('stock.after_hours', 'After-Hours')}`
-      : '';
+  const extendedSuffix = status.isHoliday
+    ? ` · ${t('stock.holiday', 'Exchange Holiday')}`
+    : status.isEarlyClose && status.isOpen && !compact
+    ? ` · ${t('stock.early_close', 'Early Close')}`
+    : !status.isOpen && !compact && status.session === 'pre'
+    ? ` · ${t('stock.pre_market', 'Pre-Market')}`
+    : !status.isOpen && !compact && status.session === 'post'
+    ? ` · ${t('stock.after_hours', 'After-Hours')}`
+    : '';
 
   const tooltip = `${status.exchangeLabel}: ${status.isOpen ? openText : closedText}${extendedSuffix} (${status.scheduleText} · ${status.localTimeFormatted})`;
 

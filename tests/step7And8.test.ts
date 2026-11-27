@@ -424,6 +424,14 @@ describe('Step 7C — Compliance Config, User Data Export & Account Deletion', (
       timestamp: new Date().toISOString()
     });
 
+    await db.createAuthToken({
+      id: 'tok-gdpr-1',
+      userId,
+      purpose: 'email_verification',
+      tokenHash: 'secret-sha256-hash-should-not-leak',
+      expiresAt: new Date(Date.now() + 3600_000).toISOString()
+    });
+
     const expRes = await request(app)
       .get('/api/account/export')
       .set('Authorization', `Bearer ${token}`);
@@ -435,26 +443,52 @@ describe('Step 7C — Compliance Config, User Data Export & Account Deletion', (
     assert.ok(expRes.body.watchlist.includes('MSFT'));
     assert.equal(expRes.body.alerts.length, 1);
     assert.equal(expRes.body.predictionHistory.length, 1);
+    assert.equal(expRes.body.authTokens.length, 1);
+    assert.equal(expRes.body.authTokens[0].purpose, 'email_verification');
+    assert.equal(expRes.body.authTokens[0].tokenHash, undefined);
 
     // Wrong confirmation phrase fails 400
     const badDel = await request(app)
       .delete('/api/account')
       .set('Authorization', `Bearer ${token}`)
-      .send({ confirmText: 'delete' });
+      .send({ confirmText: 'delete', currentPassword: 'StrongPassword!2026' });
     assert.equal(badDel.status, 400);
 
-    // Exact confirmation permanently deletes account
-    const delRes = await request(app)
+    // Missing or wrong current password fails 401 re-authentication check
+    const noPwDel = await request(app)
       .delete('/api/account')
       .set('Authorization', `Bearer ${token}`)
       .send({ confirmText: 'DELETE MY ACCOUNT' });
+    assert.equal(noPwDel.status, 401);
+
+    const wrongPwDel = await request(app)
+      .delete('/api/account')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ confirmText: 'DELETE MY ACCOUNT', currentPassword: 'WrongPassword!123' });
+    assert.equal(wrongPwDel.status, 401);
+
+    // Exact confirmation + valid current password permanently deletes account
+    const delRes = await request(app)
+      .delete('/api/account')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ confirmText: 'DELETE MY ACCOUNT', currentPassword: 'StrongPassword!2026' });
     assert.equal(delRes.status, 200);
     assert.equal(delRes.body.success, true);
+    assert.equal(delRes.body.revokedSessions, true);
 
+    // Revoked JWT must return 401 on protected routes
     const meAfter = await request(app)
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${token}`);
-    assert.ok(meAfter.status === 401 || meAfter.status === 404);
+    assert.equal(meAfter.status, 401);
+
+    // Verify zero leftover rows for deleted user across every table
+    assert.equal(await db.getUserById(userId), undefined);
+    assert.equal((await db.getPortfolio(userId)).length, 0);
+    assert.equal((await db.getWatchlist(userId)).length, 0);
+    assert.equal((await db.getAlerts(userId)).length, 0);
+    assert.equal((await db.getPredictionHistory(userId)).length, 0);
+    assert.equal(await db.exportUserData(userId), null);
   });
 });
 

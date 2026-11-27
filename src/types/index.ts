@@ -122,7 +122,12 @@ export interface FeatureContribution {
   description: string;
 }
 
-export type SentimentSource = 'finbert' | 'lexicon' | 'multilingual-lexicon';
+export type SentimentSource =
+  | 'finbert'
+  | 'lexicon'
+  | 'multilingual-transformer'
+  | 'multilingual-lexicon'
+  | 'unsupported_language';
 
 export interface LiveNewsMeta {
   isLive: boolean;
@@ -134,6 +139,7 @@ export interface LiveNewsMeta {
   sentimentSource?: SentimentSource | 'mixed';
   language?: string;
   modelId?: string;
+  modelVersion?: string;
   topLiveHeadline?: string;
   topLiveSource?: string;
   newsDriftImpactPct: number;
@@ -275,6 +281,7 @@ export interface NewsItem {
   sentimentSource?: SentimentSource;
   language?: string;
   modelId?: string;
+  modelVersion?: string;
 }
 
 export interface MarketIndexItem {
@@ -331,6 +338,8 @@ export interface SentimentScoreResult {
   modelUsed: string;
   sentimentSource?: SentimentSource | 'mixed';
   language?: string;
+  modelId?: string;
+  modelVersion?: string;
   lastUpdated: string;
 }
 
@@ -341,7 +350,8 @@ export interface DailySentimentRecord {
   articleCount: number; // strictly > 0; zero-article days are omitted (missing)
   sentimentSource: SentimentSource | 'mixed';
   language?: string; // ISO 639-1 code or 'mixed'
-  modelId?: string; // exact scorer id (e.g. 'Xenova/finbert', 'multilingual-lexicon-v1', 'keyword-lexicon-fallback')
+  modelId?: string; // exact scorer id
+  modelVersion?: string; // exact model/lexicon version string
   updatedAt: string;
 }
 
@@ -700,7 +710,7 @@ export interface ModelAuditResponse {
   sentimentAblation?: SentimentAblationResult;
 }
 
-export type BackgroundJobType = 'audit' | 'backfill' | 'refit';
+export type BackgroundJobType = 'audit' | 'backfill' | 'refit' | 'ticker_refresh';
 export type BackgroundJobStatus = 'queued' | 'running' | 'completed' | 'failed';
 
 export interface BackgroundJobRecord {
@@ -860,6 +870,7 @@ export interface WatchlistPulseItem {
   sentimentSource?: SentimentSource;
   language?: string;
   modelId?: string;
+  modelVersion?: string;
   price?: number;
   changePercent?: number;
 }
@@ -931,6 +942,7 @@ export interface UserProfile {
   name: string;
   email: string;
   emailVerified?: boolean;
+  tokenVersion?: number;
   createdAt: string;
   isDemoUser?: boolean;
   avatarUrl?: string;

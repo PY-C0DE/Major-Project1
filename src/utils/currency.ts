@@ -26,7 +26,12 @@ export const CURRENCY_SYMBOLS: Record<string, string> = {
   DKK: 'kr ',
   ZAR: 'R ',
   MXN: 'Mex$',
-  IDR: 'Rp '
+  IDR: 'Rp ',
+  PLN: 'zł ',
+  TRY: '₺',
+  NZD: 'NZ$',
+  MYR: 'RM ',
+  THB: '฿'
 };
 
 /**
@@ -42,7 +47,7 @@ export function inferCurrencyFromTicker(ticker?: string): string {
   if (t.endsWith('.HK')) return 'HKD';
   if (t.endsWith('.TW') || t.endsWith('.TWO')) return 'TWD';
   if (t.endsWith('.L')) return 'GBP';
-  if (t.endsWith('.DE') || t.endsWith('.PA') || t.endsWith('.AS') || t.endsWith('.MC') || t.endsWith('.MI') || t.endsWith('.F') || t.endsWith('.BR') || t.endsWith('.HE') || t.endsWith('.LS')) return 'EUR';
+  if (t.endsWith('.DE') || t.endsWith('.PA') || t.endsWith('.AS') || t.endsWith('.MC') || t.endsWith('.MI') || t.endsWith('.F') || t.endsWith('.BR') || t.endsWith('.HE') || t.endsWith('.LS') || t.endsWith('.IR') || t.endsWith('.VI')) return 'EUR';
   if (t.endsWith('.SW')) return 'CHF';
   if (t.endsWith('.AX')) return 'AUD';
   if (t.endsWith('.TO') || t.endsWith('.V')) return 'CAD';
@@ -54,6 +59,11 @@ export function inferCurrencyFromTicker(ticker?: string): string {
   if (t.endsWith('.JO')) return 'ZAR';
   if (t.endsWith('.MX')) return 'MXN';
   if (t.endsWith('.JK')) return 'IDR';
+  if (t.endsWith('.WA')) return 'PLN';
+  if (t.endsWith('.IS')) return 'TRY';
+  if (t.endsWith('.NZ')) return 'NZD';
+  if (t.endsWith('.KL')) return 'MYR';
+  if (t.endsWith('.BK')) return 'THB';
   return 'USD';
 }
 
@@ -70,7 +80,7 @@ export function inferExchangeFromTicker(ticker?: string): string {
   if (t.endsWith('.T')) return 'TSE';
   if (t.endsWith('.L')) return 'LSE';
   if (t.endsWith('.DE') || t.endsWith('.F')) return 'XETRA';
-  if (t.endsWith('.PA') || t.endsWith('.AS') || t.endsWith('.BR')) return 'EURONEXT';
+  if (t.endsWith('.PA') || t.endsWith('.AS') || t.endsWith('.BR') || t.endsWith('.LS') || t.endsWith('.IR')) return 'EURONEXT';
   if (t.endsWith('.MC')) return 'BME';
   if (t.endsWith('.MI')) return 'MIL';
   if (t.endsWith('.SW')) return 'SIX';
@@ -87,6 +97,12 @@ export function inferExchangeFromTicker(ticker?: string): string {
   if (t.endsWith('.JO')) return 'JSE';
   if (t.endsWith('.MX')) return 'BMV';
   if (t.endsWith('.JK')) return 'IDX';
+  if (t.endsWith('.WA')) return 'WSE';
+  if (t.endsWith('.VI')) return 'VIE';
+  if (t.endsWith('.IS')) return 'BIST';
+  if (t.endsWith('.NZ')) return 'NZX';
+  if (t.endsWith('.KL')) return 'MYX';
+  if (t.endsWith('.BK')) return 'SET';
   return 'NASDAQ';
 }
 

@@ -7,63 +7,83 @@ import { detectTextLanguage } from '../src/server/math/languageDetection';
 import {
   scoreHeadlinesWithFinbert,
   setFinbertPipelineOverride,
+  setMultilingualPipelineOverride,
   resetFinbertState,
   FINBERT_MODEL_ID,
-  MULTILINGUAL_LEXICON_MODEL_ID
+  FINBERT_MODEL_VERSION,
+  MULTILINGUAL_MODEL_ID,
+  MULTILINGUAL_MODEL_VERSION,
+  MULTILINGUAL_LEXICON_MODEL_ID,
+  UNSUPPORTED_LANGUAGE_MODEL_ID
 } from '../src/server/math/finbertSentiment';
 import { buildDailySentimentRecordsFromLiveArticles } from '../src/server/math/nlpEngine';
 import { setStructuredLogSink, StructuredLogEntry } from '../src/server/middleware/logger';
 import { BackgroundJobQueue } from '../src/server/jobs/jobQueue';
 import { NewsItem } from '../src/types';
 
-describe('Step 5 — Multilingual Language Detection, FinBERT English-Only Guard & Sentiment Persistence', () => {
+describe('Step 5 — franc-min Language Detection, Multilingual Transformer, FinBERT English-Only Guard & Sentiment Persistence', () => {
   afterEach(() => {
     resetFinbertState();
   });
 
-  it('detects languages accurately across Korean, Japanese, Chinese, Hindi, European, and English headlines', () => {
+  it('detects languages across short headlines, mixed-language text, non-Latin scripts, and European/English headlines', () => {
     const ko = detectTextLanguage('삼성전자 분기 실적 호실적 기록하며 주가 급등');
     assert.equal(ko.language, 'ko');
     assert.equal(ko.isEnglish, false);
+    assert.equal(ko.detector, 'franc-min');
 
-    const ja = detectTextLanguage('トヨタ自動車が営業利益を上方修正し株価上昇');
-    assert.equal(ja.language, 'ja');
-    assert.equal(ja.isEnglish, false);
+    const jaMixed = detectTextLanguage('NVIDIA (NVDA) 決算は予想を上回る大幅増益で株価急上昇');
+    assert.equal(jaMixed.language, 'ja');
+    assert.equal(jaMixed.isEnglish, false);
 
     const zh = detectTextLanguage('腾讯控股季度盈利增长创纪录并宣布分红');
     assert.equal(zh.language, 'zh');
     assert.equal(zh.isEnglish, false);
 
-    const hi = detectTextLanguage('रिलायंस इंडस्ट्रीज का मुनाफा रिकॉर्ड स्तर पर पहुंचा');
+    const hi = detectTextLanguage('रिलायंस इंडस्ट्रीज का मुनाफा रिकॉर्ड स्तर पर पहुंचा और लाभांश बढ़ाया');
     assert.equal(hi.language, 'hi');
     assert.equal(hi.isEnglish, false);
 
     const de = detectTextLanguage('SAP steigert Gewinn im Quartal und hebt Prognose für das Wachstum an');
     assert.equal(de.language, 'de');
     assert.equal(de.isEnglish, false);
+    assert.equal(de.detector, 'franc-min');
 
     const fr = detectTextLanguage('TotalEnergies annonce une hausse record du bénéfice pour le trimestre');
     assert.equal(fr.language, 'fr');
     assert.equal(fr.isEnglish, false);
+    assert.equal(fr.detector, 'franc-min');
 
     const es = detectTextLanguage('Banco Santander sube tras publicar beneficio récord y fuerte crecimiento');
     assert.equal(es.language, 'es');
     assert.equal(es.isEnglish, false);
+    assert.equal(es.detector, 'franc-min');
 
     const en = detectTextLanguage('Apple reports strong quarterly earnings growth and raises revenue guidance');
     assert.equal(en.language, 'en');
     assert.equal(en.isEnglish, true);
+    assert.equal(en.detector, 'franc-min');
+
+    // Very short headline falls back gracefully without falsely calling non-English text English
+    const shortDe = detectTextLanguage('SAP Gewinn steigt');
+    assert.equal(shortDe.language, 'de');
+    assert.equal(shortDe.isEnglish, false);
+    assert.equal(shortDe.detector, 'heuristic-fallback');
+
+    const shortEn = detectTextLanguage('NVDA beats Q3');
+    assert.equal(shortEn.language, 'en');
+    assert.equal(shortEn.isEnglish, true);
+    assert.equal(shortEn.detector, 'heuristic-fallback');
   });
 
-  it('NEVER passes non-English text to English FinBERT and routes mixed batches cleanly', async () => {
+  it('routes English to FinBERT, supported non-English to multilingual transformer (with lexicon fallback), and marks unsupported languages explicitly', async () => {
     const finbertInputsSeen: string[] = [];
+    const multiInputsSeen: string[] = [];
 
     setFinbertPipelineOverride(async () => {
       return async (texts: string | string[]) => {
         const list = Array.isArray(texts) ? texts : [texts];
-        for (const t of list) {
-          finbertInputsSeen.push(t);
-        }
+        for (const t of list) finbertInputsSeen.push(t);
         return list.map(() => [
           { label: 'positive', score: 0.88 },
           { label: 'neutral', score: 0.09 },
@@ -72,21 +92,46 @@ describe('Step 5 — Multilingual Language Detection, FinBERT English-Only Guard
       };
     });
 
-    // Purely non-English batch must NOT invoke FinBERT loader or pipeline at all
+    setMultilingualPipelineOverride(async () => {
+      return async (texts: string | string[]) => {
+        const list = Array.isArray(texts) ? texts : [texts];
+        for (const t of list) multiInputsSeen.push(t);
+        return list.map((t) =>
+          t.includes('下方修正')
+            ? [
+                { label: 'negative', score: 0.84 },
+                { label: 'neutral', score: 0.11 },
+                { label: 'positive', score: 0.05 }
+              ]
+            : [
+                { label: 'positive', score: 0.81 },
+                { label: 'neutral', score: 0.14 },
+                { label: 'negative', score: 0.05 }
+              ]
+        );
+      };
+    });
+
+    // 1. Supported non-English (de) uses multilingual-transformer; unsupported (ko) is flagged unsupported_language; NEVER touches FinBERT
     const nonEnglishResults = await scoreHeadlinesWithFinbert([
       { headline: '삼성전자 호실적 발표로 주가 상승 및 배당 확대', publisher: 'Yonhap' },
       { headline: 'SAP steigert Gewinn und hebt Prognose deutlich an', publisher: 'Handelsblatt' }
     ]);
     assert.equal(finbertInputsSeen.length, 0, 'FinBERT must NEVER be called for non-English headlines');
-    assert.equal(nonEnglishResults[0].sentimentSource, 'multilingual-lexicon');
-    assert.equal(nonEnglishResults[0].language, 'ko');
-    assert.equal(nonEnglishResults[0].modelId, MULTILINGUAL_LEXICON_MODEL_ID);
-    assert.ok(nonEnglishResults[0].sentimentScore > 0);
-    assert.equal(nonEnglishResults[1].sentimentSource, 'multilingual-lexicon');
-    assert.equal(nonEnglishResults[1].language, 'de');
-    assert.ok(nonEnglishResults[1].sentimentScore > 0);
+    assert.equal(multiInputsSeen.length, 1);
 
-    // Mixed batch: only the English headline hits FinBERT; Japanese negative headline uses multilingual lexicon
+    assert.equal(nonEnglishResults[0].sentimentSource, 'unsupported_language');
+    assert.equal(nonEnglishResults[0].language, 'ko');
+    assert.equal(nonEnglishResults[0].modelId, UNSUPPORTED_LANGUAGE_MODEL_ID);
+    assert.equal(nonEnglishResults[0].sentimentScore, 0);
+
+    assert.equal(nonEnglishResults[1].sentimentSource, 'multilingual-transformer');
+    assert.equal(nonEnglishResults[1].language, 'de');
+    assert.equal(nonEnglishResults[1].modelId, MULTILINGUAL_MODEL_ID);
+    assert.equal(nonEnglishResults[1].modelVersion, MULTILINGUAL_MODEL_VERSION);
+    assert.ok(nonEnglishResults[1].sentimentScore > 0.7);
+
+    // 2. Mixed batch: English hits FinBERT, Japanese hits multilingual transformer
     const mixedResults = await scoreHeadlinesWithFinbert([
       { headline: 'NVIDIA beats revenue expectations on strong data center growth', publisher: 'Reuters' },
       { headline: 'ソニーが下方修正と減益を発表し株価急落', publisher: 'Nikkei' }
@@ -97,54 +142,94 @@ describe('Step 5 — Multilingual Language Detection, FinBERT English-Only Guard
     assert.equal(mixedResults[0].sentimentSource, 'finbert');
     assert.equal(mixedResults[0].language, 'en');
     assert.equal(mixedResults[0].modelId, FINBERT_MODEL_ID);
-    assert.ok(mixedResults[0].sentimentScore > 0.7);
+    assert.equal(mixedResults[0].modelVersion, FINBERT_MODEL_VERSION);
 
-    assert.equal(mixedResults[1].sentimentSource, 'multilingual-lexicon');
+    assert.equal(mixedResults[1].sentimentSource, 'multilingual-transformer');
     assert.equal(mixedResults[1].language, 'ja');
-    assert.equal(mixedResults[1].modelId, MULTILINGUAL_LEXICON_MODEL_ID);
-    assert.ok(mixedResults[1].sentimentScore < 0);
+    assert.equal(mixedResults[1].modelId, MULTILINGUAL_MODEL_ID);
+    assert.ok(mixedResults[1].sentimentScore < -0.5);
+
+    // 3. Fallback when multilingual transformer fails
+    resetFinbertState();
+    setMultilingualPipelineOverride(async () => {
+      throw new Error('Multilingual ONNX load error');
+    });
+    const fallbackRes = await scoreHeadlinesWithFinbert([
+      { headline: 'SAP steigert Gewinn und hebt Prognose deutlich an', publisher: 'Handelsblatt' }
+    ]);
+    assert.equal(fallbackRes[0].sentimentSource, 'multilingual-lexicon');
+    assert.equal(fallbackRes[0].modelId, MULTILINGUAL_LEXICON_MODEL_ID);
+    assert.equal(fallbackRes[0].modelVersion, 'v1');
+    assert.ok(fallbackRes[0].sentimentScore > 0);
   });
 
-  it('persists language and modelId per daily sentiment record through repository storage', async () => {
+  it('persists language, modelId, and modelVersion and excludes unsupported_language from daily sentiment aggregates', async () => {
     const repo = createInMemoryRepository();
     const articles: NewsItem[] = [
       {
-        id: 'ko-1',
-        ticker: '005930.KS',
-        headline: '삼성전자 호실적 발표로 주가 상승',
-        summary: '견조한 반도체 성장',
+        id: 'de-1',
+        ticker: 'SAP.DE',
+        headline: 'SAP steigert Gewinn und hebt Prognose an',
+        summary: 'Starkes Cloud-Wachstum',
         source: 'Reuters',
-        url: 'https://example.com/ko-1',
-        publishedAt: '2026-03-04T04:00:00Z', // 13:00 KST -> open session 2026-03-04
+        url: 'https://example.com/de-1',
+        publishedAt: '2026-03-04T11:00:00Z', // 12:00 CET -> open XETR session
         sentiment: 'positive',
-        sentimentScore: 0.62,
-        probabilities: { positive: 0.75, neutral: 0.15, negative: 0.1 },
-        confidence: 0.75,
+        sentimentScore: 0.76,
+        probabilities: { positive: 0.82, neutral: 0.12, negative: 0.06 },
+        confidence: 0.82,
         factCheckStatus: 'Verified',
         verificationScore: 0.96,
         sourceCredibility: 0.96,
         isLive: true,
         dataSource: 'live',
-        sentimentSource: 'multilingual-lexicon',
-        language: 'ko',
-        modelId: MULTILINGUAL_LEXICON_MODEL_ID
+        sentimentSource: 'multilingual-transformer',
+        language: 'de',
+        modelId: MULTILINGUAL_MODEL_ID,
+        modelVersion: MULTILINGUAL_MODEL_VERSION
+      },
+      {
+        id: 'ru-unsupported',
+        ticker: 'SAP.DE',
+        headline: 'Неподдерживаемый язык финансовой новости для теста',
+        summary: 'Тест исключения',
+        source: 'Reuters',
+        url: 'https://example.com/ru-1',
+        publishedAt: '2026-03-05T11:00:00Z',
+        sentiment: 'neutral',
+        sentimentScore: 0,
+        probabilities: { positive: 0, neutral: 1, negative: 0 },
+        confidence: 0,
+        factCheckStatus: 'Verified',
+        verificationScore: 0.96,
+        sourceCredibility: 0.96,
+        isLive: true,
+        dataSource: 'live',
+        sentimentSource: 'unsupported_language',
+        language: 'ru',
+        modelId: UNSUPPORTED_LANGUAGE_MODEL_ID,
+        modelVersion: 'n/a'
       }
     ];
 
-    const daily = buildDailySentimentRecordsFromLiveArticles('005930.KS', articles);
+    const daily = buildDailySentimentRecordsFromLiveArticles('SAP.DE', articles);
+    // Only the supported German article aggregates; unsupported_language day (2026-03-05) is excluded
     assert.equal(daily.length, 1);
-    assert.equal(daily[0].language, 'ko');
-    assert.equal(daily[0].modelId, MULTILINGUAL_LEXICON_MODEL_ID);
-    assert.equal(daily[0].sentimentSource, 'multilingual-lexicon');
+    assert.equal(daily[0].date, '2026-03-04');
+    assert.equal(daily[0].language, 'de');
+    assert.equal(daily[0].modelId, MULTILINGUAL_MODEL_ID);
+    assert.equal(daily[0].modelVersion, MULTILINGUAL_MODEL_VERSION);
+    assert.equal(daily[0].sentimentSource, 'multilingual-transformer');
 
     const upsert = await repo.upsertDailySentiment(daily, { persist: false });
     assert.equal(upsert.inserted, 1);
 
-    const stored = await repo.getDailySentimentForTicker('005930.KS');
+    const stored = await repo.getDailySentimentForTicker('SAP.DE');
     assert.equal(stored.length, 1);
-    assert.equal(stored[0].language, 'ko');
-    assert.equal(stored[0].modelId, MULTILINGUAL_LEXICON_MODEL_ID);
-    assert.equal(stored[0].sentimentSource, 'multilingual-lexicon');
+    assert.equal(stored[0].language, 'de');
+    assert.equal(stored[0].modelId, MULTILINGUAL_MODEL_ID);
+    assert.equal(stored[0].modelVersion, MULTILINGUAL_MODEL_VERSION);
+    assert.equal(stored[0].sentimentSource, 'multilingual-transformer');
   });
 });
 
@@ -353,5 +438,67 @@ describe('Step 6 — Security Hardening, Validation, Probes, Structured Logging 
       .get('/api/jobs/non-existent-id')
       .set('Authorization', `Bearer ${token}`);
     assert.equal(missingJob.status, 404);
+  });
+
+  it('executes built-in ticker_refresh job and excludes delisted (active=false) entries from ranked search', async () => {
+    resetRepository();
+    const queue = new BackgroundJobQueue({ concurrency: 1 });
+    const app = createApp({
+      jwtSecret: 'step6-refresh-secret-with-at-least-32-chars',
+      jobQueue: queue
+    });
+
+    const reg = await request(app).post('/api/auth/register').send({
+      name: 'Universe Operator',
+      email: 'universe-op@example.com',
+      password: 'StrongPassword!2026'
+    });
+    assert.equal(reg.status, 201);
+    const token = reg.body.token as string;
+
+    // Seed an explicitly delisted symbol alongside active entries
+    const jobRes = await request(app)
+      .post('/api/jobs')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'ticker_refresh' });
+    assert.equal(jobRes.status, 202);
+    assert.equal(jobRes.body.job.type, 'ticker_refresh');
+
+    let finalJob: any = null;
+    for (let i = 0; i < 40; i++) {
+      const check = await request(app)
+        .get(`/api/jobs/${jobRes.body.job.id}`)
+        .set('Authorization', `Bearer ${token}`);
+      if (check.body.job.status === 'completed' || check.body.job.status === 'failed') {
+        finalJob = check.body.job;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
+
+    assert.equal(finalJob?.status, 'completed');
+    assert.equal(finalJob?.result?.csvLoaded, true);
+    assert.ok(finalJob?.result?.activeTickers >= 1000, `Expected >= 1000 active tickers, got ${finalJob?.result?.activeTickers}`);
+    assert.ok(finalJob?.result?.inactiveTickers >= 1, 'Expected at least 1 delisted/inactive ticker');
+
+    // Verify GET /api/tickers/search covers >= 25 exchanges and excludes delisted inactive rows
+    const page1 = await request(app).get('/api/tickers/search?limit=50&page=1');
+    assert.equal(page1.status, 200);
+    assert.ok(page1.body.total >= 1000);
+    assert.ok(page1.body.filters.exchanges.length >= 25, `Expected >= 25 exchanges, got ${page1.body.filters.exchanges.length}`);
+
+    const { db } = await import('../src/server/store/db');
+    const allRows = await db.getAllTickers(false);
+    const delistedSample = allRows.find((t) => !t.active);
+    assert.ok(delistedSample, 'Should include at least one inactive/delisted sample row');
+    const delistedSearch = await request(app).get(`/api/tickers/search?q=${encodeURIComponent(delistedSample.symbol)}`);
+    assert.equal(delistedSearch.status, 200);
+    assert.equal(
+      delistedSearch.body.items.some((i: any) => i.symbol === delistedSample.symbol),
+      false,
+      'Delisted (active=false) ticker must not appear in active search results'
+    );
+
+    await queue.close();
   });
 });

@@ -590,9 +590,13 @@ export const DailyMarketDigest: React.FC<Props> = ({ onSelectTicker, onNavigate 
                         <span>
                           {item.sentimentSource === 'finbert'
                             ? 'FinBERT'
-                            : item.sentimentSource === 'multilingual-lexicon'
-                              ? `Multilingual${item.language ? ` (${item.language.toUpperCase()})` : ''}`
-                              : 'Lexicon'}{' '}
+                            : item.sentimentSource === 'multilingual-transformer'
+                              ? `Multilingual Transformer${item.language ? ` (${item.language.toUpperCase()})` : ''}`
+                              : item.sentimentSource === 'multilingual-lexicon'
+                                ? `Multilingual Lexicon${item.language ? ` (${item.language.toUpperCase()})` : ''}`
+                                : item.sentimentSource === 'unsupported_language'
+                                  ? `Unsupported Lang${item.language ? ` (${item.language.toUpperCase()})` : ''}`
+                                  : 'Lexicon'}{' '}
                           · Conf: {Math.round((item.confidence || 0.9) * 100)}%
                         </span>
                         <span className="text-cyan-600 dark:text-cyan-400 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform font-bold">

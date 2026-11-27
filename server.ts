@@ -382,7 +382,16 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     try {
       const decoded: any = jwt.verify(token, JWT_SECRET);
       if (decoded?.id && decoded?.email) {
-        return { id: decoded.id, email: decoded.email, name: decoded.name || decoded.email };
+        const dbUser = await db.getUserById(decoded.id);
+        if (!dbUser) {
+          return null;
+        }
+        const currentVersion = dbUser.tokenVersion ?? 1;
+        const tokenVersion = typeof decoded.tokenVersion === 'number' ? decoded.tokenVersion : 1;
+        if (currentVersion !== tokenVersion) {
+          return null;
+        }
+        return { id: dbUser.id, email: dbUser.email, name: dbUser.name || decoded.email };
       }
     } catch {
       // Not a valid local JWT; try Firebase Admin verification
@@ -423,15 +432,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
     const resolved = await resolveTokenUser(token);
     if (!resolved) {
-      if (ALLOW_DEMO_MODE) {
-        req.user = {
-          id: 'user-alphaquant-demo-1',
-          email: 'alex.morgan@alphaquant.ai',
-          name: 'Alex Morgan, CFA'
-        };
-        return next();
-      }
-      return res.status(401).json({ error: 'Invalid or expired authentication token.' });
+      return res.status(401).json({ error: 'Invalid, revoked, or expired authentication token.' });
     }
 
     req.user = resolved;
@@ -470,6 +471,7 @@ app.post('/api/auth/register', validateBody(registerSchema), async (req: Request
       passwordHash,
       isDemoUser: false,
       emailVerified: false,
+      tokenVersion: 1,
       title: 'Quantitative Strategist',
       organization: 'Alpha Desk',
       currencyPreference: 'INR' as const,
@@ -489,7 +491,7 @@ app.post('/api/auth/register', validateBody(registerSchema), async (req: Request
     await db.createUser(newUser);
 
     const token = jwt.sign(
-      { id: newUser.id, email: newUser.email, name: newUser.name },
+      { id: newUser.id, email: newUser.email, name: newUser.name, tokenVersion: newUser.tokenVersion },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -519,7 +521,7 @@ app.post('/api/auth/login', validateBody(loginSchema), async (req: Request, res:
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, name: user.name },
+      { id: user.id, email: user.email, name: user.name, tokenVersion: user.tokenVersion ?? 1 },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -630,7 +632,7 @@ app.put('/api/auth/change-password', authenticateToken, validateBody(changePassw
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(newPassword, salt);
-    await db.updateUser(userId, { passwordHash });
+    await db.updateUserPassword(userId, passwordHash);
 
     return res.json({ success: true, message: 'Password updated successfully.' });
   } catch (err: any) {
@@ -872,13 +874,73 @@ app.get('/api/account/export', authenticateToken, async (req: AuthenticatedReque
 app.delete('/api/account', authenticateToken, validateBody(deleteAccountSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id || 'user-alphaquant-demo-1';
+    const user = await db.getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    const { currentPassword, firebaseIdToken } = req.body as {
+      confirmText: 'DELETE MY ACCOUNT';
+      currentPassword?: string;
+      firebaseIdToken?: string;
+    };
+
+    const authHeader = req.headers['authorization'];
+    const bearerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+    const candidateFirebaseToken = firebaseIdToken || (user.uid ? bearerToken : undefined);
+
+    let reauthenticated = false;
+
+    if (candidateFirebaseToken) {
+      try {
+        const decodedFb = await adminAuth.verifyIdToken(candidateFirebaseToken);
+        const uidMatches = Boolean(decodedFb?.uid && (user.uid ? decodedFb.uid === user.uid : false));
+        const emailMatches = Boolean(
+          decodedFb?.email && decodedFb.email.trim().toLowerCase() === user.email.trim().toLowerCase()
+        );
+        const authTimeSec = Number((decodedFb as Record<string, unknown>)?.auth_time ?? decodedFb?.iat ?? 0);
+        const ageSec = Math.floor(Date.now() / 1000) - authTimeSec;
+        if ((uidMatches || emailMatches) && Number.isFinite(ageSec) && ageSec <= 900) {
+          reauthenticated = true;
+        } else if (!user.passwordHash) {
+          return res.status(401).json({
+            error: 'Fresh Firebase re-authentication (signed in within the last 15 minutes) is required before account deletion.'
+          });
+        }
+      } catch {
+        if (!user.passwordHash || firebaseIdToken) {
+          return res.status(401).json({ error: 'Invalid or expired Firebase re-authentication token.' });
+        }
+      }
+    }
+
+    if (!reauthenticated) {
+      if (!user.passwordHash) {
+        return res.status(401).json({
+          error: 'Re-authentication with a fresh Firebase sign-in token is required before account deletion.'
+        });
+      }
+      if (!currentPassword) {
+        return res.status(401).json({
+          error: 'Current password re-authentication is required before account deletion.'
+        });
+      }
+      const passwordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!passwordValid) {
+        return res.status(401).json({
+          error: 'Incorrect current password. Account deletion aborted.'
+        });
+      }
+    }
+
     const deleted = await db.deleteUser(userId);
     if (!deleted) {
       return res.status(404).json({ error: 'User account not found.' });
     }
     return res.status(200).json({
       success: true,
-      message: 'Account and associated personal data permanently deleted.'
+      revokedSessions: true,
+      message: 'Account and associated personal data permanently deleted and active sessions revoked.'
     });
   } catch (err: any) {
     console.error('Error deleting user account:', err);
@@ -1136,11 +1198,15 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
     const modelUsed =
       hybrid.sentimentSource === 'finbert'
         ? 'FinBERT Transformer (Xenova/finbert, English, Publisher-Credibility Weighted)'
-        : hybrid.sentimentSource === 'multilingual-lexicon'
-          ? `Multilingual Financial Lexicon (${hybrid.language || 'multi'}, Non-English FinBERT Guard)`
-          : hybrid.sentimentSource === 'mixed'
-            ? 'FinBERT Transformer + Multilingual/Keyword Lexicon Hybrid (Publisher-Credibility Weighted)'
-            : 'Keyword Financial-Sentiment Lexicon Fallback (Publisher-Credibility Weighted)';
+        : hybrid.sentimentSource === 'multilingual-transformer'
+          ? `Multilingual Sentiment Transformer (${hybrid.modelId}, ${hybrid.language || 'multi'}, Publisher-Credibility Weighted)`
+          : hybrid.sentimentSource === 'multilingual-lexicon'
+            ? `Multilingual Financial Lexicon Fallback (${hybrid.language || 'multi'})`
+            : hybrid.sentimentSource === 'unsupported_language'
+              ? `Unsupported Language (${hybrid.language || 'und'} — excluded from aggregates)`
+              : hybrid.sentimentSource === 'mixed'
+                ? 'FinBERT / Multilingual Transformer + Lexicon Hybrid (Publisher-Credibility Weighted)'
+                : 'Keyword Financial-Sentiment Lexicon Fallback (Publisher-Credibility Weighted)';
 
     return res.json({
       ticker,
@@ -1160,6 +1226,7 @@ app.get('/api/sentiment/:ticker', async (req: Request, res: Response) => {
       sentimentSource: hybrid.sentimentSource,
       language: hybrid.language,
       modelId: hybrid.modelId,
+      modelVersion: hybrid.modelVersion,
       modelUsed,
       lastUpdated: new Date().toISOString()
     });
@@ -1216,6 +1283,7 @@ app.get('/api/predictions/:ticker', async (req: Request, res: Response) => {
       sentimentSource: hybrid.sentimentSource,
       language: hybrid.language,
       modelId: hybrid.modelId,
+      modelVersion: hybrid.modelVersion,
       topLiveHeadline: hybrid.topLiveHeadline,
       topLiveSource: hybrid.topLiveSource,
       newsDriftImpactPct: Number((hybrid.blendedSentimentScore * 1.5).toFixed(2)),
@@ -1272,6 +1340,7 @@ app.post('/api/predictions', authenticateToken, validateBody(createPredictionSch
       sentimentSource: hybrid.sentimentSource,
       language: hybrid.language,
       modelId: hybrid.modelId,
+      modelVersion: hybrid.modelVersion,
       topLiveHeadline: hybrid.topLiveHeadline,
       topLiveSource: hybrid.topLiveSource,
       newsDriftImpactPct: Number((hybrid.blendedSentimentScore * 1.5).toFixed(2)),
@@ -1502,7 +1571,7 @@ app.post(
   async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { type, ticker, tickers, maxArticles } = req.body as {
-        type: 'audit' | 'backfill' | 'refit';
+        type: 'audit' | 'backfill' | 'refit' | 'ticker_refresh';
         ticker?: string;
         tickers?: string[];
         maxArticles?: number;
@@ -2261,6 +2330,7 @@ app.get('/api/watchlist/pulse', authenticateToken, async (req: AuthenticatedRequ
               sentimentSource: item.sentimentSource,
               language: item.language,
               modelId: item.modelId,
+              modelVersion: item.modelVersion,
               price: quote.price,
               changePercent: quote.changePercent
             });
